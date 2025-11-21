@@ -17,9 +17,9 @@
             background-color: #0a0a0a;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             overflow: hidden;
-            /* Prevent scrolling on mobile */
+            /* 防止手机端滚动 */
             touch-action: none;
-            /* Prevent default touch actions like zooming */
+            /* 防止默认触摸操作如缩放 */
         }
 
         canvas {
@@ -28,6 +28,161 @@
             border: 1px solid #333;
             max-width: 100%;
             max-height: 100%;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .hud-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            color: #fff;
+        }
+
+        .game-info {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+
+        .timer {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 32px;
+            font-weight: bold;
+            color: #00ff00;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            background: rgba(0, 0, 0, 0.5);
+            padding: 5px 20px;
+            border-radius: 20px;
+            border: 1px solid rgba(0, 255, 0, 0.3);
+        }
+
+        .leaderboard {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            min-width: 150px;
+        }
+
+        .leaderboard-title {
+            color: #00ff00;
+            font-size: 14px;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 5px;
+            margin-bottom: 5px;
+            text-align: center;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            font-size: 12px;
+            color: #fff;
+            margin: 3px 0;
+        }
+
+        .leaderboard-item.me {
+            color: #ffff00;
+            font-weight: bold;
+        }
+
+        /* 移动端适配 */
+        @media (max-width: 600px) {
+            .timer {
+                font-size: 24px;
+                top: 10px;
+                padding: 2px 15px;
+            }
+
+            .leaderboard {
+                top: 50px;
+                /* 移到计时器或控制器下方 */
+                right: 10px;
+                padding: 10px;
+                min-width: 100px;
+            }
+        }
+
+        .scoreboard {
+            position: absolute;
+            top: 15px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.5);
+            /* Slightly more transparent */
+            padding: 5px 15px;
+            /* Reduced padding */
+            border-radius: 15px;
+            /* Smaller radius */
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(3px);
+            color: #fff;
+            font-weight: bold;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+            pointer-events: auto;
+            /* Allow interactions if needed */
+        }
+
+        .score-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            /* Reduced gap */
+        }
+
+        .score-value {
+            font-size: 18px;
+            /* Smaller font */
+            color: #00ff00;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .score-name {
+            font-size: 12px;
+            /* Smaller font */
+            color: #ccc;
+            max-width: 80px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .vs {
+            margin: 0 10px;
+            /* Reduced margin */
+            font-size: 10px;
+            /* Smaller font */
+            color: #888;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         #ui-layer {
@@ -145,29 +300,42 @@
 <body>
     <div id="login-screen">
         <div class="login-box">
-            <h1>Forge Duel</h1>
-            <p>Enter your pilot name</p>
-            <input type="text" id="username" placeholder="Maverick" maxlength="10">
+            <h1>宇宙海盗大战</h1>
+            <input type="text" id="username" placeholder="输入你的飞行员名称" maxlength="15">
             <br>
-            <button id="start-btn">START ENGINE</button>
+            <button id="start-btn">开始游戏</button>
         </div>
     </div>
 
     <div id="ui-layer" style="display: none;">
         <div class="hud-panel">
-            <h1>Forge Duel</h1>
-            <p>Status: <span style="color: #0f0">Online</span></p>
+            <h1>宇宙海盗大战</h1>
+            <p>状态: <span style="color: #0f0">在线</span></p>
             <div class="controls">
-                <p>Move: <span class="key">↑</span> <span class="key">←</span> <span class="key">→</span></p>
-                <p>Shoot: <span class="key">Space</span></p>
+                <p>移动: <span class="key">↑</span> <span class="key">←</span> <span class="key">→</span></p>
+                <p>射击: <span class="key">空格</span></p>
             </div>
+        </div>
+
+        <div class="game-info">
+            <div class="timer" id="game-timer">03:00</div>
+            <div class="leaderboard" id="leaderboard">
+                <div class="leaderboard-title">排行榜</div>
+                <div id="leaderboard-list">
+                    <!-- 由JS注入 -->
+                </div>
+            </div>
+        </div>
+
+        <div id="game-over-screen" style="display: none;">
+            <h1 id="winner-text">胜利!</h1>
         </div>
     </div>
     <script>
-        // Global variable to store username
-        window.playerName = "Pilot";
+        // 全局变量存储用户名
+        window.playerName = "飞行员";
 
-        // Mobile detection
+        // 移动端检测
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         if (isMobile) {
@@ -181,7 +349,7 @@
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'block';
 
-                // Initialize game only after login
+                // 登录后才初始化游戏
                 const script = document.createElement('script');
                 script.src = 'js/game.js';
                 document.body.appendChild(script);
