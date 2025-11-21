@@ -1,0 +1,36 @@
+# 依赖
+node_modules/
+pigfriends/
+gemini-co-drawing/
+# 数据库文件
+pigs.db
+
+# 日志
+logs
+*.log
+npm-debug.log*
+# 环境变量
+.env
+.env.local
+
+# 系统文件
+.DS_Store
+Thumbs.db
+doc.md
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 临时文件
+tmp/
+temp/
+
+gemini-co-drawing.zip
+pigs.db
+pigs.db
+pigs.db
+public/assets/bullet0.png
+public/assets/ship0.png

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Forge Duel</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #0a0a0a;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+        }
+
+        canvas {
+            display: block;
+            box-shadow: 0 0 50px rgba(0, 255, 0, 0.2);
+            border: 1px solid #333;
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            pointer-events: none;
+        }
+
+        .hud-panel {
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+        }
+
+        h1 {
+            margin: 0 0 10px 0;
+            font-size: 24px;
+            color: #00ff00;
+            text-shadow: 0 0 10px rgba(0, 255, 0, 0.5);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+        }
+
+        p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .controls {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #888;
+        }
+
+        .key {
+            display: inline-block;
+            padding: 2px 6px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #222;
+            color: #eee;
+            margin: 0 2px;
+        }
+
+        #login-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+        }
+
+        .login-box {
+            background: rgba(20, 20, 20, 0.9);
+            padding: 40px;
+            border-radius: 15px;
+            border: 1px solid #00ff00;
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
+            text-align: center;
+        }
+
+        input[type="text"] {
+            background: #111;
+            border: 1px solid #333;
+            padding: 10px 15px;
+            color: #fff;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-bottom: 20px;
+            width: 200px;
+            outline: none;
+            transition: border-color 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #00ff00;
+        }
+
+        button {
+            background: #00ff00;
+            color: #000;
+            border: none;
+            padding: 10px 30px;
+            border-radius: 5px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+</head>
+
+<body>
+    <div id="login-screen">
+        <div class="login-box">
+            <h1>Forge Duel</h1>
+            <p>Enter your pilot name</p>
+            <input type="text" id="username" placeholder="Maverick" maxlength="10">
+            <br>
+            <button id="start-btn">START ENGINE</button>
+        </div>
+    </div>
+
+    <div id="ui-layer" style="display: none;">
+        <div class="hud-panel">
+            <h1>Forge Duel</h1>
+            <p>Status: <span style="color: #0f0">Online</span></p>
+            <div class="controls">
+                <p>Move: <span class="key">↑</span> <span class="key">←</span> <span class="key">→</span></p>
+                <p>Shoot: <span class="key">Space</span></p>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Global variable to store username
+        window.playerName = "Pilot";
+
+        document.getElementById('start-btn').addEventListener('click', () => {
+            const nameInput = document.getElementById('username');
+            if (nameInput.value.trim() !== "") {
+                window.playerName = nameInput.value.trim();
+                document.getElementById('login-screen').style.display = 'none';
+                document.getElementById('ui-layer').style.display = 'block';
+
+                // Initialize game only after login
+                const script = document.createElement('script');
+                script.src = 'js/game.js';
+                document.body.appendChild(script);
+            }
+        });
+    </script>
+</body>
+
+</html>
