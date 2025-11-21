@@ -12,9 +12,14 @@ app.get('/', (req, res) => {
 });
 
 const players = {};
+const powerUps = {};
+let powerUpIdCounter = 0;
 
 io.on('connection', (socket) => {
     console.log('a user connected: ' + socket.id);
+
+    // Send current power-ups to new player
+    socket.emit('currentPowerUps', powerUps);
 
     socket.on('joinGame', (playerName) => {
         players[socket.id] = {
@@ -23,7 +28,8 @@ io.on('connection', (socket) => {
             playerId: socket.id,
             health: 100,
             score: 0,
-            name: playerName
+            name: playerName,
+            weaponLevel: 1
         };
 
         // Send the players object to the new player
@@ -36,7 +42,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('user disconnected: ' + socket.id);
         delete players[socket.id];
-        io.emit('disconnect', socket.id);
+        io.emit('playerDisconnected', socket.id);
     });
 
     socket.on('playerMovement', (movementData) => {
@@ -60,11 +66,33 @@ io.on('connection', (socket) => {
             io.emit('updateHealth', { playerId: socket.id, health: players[socket.id].health });
 
             if (players[socket.id].health <= 0) {
-                // Reset player or handle death
+                // Drop power-up
+                const powerUpId = `powerup_${powerUpIdCounter++}`;
+                powerUps[powerUpId] = {
+                    id: powerUpId,
+                    x: players[socket.id].x,
+                    y: players[socket.id].y
+                };
+                io.emit('powerUpDropped', powerUps[powerUpId]);
+
+                // Reset player
                 players[socket.id].health = 100;
+                players[socket.id].weaponLevel = 1; // Reset weapon level on death
                 players[socket.id].x = Math.floor(Math.random() * 700) + 50;
                 players[socket.id].y = Math.floor(Math.random() * 500) + 50;
                 io.emit('playerRespawn', players[socket.id]);
+            }
+        }
+    });
+
+    socket.on('playerCollectPowerUp', (powerUpId) => {
+        if (powerUps[powerUpId]) {
+            delete powerUps[powerUpId];
+            io.emit('powerUpCollected', powerUpId);
+
+            if (players[socket.id]) {
+                players[socket.id].weaponLevel = Math.min(players[socket.id].weaponLevel + 1, 3);
+                io.emit('updateWeaponLevel', { playerId: socket.id, weaponLevel: players[socket.id].weaponLevel });
             }
         }
     });

@@ -23,6 +23,7 @@ function preload() {
     // Load assets as textures to be processed
     this.load.image('ship_raw', 'assets/ship.png');
     this.load.image('bullet_raw', 'assets/bullet.png');
+    this.load.image('powerup_raw', 'assets/powerup.png');
     this.load.image('bg', 'assets/bg.png');
 }
 
@@ -32,6 +33,7 @@ function create() {
     // Process images to remove black background
     processImage(this, 'ship_raw', 'ship');
     processImage(this, 'bullet_raw', 'bullet');
+    processImage(this, 'powerup_raw', 'powerup');
 
     this.add.tileSprite(0, 0, 1600, 1200, 'bg').setOrigin(0);
     this.physics.world.setBounds(0, 0, 1600, 1200);
@@ -43,6 +45,7 @@ function create() {
     this.socket.emit('joinGame', window.playerName || 'Pilot');
 
     this.otherPlayers = this.physics.add.group();
+    this.powerUps = this.physics.add.group();
 
     this.socket.on('currentPlayers', function (players) {
         Object.keys(players).forEach(function (id) {
@@ -58,7 +61,37 @@ function create() {
         addOtherPlayers(self, playerInfo);
     });
 
-    this.socket.on('disconnect', function (playerId) {
+    this.socket.on('currentPowerUps', function (powerUps) {
+        Object.keys(powerUps).forEach(function (id) {
+            addPowerUp(self, powerUps[id]);
+        });
+    });
+
+    this.socket.on('powerUpDropped', function (powerUp) {
+        addPowerUp(self, powerUp);
+    });
+
+    this.socket.on('powerUpCollected', function (powerUpId) {
+        self.powerUps.getChildren().forEach(function (powerUp) {
+            if (powerUp.id === powerUpId) {
+                powerUp.destroy();
+            }
+        });
+    });
+
+    this.socket.on('updateWeaponLevel', function (info) {
+        if (self.ship && info.playerId === self.socket.id) {
+            self.ship.weaponLevel = info.weaponLevel;
+        } else {
+            self.otherPlayers.getChildren().forEach(function (otherPlayer) {
+                if (info.playerId === otherPlayer.playerId) {
+                    otherPlayer.weaponLevel = info.weaponLevel;
+                }
+            });
+        }
+    });
+
+    this.socket.on('playerDisconnected', function (playerId) {
         self.otherPlayers.getChildren().forEach(function (otherPlayer) {
             if (playerId === otherPlayer.playerId) {
                 if (otherPlayer.nameText) otherPlayer.nameText.destroy();
@@ -85,8 +118,12 @@ function create() {
 
     this.socket.on('updateHealth', function (info) {
         if (self.ship && info.playerId === self.socket.id) {
-            self.health = info.health;
-            updateHealthBar(self, self.ship, self.health);
+            // Only update if server value is significantly different (resync)
+            // or if we died (health <= 0)
+            if (Math.abs(self.health - info.health) > 20 || info.health <= 0) {
+                self.health = info.health;
+                updateHealthBar(self, self.ship, self.health);
+            }
         } else {
             self.otherPlayers.getChildren().forEach(function (otherPlayer) {
                 if (info.playerId === otherPlayer.playerId) {
@@ -101,6 +138,7 @@ function create() {
         if (self.ship && playerInfo.playerId === self.socket.id) {
             self.ship.setPosition(playerInfo.x, playerInfo.y);
             self.health = 100;
+            self.ship.weaponLevel = 1;
             updateHealthBar(self, self.ship, 100);
             if (self.ship.nameText) self.ship.nameText.setPosition(self.ship.x, self.ship.y - 40);
         } else {
@@ -108,6 +146,7 @@ function create() {
                 if (playerInfo.playerId === otherPlayer.playerId) {
                     otherPlayer.setPosition(playerInfo.x, playerInfo.y);
                     otherPlayer.health = 100;
+                    otherPlayer.weaponLevel = 1;
                     updateHealthBar(self, otherPlayer, 100);
                     if (otherPlayer.nameText) otherPlayer.nameText.setPosition(otherPlayer.x, otherPlayer.y - 40);
                 }
@@ -117,27 +156,64 @@ function create() {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+
+    // Mobile detection
+    this.isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    this.lastFired = 0;
 }
 
-function update() {
+function update(time, delta) {
     if (this.ship) {
-        if (this.cursors.left.isDown) {
-            this.ship.setAngularVelocity(-150);
-        } else if (this.cursors.right.isDown) {
-            this.ship.setAngularVelocity(150);
-        } else {
-            this.ship.setAngularVelocity(0);
-        }
+        if (this.isMobile) {
+            // Mobile Controls
+            const pointer = this.input.activePointer;
 
-        if (this.cursors.up.isDown) {
-            this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
-        } else {
-            this.ship.setAcceleration(0);
-        }
+            if (pointer.isDown) {
+                // Calculate angle to pointer
+                const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
 
-        if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
-            fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation }, true);
-            this.socket.emit('playerShoot');
+                // Adjust rotation because sprite faces DOWN (1.57 rad) by default
+                // We want rotation 0 to be DOWN? No, usually rotation 0 means 0.
+                // If sprite is drawn facing down:
+                // Rotation 0 -> Visual Down.
+                // We want Visual Angle 'angle'.
+                // So Rotation = angle - 1.57.
+                this.ship.setRotation(angle - 1.57);
+
+                // Move forward in the direction of the pointer (which is 'angle')
+                // Since our ship's "forward" is rotation + 1.57, this works out: (angle - 1.57) + 1.57 = angle.
+                this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
+            } else {
+                this.ship.setAcceleration(0);
+            }
+
+            // Auto-fire
+            if (time > this.lastFired) {
+                fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
+                this.socket.emit('playerShoot');
+                this.lastFired = time + 300; // Fire every 300ms
+            }
+
+        } else {
+            // Desktop Controls
+            if (this.cursors.left.isDown) {
+                this.ship.setAngularVelocity(-150);
+            } else if (this.cursors.right.isDown) {
+                this.ship.setAngularVelocity(150);
+            } else {
+                this.ship.setAngularVelocity(0);
+            }
+
+            if (this.cursors.up.isDown) {
+                this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
+            } else {
+                this.ship.setAcceleration(0);
+            }
+
+            if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+                fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
+                this.socket.emit('playerShoot');
+            }
         }
 
         const x = this.ship.x;
@@ -158,6 +234,12 @@ function update() {
         if (this.ship.nameText) {
             this.ship.nameText.setPosition(this.ship.x, this.ship.y - 40);
         }
+
+        // Check for powerup collection
+        this.physics.overlap(this.ship, this.powerUps, function (ship, powerUp) {
+            this.socket.emit('playerCollectPowerUp', powerUp.id);
+            powerUp.destroy();
+        }, null, this);
     }
 
     this.otherPlayers.getChildren().forEach(otherPlayer => {
@@ -202,6 +284,7 @@ function addPlayer(self, playerInfo) {
     self.ship.setMaxVelocity(200);
     self.cameras.main.startFollow(self.ship);
     self.health = playerInfo.health || 100;
+    self.ship.weaponLevel = playerInfo.weaponLevel || 1;
 
     // Add name text
     self.ship.nameText = self.add.text(playerInfo.x, playerInfo.y - 40, playerInfo.name || 'Pilot', {
@@ -217,6 +300,7 @@ function addOtherPlayers(self, playerInfo) {
     otherPlayer.setDisplaySize(50, 50);
     otherPlayer.playerId = playerInfo.playerId;
     otherPlayer.health = playerInfo.health || 100;
+    otherPlayer.weaponLevel = playerInfo.weaponLevel || 1;
     otherPlayer.setTint(0xff0000); // Tint enemy ships red
     self.otherPlayers.add(otherPlayer);
 
@@ -228,24 +312,64 @@ function addOtherPlayers(self, playerInfo) {
     }).setOrigin(0.5);
 }
 
+function addPowerUp(self, powerUpInfo) {
+    const powerUp = self.physics.add.sprite(powerUpInfo.x, powerUpInfo.y, 'powerup');
+    powerUp.id = powerUpInfo.id;
+    powerUp.setDisplaySize(30, 30);
+    self.powerUps.add(powerUp);
+}
+
 function fireBullet(scene, playerInfo, isOwner) {
-    const bullet = scene.physics.add.sprite(playerInfo.x, playerInfo.y, 'bullet');
-    bullet.setDisplaySize(20, 20);
+    const weaponLevel = playerInfo.weaponLevel || 1;
 
-    // Rotation + 1.57 (90 degrees) because sprites usually point up, but 0 rotation in Phaser is right.
-    // Assuming the ship sprite points UP.
-    scene.physics.velocityFromRotation(playerInfo.rotation + 1.57, 600, bullet.body.velocity);
-    bullet.rotation = playerInfo.rotation;
+    const createBullet = (offsetX, offsetY, angleOffset) => {
+        const bullet = scene.physics.add.sprite(playerInfo.x + offsetX, playerInfo.y + offsetY, 'bullet');
+        bullet.setDisplaySize(20, 20);
 
-    setTimeout(() => {
-        if (bullet.active) bullet.destroy();
-    }, 2000);
+        const angle = playerInfo.rotation + 1.57 + angleOffset; // 1.57 is 90 degrees correction
+        scene.physics.velocityFromRotation(angle, 600, bullet.body.velocity);
+        bullet.rotation = playerInfo.rotation + angleOffset;
 
-    if (!isOwner) {
-        scene.physics.add.overlap(scene.ship, bullet, () => {
-            bullet.destroy();
-            scene.socket.emit('playerHit', 10);
-        }, null, scene);
+        setTimeout(() => {
+            if (bullet.active) bullet.destroy();
+        }, 2000);
+
+        if (isOwner) {
+            // Shooter side: Check if MY bullet hits ENEMIES
+            // Swap arguments: bullet first, group second. Callback: (bullet, enemy)
+            scene.physics.add.overlap(bullet, scene.otherPlayers, (b, enemySprite) => {
+                if (b.active) {
+                    b.destroy();
+                    // Optimistic visual update for enemy health
+                    if (enemySprite.health !== undefined) {
+                        enemySprite.health -= 10;
+                        updateHealthBar(scene, enemySprite, enemySprite.health);
+                    }
+                }
+            });
+        } else {
+            // Victim side: Check if ENEMY bullet hits ME
+            scene.physics.add.overlap(bullet, scene.ship, (b, ship) => {
+                if (b.active) {
+                    b.destroy();
+                    // Optimistic health update for self
+                    scene.health -= 10;
+                    updateHealthBar(scene, scene.ship, scene.health);
+                    scene.socket.emit('playerHit', 10);
+                }
+            });
+        }
+    };
+
+    if (weaponLevel === 1) {
+        createBullet(0, 0, 0);
+    } else if (weaponLevel === 2) {
+        createBullet(10, 0, 0);
+        createBullet(-10, 0, 0);
+    } else if (weaponLevel >= 3) {
+        createBullet(0, 0, 0);
+        createBullet(0, 0, 0.2);
+        createBullet(0, 0, -0.2);
     }
 }
 
