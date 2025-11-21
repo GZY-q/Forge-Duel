@@ -1,14 +1,22 @@
 const config = {
     type: Phaser.AUTO,
     parent: 'phaser-example',
-    width: 800,
-    height: 600,
+    width: window.innerWidth,
+    height: window.innerHeight,
+    scale: {
+        mode: Phaser.Scale.RESIZE,
+        autoCenter: Phaser.Scale.CENTER_BOTH
+    },
     physics: {
         default: 'arcade',
         arcade: {
             debug: false,
             gravity: { y: 0 }
         }
+    },
+    fps: {
+        target: 120,
+        min: 30
     },
     scene: {
         preload: preload,
@@ -160,6 +168,9 @@ function create() {
     // Mobile detection
     this.isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     this.lastFired = 0;
+
+    // Fix UI ghosting by updating positions after physics step
+    this.events.on('postupdate', postUpdate, this);
 }
 
 function update(time, delta) {
@@ -173,15 +184,9 @@ function update(time, delta) {
                 const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
 
                 // Adjust rotation because sprite faces DOWN (1.57 rad) by default
-                // We want rotation 0 to be DOWN? No, usually rotation 0 means 0.
-                // If sprite is drawn facing down:
-                // Rotation 0 -> Visual Down.
-                // We want Visual Angle 'angle'.
-                // So Rotation = angle - 1.57.
                 this.ship.setRotation(angle - 1.57);
 
-                // Move forward in the direction of the pointer (which is 'angle')
-                // Since our ship's "forward" is rotation + 1.57, this works out: (angle - 1.57) + 1.57 = angle.
+                // Move forward in the direction of the pointer
                 this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
             } else {
                 this.ship.setAcceleration(0);
@@ -229,17 +234,21 @@ function update(time, delta) {
             rotation: this.ship.rotation
         };
 
-        updateHealthBar(this, this.ship, this.health);
-
-        if (this.ship.nameText) {
-            this.ship.nameText.setPosition(this.ship.x, this.ship.y - 40);
-        }
-
         // Check for powerup collection
         this.physics.overlap(this.ship, this.powerUps, function (ship, powerUp) {
             this.socket.emit('playerCollectPowerUp', powerUp.id);
             powerUp.destroy();
         }, null, this);
+    }
+}
+
+function postUpdate(time, delta) {
+    // Update UI elements after physics step to prevent ghosting
+    if (this.ship) {
+        updateHealthBar(this, this.ship, this.health);
+        if (this.ship.nameText) {
+            this.ship.nameText.setPosition(this.ship.x, this.ship.y - 40);
+        }
     }
 
     this.otherPlayers.getChildren().forEach(otherPlayer => {
