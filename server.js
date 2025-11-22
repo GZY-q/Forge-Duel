@@ -141,6 +141,8 @@ io.on('connection', (socket) => {
 
     socket.on('playerHit', (damage, attackerId) => {
         if (players[socket.id]) {
+            if (players[socket.id].health <= 0) return;
+
             let actualDamage = damage;
 
             // 护盾逻辑
@@ -173,6 +175,12 @@ io.on('connection', (socket) => {
                 // 先发送血量归零的消息
                 io.emit('updateHealth', { playerId: socket.id, health: 0 });
 
+                // 击杀者加分 (击杀 +100)
+                if (attackerId && players[attackerId]) {
+                    players[attackerId].score += 100;
+                    io.emit('updateScore', { playerId: attackerId, score: players[attackerId].score });
+                }
+
                 // 掉落包含分数的能量球
                 const powerUpId = `powerup_${powerUpIdCounter++}`;
                 // 值为当前分数 + 1（基础值）
@@ -192,18 +200,18 @@ io.on('connection', (socket) => {
                     io.emit('playerKilled', { killerId: attackerId, victimId: socket.id });
                 }
 
-                // 重置玩家
-                players[socket.id].score = 0; // 死亡时丢失分数
-                players[socket.id].health = 100;
-                players[socket.id].weaponLevel = 1;
-                players[socket.id].hasVampire = false;
-                players[socket.id].hasShield = false;
-                players[socket.id].shieldHealth = 0;
-                players[socket.id].x = Math.floor(Math.random() * 700) + 50;
-                players[socket.id].y = Math.floor(Math.random() * 500) + 50;
-
                 // 延迟100ms发送重生消息，确保血量归零先被看到
                 setTimeout(() => {
+                    // 重置玩家
+                    players[socket.id].score = 0; // 死亡时丢失分数
+                    players[socket.id].health = 100;
+                    players[socket.id].weaponLevel = 1;
+                    players[socket.id].hasVampire = false;
+                    players[socket.id].hasShield = false;
+                    players[socket.id].shieldHealth = 0;
+                    players[socket.id].x = Math.floor(Math.random() * 700) + 50;
+                    players[socket.id].y = Math.floor(Math.random() * 500) + 50;
+
                     io.emit('playerRespawn', players[socket.id]);
                 }, 100);
             } else {
@@ -292,6 +300,8 @@ io.on('connection', (socket) => {
     // 追踪导弹命中
     socket.on('trackingMissileHit', (targetId) => {
         if (players[targetId]) {
+            if (players[targetId].health <= 0) return;
+
             let damage = 45; // 追踪导弹造45点伤害
 
             // 护盾逻辑
@@ -333,10 +343,7 @@ io.on('connection', (socket) => {
                 const powerUpId = `powerup_${powerUpIdCounter++}`;
                 const scoreValue = players[targetId].score + 1; // Victim's score + 1
 
-                // 被击杀者分数减半
-                const dropScore = Math.floor(players[targetId].score / 2);
-                players[targetId].score -= dropScore;
-                io.emit('updateScore', { playerId: targetId, score: players[targetId].score });
+
 
                 powerUps[powerUpId] = {
                     id: powerUpId,
@@ -350,17 +357,17 @@ io.on('connection', (socket) => {
                 // 广播击杀事件
                 io.emit('playerKilled', { killerId: socket.id, victimId: targetId });
 
-                // 重置玩家
-                players[targetId].score = 0;
-                players[targetId].health = 100;
-                players[targetId].weaponLevel = 1;
-                players[targetId].hasVampire = false;
-                players[targetId].hasShield = false;
-                players[targetId].shieldHealth = 0;
-                players[targetId].x = Math.floor(Math.random() * 700) + 50;
-                players[targetId].y = Math.floor(Math.random() * 500) + 50;
-
                 setTimeout(() => {
+                    // 重置玩家
+                    players[targetId].score = 0;
+                    players[targetId].health = 100;
+                    players[targetId].weaponLevel = 1;
+                    players[targetId].hasVampire = false;
+                    players[targetId].hasShield = false;
+                    players[targetId].shieldHealth = 0;
+                    players[targetId].x = Math.floor(Math.random() * 700) + 50;
+                    players[targetId].y = Math.floor(Math.random() * 500) + 50;
+
                     io.emit('playerRespawn', players[targetId]);
                 }, 100);
             } else {
