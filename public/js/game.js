@@ -46,6 +46,25 @@ function preload() {
     for (let i = 1; i <= 8; i++) {
         this.load.image(`emote_${i}`, `assets/${i}.png`);
     }
+
+    // 加载音频
+    this.load.audio('bgm', 'assets/bgm.mp3');
+    this.load.audio('shoot', 'assets/shoot.mp3');
+    this.load.audio('explosion', 'assets/explosion.mp3');
+    this.load.audio('collect', 'assets/collect.mp3');
+
+    // 新增音效
+    // this.load.audio('kill', 'assets/kill.mp3'); // 移除旧的
+    for (let i = 1; i <= 5; i++) {
+        this.load.audio(`kill${i}`, `assets/kill${i}.mp3`);
+    }
+    this.load.audio('chest', 'assets/chest.mp3');
+    this.load.audio('missile', 'assets/missile.mp3');
+
+    // 游戏结束音乐
+    for (let i = 1; i <= 3; i++) {
+        this.load.audio(`over${i}`, `assets/over${i}.mp3`);
+    }
 }
 
 function create() {
@@ -120,6 +139,7 @@ function create() {
                 // 播放爆炸或消失动画
                 chest.destroy();
                 // 可以添加粒子效果
+                if (self.playSound) self.playSound('chest');
             }
         });
     });
@@ -171,6 +191,20 @@ function create() {
 
     this.socket.on('playerShieldUpdate', function (data) {
         // 护盾受击反馈?
+    });
+
+    // 连杀计数
+    self.killStreak = 0;
+
+    this.socket.on('playerKilled', function (data) {
+        if (data.killerId === self.socket.id) {
+            self.killStreak++;
+            const soundId = Math.min(self.killStreak, 5);
+            if (self.playSound) self.playSound(`kill${soundId}`);
+        }
+        if (data.victimId === self.socket.id) {
+            self.killStreak = 0;
+        }
     });
 
     this.socket.on('powerUpCollected', function (powerUpId) {
@@ -275,15 +309,32 @@ function create() {
     });
 
     this.socket.on('gameOver', function (info) {
+        self.killStreak = 0; // 重置连杀
         const gameOverScreen = document.getElementById('game-over-screen');
         const winnerText = document.getElementById('winner-text');
-        winnerText.innerText = info.winnerName + " 胜利!";
+        winnerText.innerText = info.winnerName + "胜利!";
         gameOverScreen.style.display = 'flex';
 
-        // 游戏自动重置后3秒自动隐藏
+        // 暂停背景音乐
+        if (self.bgm) self.bgm.pause();
+
+        // 随机播放结束音乐
+        const overId = Math.floor(Math.random() * 3) + 1;
+        let overMusic = null;
+        if (self.cache.audio.exists(`over${overId}`)) {
+            overMusic = self.sound.add(`over${overId}`, { volume: 0.5 });
+            overMusic.play();
+        }
+
+        // 8秒后恢复
         setTimeout(() => {
             gameOverScreen.style.display = 'none';
-        }, 3000);
+            if (overMusic) {
+                overMusic.stop();
+                overMusic.destroy(); // 销毁实例
+            }
+            if (self.bgm) self.bgm.resume();
+        }, 8000);
     });
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -321,6 +372,23 @@ function create() {
             }
         });
     }
+
+    // 播放背景音乐
+    if (this.sound.get('bgm') || this.cache.audio.exists('bgm')) {
+        try {
+            this.bgm = this.sound.add('bgm', { loop: true, volume: 0.3 });
+            this.bgm.play();
+        } catch (e) {
+            console.warn('Audio play failed', e);
+        }
+    }
+
+    // 音效播放辅助函数
+    this.playSound = (key) => {
+        if (this.cache.audio.exists(key)) {
+            this.sound.play(key);
+        }
+    };
 
     // 监听表情包事件
     this.socket.on('playerEmote', function (data) {
@@ -403,6 +471,7 @@ function update(time, delta) {
             }
             this.socket.emit('playerCollectPowerUp', powerUp.id);
             powerUp.destroy();
+            if (this.playSound) this.playSound('collect'); // 仅自己收集时播放
         }, null, this);
     }
 }
@@ -415,6 +484,7 @@ function postUpdate(time, delta) {
             this.ship.nameText.setPosition(this.ship.x, this.ship.y - 40);
         }
 
+        // 更新攻击方向指示箭头
         if (this.ship.directionArrow) {
             const offset = 40; // 距离飞船中心的距离
             const angle = this.ship.rotation + 1.41; // 修正角度（飞船朝向）
@@ -435,10 +505,18 @@ function postUpdate(time, delta) {
         if (otherPlayer.shieldSprite) {
             otherPlayer.shieldSprite.setPosition(otherPlayer.x, otherPlayer.y);
         }
+        if (otherPlayer.emote) {
+            otherPlayer.emote.setPosition(otherPlayer.x, otherPlayer.y - 50);
+        }
     });
 
     if (this.ship && this.ship.shieldSprite) {
         this.ship.shieldSprite.setPosition(this.ship.x, this.ship.y);
+    }
+
+    // 更新表情包位置
+    if (this.ship && this.ship.emote) {
+        this.ship.emote.setPosition(this.ship.x, this.ship.y - 50);
     }
 }
 
@@ -488,7 +566,7 @@ function addPlayer(self, playerInfo) {
     // 添加攻击方向指示箭头 (荧光绿)
     // 创建一个指向下方的三角形: 尖端(0, 10), 左底(-6, -8), 右底(6, -8)
     // 这样与飞船默认朝下一致，箭头就会指向外侧
-    self.ship.directionArrow = self.add.triangle(0, 0, 0, 8, -8, -8, 8, -8, 0x39ff14);
+    self.ship.directionArrow = self.add.triangle(0, 0, 0, 10, -6, -8, 6, -8, 0x39ff14);
 }
 
 function addOtherPlayers(self, playerInfo) {
@@ -533,6 +611,9 @@ function addChest(self, chestInfo) {
 function fireBullet(scene, playerInfo, isOwner) {
     const weaponLevel = playerInfo.weaponLevel || 1;
 
+    // 播放射击音效 (仅自己)
+    if (isOwner && scene.playSound) scene.playSound('shoot');
+
     const createBullet = (offsetX, offsetY, angleOffset) => {
         const bullet = scene.physics.add.sprite(playerInfo.x + offsetX, playerInfo.y + offsetY, 'bullet');
         bullet.setDisplaySize(20, 20);
@@ -572,7 +653,7 @@ function fireBullet(scene, playerInfo, isOwner) {
                 if (b.active) {
                     b.destroy();
                     // 自身血量的乐观更新
-                    let damage = 10;
+                    const damage = 10;
                     // 简单的客户端护盾预测
                     if (scene.ship.shieldSprite) {
                         // 视觉上不做扣血，等待服务器同步? 或者乐观扣除护盾?
@@ -641,7 +722,7 @@ function fireTrackingMissile(scene, shooter, targetId, isOwner) {
     const missile = scene.physics.add.sprite(shooter.x, shooter.y, 'tracking_missile');
     missile.setDisplaySize(25, 25);
     missile.targetId = targetId;
-    missile.speed = 300; // 比普通子弹慢
+    missile.speed = 200; // 比普通子弹慢
     missile.destroyed = false; // 标记是否已销毁
     missile.isOwner = isOwner; // 是否是发射者
 
@@ -680,6 +761,8 @@ function fireTrackingMissile(scene, shooter, targetId, isOwner) {
                 // 只有发射者通知服务器命中
                 if (missile.isOwner) {
                     scene.socket.emit('trackingMissileHit', targetId);
+                    // 播放爆炸音效 (仅自己)
+                    if (scene.playSound) scene.playSound('missile');
                 }
 
                 // 销毁导弹
