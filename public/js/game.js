@@ -42,6 +42,10 @@ function preload() {
     this.load.image('tracking_missile', 'assets/trackmissiles.png');
     this.load.image('tracking_orb', 'assets/trackmissiles.png'); // 掉落物图标
 
+    // 加载表情包
+    for (let i = 1; i <= 8; i++) {
+        this.load.image(`emote_${i}`, `assets/${i}.png`);
+    }
 }
 
 function create() {
@@ -289,6 +293,43 @@ function create() {
     this.isMobile = this.sys.game.device.os.android || this.sys.game.device.os.iOS || this.sys.game.device.os.iPad || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     this.lastFired = 0;
 
+    // 表情包按钮事件
+    const emoteBtn = document.getElementById('emote-btn');
+    if (emoteBtn) {
+        emoteBtn.onclick = (e) => {
+            e.stopPropagation(); // 防止触发游戏点击
+            const emoteId = Math.floor(Math.random() * 8) + 1;
+            this.socket.emit('sendEmote', emoteId);
+
+            // 按钮冷却效果
+            emoteBtn.disabled = true;
+            emoteBtn.innerText = "冷却中...";
+            setTimeout(() => {
+                emoteBtn.disabled = false;
+                emoteBtn.innerText = "发送表情";
+            }, 3000);
+        };
+
+        // 防止按钮上的触摸事件触发游戏控制
+        emoteBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+        emoteBtn.addEventListener('touchend', (e) => e.stopPropagation());
+
+        // 添加键盘快捷键 'M' 发送表情
+        this.input.keyboard.on('keydown-M', () => {
+            if (!emoteBtn.disabled) {
+                emoteBtn.click();
+            }
+        });
+    }
+
+    // 监听表情包事件
+    this.socket.on('playerEmote', function (data) {
+        const target = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+        if (target) {
+            showEmote(self, target, data.emoteId);
+        }
+    });
+
     // 通过在物理步骤后更新位置来修复UI重影问题
     this.events.on('postupdate', postUpdate, this);
 }
@@ -440,7 +481,7 @@ function addPlayer(self, playerInfo) {
     // 添加名字文本
     self.ship.nameText = self.add.text(playerInfo.x, playerInfo.y - 40, playerInfo.name || '飞行员', {
         fontSize: '14px',
-        fill: '#00ff00',
+        fill: '#ffffffff',
         align: 'center'
     }).setOrigin(0.5);
 
@@ -457,13 +498,13 @@ function addOtherPlayers(self, playerInfo) {
     otherPlayer.playerId = playerInfo.playerId;
     otherPlayer.health = playerInfo.health || 100;
     otherPlayer.weaponLevel = playerInfo.weaponLevel || 1;
-    otherPlayer.setTint(0xff0000); // 将敌方飞船染为红色
+    otherPlayer.setTint(0x3370d2ff); // 将敌方飞船染为蓝色
     self.otherPlayers.add(otherPlayer);
 
     // 添加名字文本
     otherPlayer.nameText = self.add.text(playerInfo.x, playerInfo.y - 40, playerInfo.name || '敌人', {
         fontSize: '14px',
-        fill: '#ff0000',
+        fill: '#ffffffff',
         align: 'center'
     }).setOrigin(0.5);
 }
@@ -556,6 +597,28 @@ function fireBullet(scene, playerInfo, isOwner) {
         createBullet(0, 0, 0.2);
         createBullet(0, 0, -0.2);
     }
+}
+
+function showEmote(scene, player, emoteId) {
+    // 如果已有表情，先移除
+    if (player.emote) {
+        player.emote.destroy();
+    }
+
+    // 创建新表情
+    const key = `emote_${emoteId}`;
+    const emote = scene.add.sprite(player.x, player.y - 50, key);
+    emote.setDisplaySize(60, 60); // 比飞船(50)稍大
+    emote.setDepth(100); // 确保显示在最上层
+    player.emote = emote;
+
+    // 3秒后自动销毁
+    setTimeout(() => {
+        if (player.emote === emote) { // 确保销毁的是当前的表情
+            emote.destroy();
+            player.emote = null;
+        }
+    }, 3000);
 }
 
 function updateHealthBar(scene, player, health) {

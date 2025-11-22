@@ -265,6 +265,12 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('sendEmote', (emoteId) => {
+        if (players[socket.id]) {
+            io.emit('playerEmote', { playerId: socket.id, emoteId: emoteId });
+        }
+    });
+
     // 追踪导弹命中
     socket.on('trackingMissileHit', (targetId) => {
         if (players[targetId]) {
