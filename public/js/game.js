@@ -373,7 +373,7 @@ function create() {
     // 播放背景音乐
     if (this.sound.get('bgm') || this.cache.audio.exists('bgm')) {
         try {
-            this.bgm = this.sound.add('bgm', { loop: true, volume: 0.3 });
+            this.bgm = this.sound.add('bgm', { loop: true, volume: 0.1 });
             this.bgm.play();
         } catch (e) {
             console.warn('Audio play failed', e);
