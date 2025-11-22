@@ -28,10 +28,10 @@ const config = {
 const game = new Phaser.Game(config);
 
 function preload() {
-    // 加载资源作为纹理以便处理
-    this.load.image('ship_raw', 'assets/ship.png');
-    this.load.image('bullet_raw', 'assets/bullet.png');
-    this.load.image('powerup_raw', 'assets/powerup.png');
+    // 加载资源
+    this.load.image('ship', 'assets/ship.png');
+    this.load.image('bullet', 'assets/bullet.png');
+    this.load.image('powerup', 'assets/powerup.png');
     this.load.image('bg', 'assets/bg.png');
 
     // 新增资源
@@ -70,10 +70,7 @@ function preload() {
 function create() {
     const self = this;
 
-    // 处理图像以移除黑色背景
-    processImage(this, 'ship_raw', 'ship');
-    processImage(this, 'bullet_raw', 'bullet');
-    processImage(this, 'powerup_raw', 'powerup');
+
 
     this.add.tileSprite(0, 0, 1600, 1200, 'bg').setOrigin(0);
     this.physics.world.setBounds(0, 0, 1600, 1200);
@@ -520,29 +517,7 @@ function postUpdate(time, delta) {
     }
 }
 
-function processImage(scene, key, newKey) {
-    const texture = scene.textures.get(key);
-    const canvas = scene.textures.createCanvas(newKey, texture.getSourceImage().width, texture.getSourceImage().height);
-    const context = canvas.context;
 
-    context.drawImage(texture.getSourceImage(), 0, 0);
-    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-    const data = imageData.data;
-
-    for (let i = 0; i < data.length; i += 4) {
-        const r = data[i];
-        const g = data[i + 1];
-        const b = data[i + 2];
-
-        // 黑色背景的简单阈值
-        if (r < 20 && g < 20 && b < 20) {
-            data[i + 3] = 0; // 设置透明度为0
-        }
-    }
-
-    context.putImageData(imageData, 0, 0);
-    canvas.refresh();
-}
 
 function addPlayer(self, playerInfo) {
     self.ship = self.physics.add.sprite(playerInfo.x, playerInfo.y, 'ship');
