@@ -13,9 +13,39 @@ app.get('/', (req, res) => {
 
 const GAME_DURATION = 3 * 60 * 1000; // 3分钟
 let gameEndTime = Date.now() + GAME_DURATION;
+let isIntermission = false;
+let intermissionEndTime = 0;
 
 // 游戏循环：更新计时器和排行榜
 setInterval(() => {
+    if (isIntermission) {
+        if (Date.now() > intermissionEndTime) {
+            // 间歇结束，重置游戏
+            isIntermission = false;
+            gameEndTime = Date.now() + GAME_DURATION;
+
+            Object.keys(players).forEach(id => {
+                players[id].score = 0;
+                players[id].health = 100;
+                players[id].weaponLevel = 1;
+                players[id].x = Math.floor(Math.random() * 700) + 50;
+                players[id].y = Math.floor(Math.random() * 500) + 50;
+                io.emit('playerRespawn', players[id]);
+            });
+            // 清除能量球
+            Object.keys(powerUps).forEach(key => delete powerUps[key]);
+            io.emit('currentPowerUps', powerUps);
+
+            // 清除所有宝箱
+            Object.keys(chests).forEach(key => {
+                io.emit('chestBroken', key);
+                delete chests[key];
+            });
+            chestIdCounter = 0;
+        }
+        return; // 间歇期不发送更新
+    }
+
     const timeLeft = Math.max(0, Math.ceil((gameEndTime - Date.now()) / 1000));
 
     // 发送排行榜
@@ -31,26 +61,9 @@ setInterval(() => {
         const winner = leaderboard[0];
         io.emit('gameOver', { winnerName: winner ? winner.name : "无人" });
 
-        // 重置游戏
-        gameEndTime = Date.now() + GAME_DURATION;
-        Object.keys(players).forEach(id => {
-            players[id].score = 0;
-            players[id].health = 100;
-            players[id].weaponLevel = 1;
-            players[id].x = Math.floor(Math.random() * 700) + 50;
-            players[id].y = Math.floor(Math.random() * 500) + 50;
-            io.emit('playerRespawn', players[id]);
-        });
-        // 清除能量球
-        Object.keys(powerUps).forEach(key => delete powerUps[key]);
-        io.emit('currentPowerUps', powerUps);
-
-        // 清除所有宝箱
-        Object.keys(chests).forEach(key => {
-            io.emit('chestBroken', key);
-            delete chests[key];
-        });
-        chestIdCounter = 0;
+        // 进入间歇期
+        isIntermission = true;
+        intermissionEndTime = Date.now() + 8000;
     }
 }, 1000);
 
@@ -174,6 +187,11 @@ io.on('connection', (socket) => {
                 };
                 io.emit('powerUpDropped', powerUps[powerUpId]);
 
+                // 广播击杀事件
+                if (attackerId) {
+                    io.emit('playerKilled', { killerId: attackerId, victimId: socket.id });
+                }
+
                 // 重置玩家
                 players[socket.id].score = 0; // 死亡时丢失分数
                 players[socket.id].health = 100;
@@ -239,14 +257,14 @@ io.on('connection', (socket) => {
             if (players[socket.id]) {
                 if (powerUp.type === 'vampire') {
                     players[socket.id].hasVampire = true;
-                    // 这里简单处理：获得后持续10秒
-                    players[socket.id].vampireExpires = Date.now() + 10000;
-                    io.emit('playerPowerUpActive', { playerId: socket.id, type: 'vampire', duration: 10000 });
+                    // 这里简单处理：获得后持续20秒
+                    players[socket.id].vampireExpires = Date.now() + 20000;
+                    io.emit('playerPowerUpActive', { playerId: socket.id, type: 'vampire', duration: 20000 });
                 } else if (powerUp.type === 'shield') {
                     players[socket.id].hasShield = true;
-                    players[socket.id].shieldHealth = 50; // 护盾值
-                    players[socket.id].shieldExpires = Date.now() + 10000; // 护盾持续10秒
-                    io.emit('playerPowerUpActive', { playerId: socket.id, type: 'shield', value: 50, duration: 10000 });
+                    players[socket.id].shieldHealth = 100; // 护盾值
+                    players[socket.id].shieldExpires = Date.now() + 30000; // 护盾持续30秒
+                    io.emit('playerPowerUpActive', { playerId: socket.id, type: 'shield', value: 100, duration: 30000 });
                 } else if (powerUp.type === 'tracking') {
                     // 追踪导弹 - 随机选择一个敌人
                     const otherPlayerIds = Object.keys(players).filter(id => id !== socket.id);
@@ -274,7 +292,7 @@ io.on('connection', (socket) => {
     // 追踪导弹命中
     socket.on('trackingMissileHit', (targetId) => {
         if (players[targetId]) {
-            let damage = 50; // 追踪导弹造50点伤害
+            let damage = 45; // 追踪导弹造45点伤害
 
             // 护盾逻辑
             if (players[targetId].hasShield) {
@@ -305,9 +323,20 @@ io.on('connection', (socket) => {
                 players[targetId].health = 0;
                 io.emit('updateHealth', { playerId: targetId, health: 0 });
 
+                // 击杀者加分 (击杀 +100)
+                if (players[socket.id]) {
+                    players[socket.id].score += 100;
+                    io.emit('updateScore', { playerId: socket.id, score: players[socket.id].score });
+                }
+
                 // 掉落包含分数的能量球
                 const powerUpId = `powerup_${powerUpIdCounter++}`;
-                const scoreValue = players[targetId].score + 1;
+                const scoreValue = players[targetId].score + 1; // Victim's score + 1
+
+                // 被击杀者分数减半
+                const dropScore = Math.floor(players[targetId].score / 2);
+                players[targetId].score -= dropScore;
+                io.emit('updateScore', { playerId: targetId, score: players[targetId].score });
 
                 powerUps[powerUpId] = {
                     id: powerUpId,
@@ -317,6 +346,9 @@ io.on('connection', (socket) => {
                     value: scoreValue
                 };
                 io.emit('powerUpDropped', powerUps[powerUpId]);
+
+                // 广播击杀事件
+                io.emit('playerKilled', { killerId: socket.id, victimId: targetId });
 
                 // 重置玩家
                 players[targetId].score = 0;

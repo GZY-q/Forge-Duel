@@ -333,6 +333,9 @@
         </div>
     </div>
 
+    <!-- 登录界面背景音乐 -->
+    <audio id="login-bgm" src="assets/bgm0.mp3" loop></audio>
+
     <div id="ui-layer" style="display: none;">
         <div class="hud-panel">
             <h1>宇宙海盗大战</h1>
@@ -363,6 +366,19 @@
         // 全局变量存储用户名
         window.playerName = "飞行员";
 
+        // 尝试播放登录音乐
+        const loginBgm = document.getElementById('login-bgm');
+        loginBgm.volume = 0.3;
+
+        // 解决浏览器自动播放限制：用户首次交互时播放
+        function playLoginMusic() {
+            loginBgm.play().catch(e => console.log("Waiting for interaction to play audio"));
+            document.removeEventListener('click', playLoginMusic);
+            document.removeEventListener('keydown', playLoginMusic);
+        }
+        document.addEventListener('click', playLoginMusic);
+        document.addEventListener('keydown', playLoginMusic);
+
         // 移动端检测
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -373,6 +389,10 @@
         document.getElementById('start-btn').addEventListener('click', () => {
             const nameInput = document.getElementById('username');
             if (nameInput.value.trim() !== "") {
+                // 停止登录音乐
+                loginBgm.pause();
+                loginBgm.currentTime = 0;
+
                 window.playerName = nameInput.value.trim();
                 document.getElementById('login-screen').style.display = 'none';
                 document.getElementById('ui-layer').style.display = 'block';
