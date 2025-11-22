@@ -9,6 +9,7 @@ pigs.db
 logs
 *.log
 npm-debug.log*
+README.md
 # 环境变量
 .env
 .env.local
