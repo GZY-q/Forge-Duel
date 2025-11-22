@@ -33,6 +33,15 @@ function preload() {
     this.load.image('bullet_raw', 'assets/bullet.png');
     this.load.image('powerup_raw', 'assets/powerup.png');
     this.load.image('bg', 'assets/bg.png');
+
+    // 新增资源
+    this.load.image('treasure_chest', 'assets/treasure_chest.png');
+    this.load.image('health_orb', 'assets/health_orb.png');
+    this.load.image('shield_orb', 'assets/shield_orb.png');
+    this.load.image('shield_effect', 'assets/shield_effect.png');
+    this.load.image('tracking_missile', 'assets/trackmissiles.png');
+    this.load.image('tracking_orb', 'assets/trackmissiles.png'); // 掉落物图标
+
 }
 
 function create() {
@@ -54,6 +63,7 @@ function create() {
 
     this.otherPlayers = this.physics.add.group();
     this.powerUps = this.physics.add.group();
+    this.chests = this.physics.add.group(); // 宝箱组
 
     this.socket.on('currentPlayers', function (players) {
         Object.keys(players).forEach(function (id) {
@@ -77,6 +87,86 @@ function create() {
 
     this.socket.on('powerUpDropped', function (powerUp) {
         addPowerUp(self, powerUp);
+    });
+
+    // 宝箱事件
+    this.socket.on('currentChests', function (chests) {
+        Object.keys(chests).forEach(function (id) {
+            addChest(self, chests[id]);
+        });
+    });
+
+    this.socket.on('chestSpawned', function (chest) {
+        addChest(self, chest);
+    });
+
+    this.socket.on('chestDamaged', function (data) {
+        self.chests.getChildren().forEach(function (chest) {
+            if (chest.id === data.id) {
+                // 简单的受击反馈，比如闪烁
+                chest.setTint(0xff0000);
+                setTimeout(() => chest.clearTint(), 100);
+            }
+        });
+    });
+
+    this.socket.on('chestBroken', function (chestId) {
+        self.chests.getChildren().forEach(function (chest) {
+            if (chest.id === chestId) {
+                // 播放爆炸或消失动画
+                chest.destroy();
+                // 可以添加粒子效果
+            }
+        });
+    });
+
+    // 玩家Buff效果
+    this.socket.on('playerPowerUpActive', function (data) {
+        // 找到发射者（shooter）
+        let shooter = null;
+        if (data.playerId === self.socket.id) {
+            shooter = self.ship;
+        } else {
+            shooter = self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+        }
+
+        if (shooter) {
+            if (data.type === 'shield') {
+                if (!shooter.shieldSprite) {
+                    shooter.shieldSprite = self.add.sprite(shooter.x, shooter.y, 'shield_effect');
+                    shooter.shieldSprite.setDisplaySize(60, 60); // 设置为60x60，刚好覆盖飞船
+                    shooter.shieldSprite.setAlpha(0.5);
+                }
+            } else if (data.type === 'vampire') {
+                // 吸血视觉效果，例如红色光环
+                shooter.setTint(0xffaaaa);
+            } else if (data.type === 'tracking') {
+                // 追踪导弹 - 所有客户端都显示
+                if (data.targetId) {
+                    const isOwner = data.playerId === self.socket.id;
+                    fireTrackingMissile(self, shooter, data.targetId, isOwner);
+                }
+            }
+        }
+    });
+
+    this.socket.on('playerPowerUpExpired', function (data) {
+        const target = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+        if (target) {
+            if (data.type === 'shield') {
+                if (target.shieldSprite) {
+                    target.shieldSprite.destroy();
+                    target.shieldSprite = null;
+                }
+            } else if (data.type === 'vampire') {
+                target.clearTint();
+                if (target !== self.ship) target.setTint(0xff0000); // 恢复敌人红色
+            }
+        }
+    });
+
+    this.socket.on('playerShieldUpdate', function (data) {
+        // 护盾受击反馈?
     });
 
     this.socket.on('powerUpCollected', function (powerUpId) {
@@ -266,6 +356,10 @@ function update(time, delta) {
 
         // 检查能量球收集
         this.physics.overlap(this.ship, this.powerUps, function (ship, powerUp) {
+            // 防止刚掉落的能量球立即被收集
+            if (powerUp.spawnTime && Date.now() - powerUp.spawnTime < 500) {
+                return; // 0.5秒保护期
+            }
             this.socket.emit('playerCollectPowerUp', powerUp.id);
             powerUp.destroy();
         }, null, this);
@@ -279,6 +373,17 @@ function postUpdate(time, delta) {
         if (this.ship.nameText) {
             this.ship.nameText.setPosition(this.ship.x, this.ship.y - 40);
         }
+
+        if (this.ship.directionArrow) {
+            const offset = 40; // 距离飞船中心的距离
+            const angle = this.ship.rotation + 1.41; // 修正角度（飞船朝向）
+
+            this.ship.directionArrow.setPosition(
+                this.ship.x + Math.cos(angle) * offset,
+                this.ship.y + Math.sin(angle) * offset
+            );
+            this.ship.directionArrow.setRotation(this.ship.rotation);
+        }
     }
 
     this.otherPlayers.getChildren().forEach(otherPlayer => {
@@ -286,7 +391,14 @@ function postUpdate(time, delta) {
         if (otherPlayer.nameText) {
             otherPlayer.nameText.setPosition(otherPlayer.x, otherPlayer.y - 40);
         }
+        if (otherPlayer.shieldSprite) {
+            otherPlayer.shieldSprite.setPosition(otherPlayer.x, otherPlayer.y);
+        }
     });
+
+    if (this.ship && this.ship.shieldSprite) {
+        this.ship.shieldSprite.setPosition(this.ship.x, this.ship.y);
+    }
 }
 
 function processImage(scene, key, newKey) {
@@ -331,6 +443,11 @@ function addPlayer(self, playerInfo) {
         fill: '#00ff00',
         align: 'center'
     }).setOrigin(0.5);
+
+    // 添加攻击方向指示箭头 (荧光绿)
+    // 创建一个指向下方的三角形: 尖端(0, 10), 左底(-6, -8), 右底(6, -8)
+    // 这样与飞船默认朝下一致，箭头就会指向外侧
+    self.ship.directionArrow = self.add.triangle(0, 0, 0, 8, -8, -8, 8, -8, 0x39ff14);
 }
 
 function addOtherPlayers(self, playerInfo) {
@@ -352,10 +469,24 @@ function addOtherPlayers(self, playerInfo) {
 }
 
 function addPowerUp(self, powerUpInfo) {
-    const powerUp = self.physics.add.sprite(powerUpInfo.x, powerUpInfo.y, 'powerup');
+    let key = 'powerup';
+    if (powerUpInfo.type === 'vampire') key = 'health_orb';
+    else if (powerUpInfo.type === 'shield') key = 'shield_orb';
+    else if (powerUpInfo.type === 'tracking') key = 'tracking_orb';
+
+    const powerUp = self.physics.add.sprite(powerUpInfo.x, powerUpInfo.y, key);
     powerUp.id = powerUpInfo.id;
     powerUp.setDisplaySize(30, 30);
+    powerUp.spawnTime = Date.now(); // 记录生成时间，用于保护期
     self.powerUps.add(powerUp);
+}
+
+function addChest(self, chestInfo) {
+    const chest = self.physics.add.sprite(chestInfo.x, chestInfo.y, 'treasure_chest');
+    chest.id = chestInfo.id;
+    chest.setDisplaySize(40, 40);
+    chest.setImmovable(true); // 宝箱不动
+    self.chests.add(chest);
 }
 
 function fireBullet(scene, playerInfo, isOwner) {
@@ -364,6 +495,7 @@ function fireBullet(scene, playerInfo, isOwner) {
     const createBullet = (offsetX, offsetY, angleOffset) => {
         const bullet = scene.physics.add.sprite(playerInfo.x + offsetX, playerInfo.y + offsetY, 'bullet');
         bullet.setDisplaySize(20, 20);
+        bullet.ownerId = playerInfo.playerId || scene.socket.id; // 记录发射者ID
 
         const angle = playerInfo.rotation + 1.57 + angleOffset; // 1.57是90度修正
         scene.physics.velocityFromRotation(angle, 600, bullet.body.velocity);
@@ -375,7 +507,6 @@ function fireBullet(scene, playerInfo, isOwner) {
 
         if (isOwner) {
             // 射手端：检查我的子弹是否命中敌人
-            // 交换参数：子弹在前，组在后。回调：(子弹, 敌人)
             scene.physics.add.overlap(bullet, scene.otherPlayers, (b, enemySprite) => {
                 if (b.active) {
                     b.destroy();
@@ -386,15 +517,30 @@ function fireBullet(scene, playerInfo, isOwner) {
                     }
                 }
             });
+
+            // 射手端：检查子弹是否命中宝箱
+            scene.physics.add.overlap(bullet, scene.chests, (b, chest) => {
+                if (b.active) {
+                    b.destroy();
+                    scene.socket.emit('chestHit', chest.id, 10);
+                }
+            });
         } else {
             // 受害者端：检查敌人子弹是否命中我
             scene.physics.add.overlap(bullet, scene.ship, (b, ship) => {
                 if (b.active) {
                     b.destroy();
                     // 自身血量的乐观更新
-                    scene.health -= 10;
-                    updateHealthBar(scene, scene.ship, scene.health);
-                    scene.socket.emit('playerHit', 10);
+                    let damage = 10;
+                    // 简单的客户端护盾预测
+                    if (scene.ship.shieldSprite) {
+                        // 视觉上不做扣血，等待服务器同步? 或者乐观扣除护盾?
+                        // 简单起见，这里只发包，血量由服务器同步
+                    } else {
+                        scene.health -= damage;
+                        updateHealthBar(scene, scene.ship, scene.health);
+                    }
+                    scene.socket.emit('playerHit', damage, b.ownerId);
                 }
             });
         }
@@ -425,4 +571,74 @@ function updateHealthBar(scene, player, health) {
     } else {
         player.healthBar.fillColor = 0x00ff00;
     }
+}
+
+// 追踪导弹发射函数
+function fireTrackingMissile(scene, shooter, targetId, isOwner) {
+    const missile = scene.physics.add.sprite(shooter.x, shooter.y, 'tracking_missile');
+    missile.setDisplaySize(25, 25);
+    missile.targetId = targetId;
+    missile.speed = 300; // 比普通子弹慢
+    missile.destroyed = false; // 标记是否已销毁
+    missile.isOwner = isOwner; // 是否是发射者
+
+    // 每帧更新追踪逻辑
+    missile.updateTracking = function () {
+        // 安全检查：如果导弹已被标记为销毁，立即返回
+        if (missile.destroyed || !missile.active) {
+            return;
+        }
+
+        // 查找目标：可能是自己或其他玩家
+        let target = null;
+        if (scene.ship && scene.socket.id === targetId) {
+            // 目标是当前玩家自己
+            target = scene.ship;
+        } else {
+            // 目标是其他玩家
+            target = scene.otherPlayers.getChildren().find(p => p.playerId === targetId);
+        }
+
+        if (target && target.active) {
+            // 计算朝向目标的角度
+            const angle = Phaser.Math.Angle.Between(missile.x, missile.y, target.x, target.y);
+            missile.rotation = angle;
+
+            // 朝目标移动
+            scene.physics.velocityFromRotation(angle, missile.speed, missile.body.velocity);
+
+            // 检测碰撞（所有客户端都进行视觉销毁）
+            if (Phaser.Math.Distance.Between(missile.x, missile.y, target.x, target.y) < 30) {
+                // 标记为已销毁
+                missile.destroyed = true;
+                // 移除事件监听器
+                scene.events.off('update', missile.updateTracking, missile);
+
+                // 只有发射者通知服务器命中
+                if (missile.isOwner) {
+                    scene.socket.emit('trackingMissileHit', targetId);
+                }
+
+                // 销毁导弹
+                missile.destroy();
+            }
+        } else {
+            // 目标不存在，导弹消失
+            missile.destroyed = true;
+            scene.events.off('update', missile.updateTracking, missile);
+            missile.destroy();
+        }
+    };
+
+    // 添加到场景更新
+    scene.events.on('update', missile.updateTracking, missile);
+
+    // 10秒后自动销毁
+    setTimeout(() => {
+        if (missile.active && !missile.destroyed) {
+            missile.destroyed = true;
+            scene.events.off('update', missile.updateTracking, missile);
+            missile.destroy();
+        }
+    }, 10000);
 }
