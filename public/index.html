@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>宇宙海盗大战</title>
     <style>
         body {
@@ -86,6 +86,32 @@
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(5px);
             min-width: 150px;
+            pointer-events: auto;
+            /* 允许点击 */
+        }
+
+        #emote-btn {
+            background: linear-gradient(45deg, #00ff00, #00cc00);
+            border: none;
+            border-radius: 5px;
+            color: #000;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.1s;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+            pointer-events: auto;
+        }
+
+        #emote-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+        }
+
+        #emote-btn:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
         }
 
         .leaderboard-title {
@@ -314,6 +340,7 @@
             <div class="controls">
                 <p>移动: <span class="key">↑</span> <span class="key">←</span> <span class="key">→</span></p>
                 <p>射击: <span class="key">空格</span></p>
+                <p>表情: <span class="key">M</span></p>
             </div>
         </div>
 
@@ -324,6 +351,7 @@
                 <div id="leaderboard-list">
                     <!-- 由JS注入 -->
                 </div>
+                <button id="emote-btn" style="margin-top: 10px; width: 100%;">发送表情</button>
             </div>
         </div>
 
