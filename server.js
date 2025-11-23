@@ -39,6 +39,24 @@ app.use(session({
 const authRoutes = require('./routes/auth');
 app.use('/api/auth', authRoutes);
 
+// 引入User模型
+const User = require('./models/User');
+
+// 排行榜API
+app.get('/api/leaderboard', async (req, res) => {
+    try {
+        // 获取最高分前10名，按分数降序排列
+        const topPlayers = await User.find({}, 'nickname highestScore')
+            .sort({ highestScore: -1 })
+            .limit(10);
+
+        res.json({ success: true, leaderboard: topPlayers });
+    } catch (error) {
+        console.error('获取排行榜失败:', error);
+        res.status(500).json({ success: false, message: '获取排行榜失败' });
+    }
+});
+
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');
 });
@@ -93,6 +111,31 @@ setInterval(() => {
         const winner = leaderboard[0];
         io.emit('gameOver', { winnerName: winner ? winner.name : "无人" });
 
+        // 更新数据库中的分数和统计
+        Object.values(players).forEach(async (player) => {
+            if (player.userId) {
+                try {
+                    const updates = { $inc: { totalGames: 1 } };
+
+                    // 检查是否打破纪录
+                    if (player.score > player.dbHighestScore) {
+                        updates.highestScore = player.score;
+                        // 更新内存中的最高分
+                        player.dbHighestScore = player.score;
+                    }
+
+                    // 增加胜场（如果是第一名且有分数）
+                    if (winner && winner.id === player.playerId && player.score > 0) {
+                        updates.$inc.totalWins = 1;
+                    }
+
+                    await User.findByIdAndUpdate(player.userId, updates);
+                } catch (err) {
+                    console.error('游戏结束更新分数失败:', err);
+                }
+            }
+        });
+
         // 进入间歇期
         isIntermission = true;
         intermissionEndTime = Date.now() + 8000;
@@ -132,7 +175,27 @@ io.on('connection', (socket) => {
     // 向新玩家发送当前的宝箱
     socket.emit('currentChests', chests);
 
-    socket.on('joinGame', (playerName) => {
+    socket.on('joinGame', async (data) => {
+        // 兼容旧代码：如果data是字符串，则是playerName；如果是对象，则包含playerName和username
+        const playerName = typeof data === 'object' ? data.playerName : data;
+        const username = typeof data === 'object' ? data.username : null;
+
+        let userId = null;
+        let dbHighestScore = 0;
+
+        // 如果提供了用户名，查找数据库中的用户ID和历史最高分
+        if (username) {
+            try {
+                const user = await User.findOne({ username });
+                if (user) {
+                    userId = user._id;
+                    dbHighestScore = user.highestScore || 0;
+                }
+            } catch (err) {
+                console.error('查找用户失败:', err);
+            }
+        }
+
         players[socket.id] = {
             x: Math.floor(Math.random() * 700) + 50,
             y: Math.floor(Math.random() * 500) + 50,
@@ -140,7 +203,11 @@ io.on('connection', (socket) => {
             health: 100,
             score: 0,
             name: playerName,
-            weaponLevel: 1
+            weaponLevel: 1,
+            // 存储数据库相关信息
+            username: username,
+            userId: userId,
+            dbHighestScore: dbHighestScore
         };
 
         // 向新玩家发送玩家对象
@@ -150,8 +217,28 @@ io.on('connection', (socket) => {
         socket.broadcast.emit('newPlayer', players[socket.id]);
     });
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
         console.log('user disconnected: ' + socket.id);
+
+        // 保存分数逻辑
+        const player = players[socket.id];
+        if (player && player.userId && player.score > player.dbHighestScore) {
+            try {
+                await User.findByIdAndUpdate(player.userId, {
+                    highestScore: player.score,
+                    $inc: { totalGames: 1 } // 增加游戏场次
+                });
+                console.log(`更新了用户 ${player.username} 的最高分: ${player.score}`);
+            } catch (err) {
+                console.error('更新分数失败:', err);
+            }
+        } else if (player && player.userId) {
+            // 即使没破纪录，也增加场次
+            try {
+                await User.findByIdAndUpdate(player.userId, { $inc: { totalGames: 1 } });
+            } catch (err) { }
+        }
+
         delete players[socket.id];
         io.emit('playerDisconnected', socket.id);
     });

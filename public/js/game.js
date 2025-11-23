@@ -49,8 +49,6 @@ function preload() {
 
     // 加载音频
     this.load.audio('bgm', 'assets/bgm.mp3');
-    this.load.audio('shoot', 'assets/shoot.mp3');
-    this.load.audio('explosion', 'assets/explosion.mp3');
     this.load.audio('collect', 'assets/collect.mp3');
 
     // 新增音效
@@ -79,7 +77,10 @@ function create() {
     this.socket = io();
 
     // 使用全局变量中的名字发送加入游戏事件
-    this.socket.emit('joinGame', window.playerName || 'Pilot');
+    this.socket.emit('joinGame', {
+        playerName: window.playerName || 'Pilot',
+        username: window.username || null
+    });
 
     this.otherPlayers = this.physics.add.group();
     this.powerUps = this.physics.add.group();
@@ -586,8 +587,6 @@ function addChest(self, chestInfo) {
 function fireBullet(scene, playerInfo, isOwner) {
     const weaponLevel = playerInfo.weaponLevel || 1;
 
-    // 播放射击音效 (仅自己)
-    if (isOwner && scene.playSound) scene.playSound('shoot');
 
     const createBullet = (offsetX, offsetY, angleOffset) => {
         const bullet = scene.physics.add.sprite(playerInfo.x + offsetX, playerInfo.y + offsetY, 'bullet');
