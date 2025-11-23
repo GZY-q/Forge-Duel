@@ -81,25 +81,26 @@
             top: 20px;
             right: 20px;
             background: rgba(0, 0, 0, 0.7);
-            padding: 15px;
-            border-radius: 10px;
+            padding: 10px;
+            border-radius: 8px;
             border: 1px solid rgba(255, 255, 255, 0.1);
             backdrop-filter: blur(5px);
-            min-width: 150px;
+            width: 140px;
             pointer-events: auto;
-            /* 允许点击 */
         }
 
         #emote-btn {
             background: linear-gradient(45deg, #00ff00, #00cc00);
             border: none;
-            border-radius: 5px;
+            border-radius: 4px;
             color: #000;
             font-weight: bold;
             cursor: pointer;
             transition: all 0.1s;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
             pointer-events: auto;
+            font-size: 11px;
+            padding: 4px 0;
         }
 
         #emote-btn:active {
@@ -116,20 +117,20 @@
 
         .leaderboard-title {
             color: #00ff00;
-            font-size: 14px;
+            font-size: 12px;
             text-transform: uppercase;
             border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            padding-bottom: 5px;
-            margin-bottom: 5px;
+            padding-bottom: 4px;
+            margin-bottom: 4px;
             text-align: center;
         }
 
         .leaderboard-item {
             display: flex;
             justify-content: space-between;
-            font-size: 12px;
+            font-size: 11px;
             color: #fff;
-            margin: 3px 0;
+            margin: 2px 0;
         }
 
         .leaderboard-item.me {
@@ -336,6 +337,105 @@
         .switch-form a:hover {
             text-decoration: underline;
         }
+
+        /* 模态框样式 */
+        .modal {
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(5px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: rgba(20, 20, 20, 0.95);
+            border: 1px solid #00ccff;
+            border-radius: 10px;
+            padding: 20px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 0 20px rgba(0, 204, 255, 0.3);
+            position: relative;
+            animation: modalFadeIn 0.3s;
+        }
+
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .close-modal {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+        }
+
+        .close-modal:hover {
+            color: #fff;
+        }
+
+        #history-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            color: #fff;
+        }
+
+        #history-table th,
+        #history-table td {
+            padding: 12px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+        }
+
+        #history-table th {
+            color: #00ccff;
+            font-size: 1.1em;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        #history-table tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        #history-table tr:nth-child(1) td {
+            color: #ffd700;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+        }
+
+        /* 金 */
+        #history-table tr:nth-child(2) td {
+            color: #c0c0c0;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(192, 192, 192, 0.5);
+        }
+
+        /* 银 */
+        #history-table tr:nth-child(3) td {
+            color: #cd7f32;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(205, 127, 50, 0.5);
+        }
+
+        /* 铜 */
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
@@ -400,7 +500,11 @@
                 <div id="leaderboard-list">
                     <!-- 由JS注入 -->
                 </div>
-                <button id="emote-btn" style="margin-top: 10px; width: 100%;">发送表情</button>
+                <div style="display: flex; gap: 5px; margin-top: 8px;">
+                    <button id="emote-btn" style="flex: 1;">表情</button>
+                    <button id="history-btn"
+                        style="flex: 1; background: linear-gradient(45deg, #00ccff, #0099cc); border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; padding: 4px 0; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);">排行</button>
+                </div>
             </div>
         </div>
 
@@ -408,10 +512,31 @@
             <h1 id="winner-text">胜利!</h1>
         </div>
     </div>
+
+    <!-- 历史排行榜模态框 -->
+    <div id="history-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close-modal">&times;</span>
+            <h2 style="color: #00ccff; text-align: center; margin-top: 0;">🏆 历史最高分排行</h2>
+            <table id="history-table">
+                <thead>
+                    <tr>
+                        <th>排名</th>
+                        <th>飞行员</th>
+                        <th>最高分</th>
+                    </tr>
+                </thead>
+                <tbody id="history-list">
+                    <!-- JS注入 -->
+                </tbody>
+            </table>
+        </div>
+    </div>
     <script>
         // 全局变量存储用户信息
         window.playerName = "飞行员";
         window.username = "";
+        let gameStarted = false; // 标记游戏是否已开始
 
         // 尝试播放登录音乐
         const loginBgm = document.getElementById('login-bgm');
@@ -419,6 +544,9 @@
 
         // 解决浏览器自动播放限制：用户首次交互时播放
         function playLoginMusic() {
+            // 如果游戏已经开始，绝对不要播放登录音乐
+            if (gameStarted) return;
+
             loginBgm.play().catch(e => console.log("Waiting for interaction to play audio"));
             document.removeEventListener('click', playLoginMusic);
             document.removeEventListener('keydown', playLoginMusic);
@@ -426,12 +554,48 @@
         document.addEventListener('click', playLoginMusic);
         document.addEventListener('keydown', playLoginMusic);
 
+        // 停止登录音乐并清理监听器
+        function stopLoginMusic() {
+            gameStarted = true;
+            loginBgm.pause();
+            loginBgm.currentTime = 0;
+            document.removeEventListener('click', playLoginMusic);
+            document.removeEventListener('keydown', playLoginMusic);
+        }
+
         // 移动端检测
         const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
         if (isMobile) {
             document.querySelector('.hud-panel').style.display = 'none';
         }
+
+        // 页面加载时检查登录状态
+        window.addEventListener('load', async () => {
+            try {
+                const response = await fetch('/api/auth/check');
+                const data = await response.json();
+
+                if (data.success && data.loggedIn) {
+                    console.log('自动登录成功:', data.user.nickname);
+                    window.playerName = data.user.nickname;
+                    window.username = data.user.username;
+
+                    // 停止登录音乐（防止后续交互触发播放）
+                    stopLoginMusic();
+
+                    // 自动进入游戏
+                    document.getElementById('login-screen').style.display = 'none';
+                    document.getElementById('ui-layer').style.display = 'block';
+
+                    const script = document.createElement('script');
+                    script.src = 'js/game.js?v=' + Date.now(); // 强制刷新缓存
+                    document.body.appendChild(script);
+                }
+            } catch (error) {
+                console.error('检查登录状态失败:', error);
+            }
+        });
 
         // 显示错误消息
         function showError(message) {
@@ -565,15 +729,14 @@
         // 启动游戏
         function startGame() {
             // 停止登录音乐
-            loginBgm.pause();
-            loginBgm.currentTime = 0;
+            stopLoginMusic();
 
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'block';
 
             // 登录后才初始化游戏
             const script = document.createElement('script');
-            script.src = 'js/game.js';
+            script.src = 'js/game.js?v=' + Date.now();
             document.body.appendChild(script);
         }
 
@@ -596,6 +759,51 @@
 
         document.getElementById('register-nickname').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') document.getElementById('register-btn').click();
+        });
+
+        // 排行榜逻辑
+        const historyModal = document.getElementById('history-modal');
+        const historyBtn = document.getElementById('history-btn');
+        const closeModal = document.querySelector('.close-modal');
+
+        historyBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/leaderboard');
+                const data = await response.json();
+                console.log('排行榜数据:', data); // 调试日志
+
+                if (data.success) {
+                    const tbody = document.getElementById('history-list');
+                    tbody.innerHTML = '';
+
+                    data.leaderboard.forEach((player, index) => {
+                        // 确保分数存在，如果不存在显示0
+                        const score = player.highestScore !== undefined ? player.highestScore : 0;
+
+                        const tr = document.createElement('tr');
+                        tr.innerHTML = `
+                            <td>${index + 1}</td>
+                            <td>${player.nickname || '未知'}</td>
+                            <td>${score}</td>
+                        `;
+                        tbody.appendChild(tr);
+                    });
+
+                    historyModal.style.display = 'flex';
+                }
+            } catch (error) {
+                console.error('加载排行榜失败', error);
+            }
+        });
+
+        closeModal.addEventListener('click', () => {
+            historyModal.style.display = 'none';
+        });
+
+        window.addEventListener('click', (e) => {
+            if (e.target === historyModal) {
+                historyModal.style.display = 'none';
+            }
         });
     </script>
 </body>
