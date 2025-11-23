@@ -259,83 +259,294 @@
             margin: 0 2px;
         }
 
+        :root {
+            --primary: #39ff14;
+            /* 荧光绿 */
+            --secondary: #008f11;
+            /* 深绿 */
+            --bg: #050510;
+            --glass: rgba(0, 255, 0, 0.05);
+            /* 绿色调玻璃 */
+        }
+
         #login-screen {
             position: absolute;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.85);
+            background: radial-gradient(circle at center, #0a1a0a 0%, #000000 100%);
+            /* 微微泛绿的黑 */
             display: flex;
             justify-content: center;
             align-items: center;
             z-index: 100;
-            backdrop-filter: blur(10px);
+            overflow: hidden;
+        }
+
+        /* 动态网格背景 - 绿色 */
+        #login-screen::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background:
+                linear-gradient(rgba(57, 255, 20, 0.1) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(57, 255, 20, 0.1) 1px, transparent 1px);
+            background-size: 50px 50px;
+            transform: perspective(500px) rotateX(60deg);
+            animation: grid-move 20s linear infinite;
+            opacity: 0.2;
+            pointer-events: none;
+        }
+
+        @keyframes grid-move {
+            0% {
+                transform: perspective(500px) rotateX(60deg) translateY(0);
+            }
+
+            100% {
+                transform: perspective(500px) rotateX(60deg) translateY(50px);
+            }
         }
 
         .login-box {
-            background: rgba(20, 20, 20, 0.9);
-            padding: 40px;
-            border-radius: 15px;
-            border: 1px solid #00ff00;
-            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
+            background: rgba(0, 10, 0, 0.7);
+            /* 深绿色背景 */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 50px;
+            border-radius: 20px;
+            border: 1px solid rgba(57, 255, 20, 0.2);
+            box-shadow: 0 0 50px rgba(57, 255, 20, 0.1), inset 0 0 20px rgba(0, 0, 0, 0.8);
             text-align: center;
-            max-width: 90%;
-            /* Responsive width for mobile */
+            max-width: 400px;
+            width: 90%;
+            position: relative;
+            overflow: hidden;
+            transform-style: preserve-3d;
+            animation: box-float 6s ease-in-out infinite;
+        }
+
+        @keyframes box-float {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
+            }
+        }
+
+        /* 扫描线效果 - 绿色 */
+        .login-box::after {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(to bottom, transparent 49%, rgba(57, 255, 20, 0.05) 50%, transparent 51%);
+            background-size: 100% 4px;
+            animation: scan 10s linear infinite;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .login-content {
+            position: relative;
+            z-index: 1;
+        }
+
+        /* 故障风标题 */
+        .glitch-title {
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            font-size: 2.5em;
+            font-weight: 800;
+            color: #fff;
+            text-transform: uppercase;
+            position: relative;
+            margin-bottom: 40px;
+            /* 绿色阴影 */
+            text-shadow: 0 0 10px rgba(57, 255, 20, 0.5);
+            animation: glitch-skew 3s infinite linear alternate-reverse;
+            letter-spacing: 4px;
+            white-space: nowrap;
+            /* 强制不换行 */
+        }
+
+        /* 移动端适配标题 */
+        @media (max-width: 600px) {
+            .glitch-title {
+                font-size: 1.8em;
+                /* 缩小字体 */
+                letter-spacing: 2px;
+                /* 减小字间距 */
+                margin-bottom: 30px;
+            }
+
+            .login-box {
+                padding: 30px 20px;
+                /* 减小内边距 */
+            }
+        }
+
+        @keyframes glitch-skew {
+            0% {
+                transform: skew(0deg);
+            }
+
+            10% {
+                transform: skew(-1deg);
+            }
+
+            20% {
+                transform: skew(1deg);
+            }
+
+            30% {
+                transform: skew(0deg);
+            }
+
+            100% {
+                transform: skew(0deg);
+            }
         }
 
         input[type="text"],
         input[type="password"] {
-            background: #111;
-            border: 1px solid #333;
-            padding: 10px 15px;
+            background: rgba(0, 20, 0, 0.3);
+            border: 1px solid rgba(57, 255, 20, 0.2);
+            padding: 12px 15px;
             color: #fff;
-            border-radius: 5px;
+            border-radius: 8px;
             font-size: 16px;
             margin-bottom: 20px;
-            width: 200px;
-            max-width: 100%;
-            /* Prevent overflow */
+            width: 100%;
             outline: none;
-            transition: border-color 0.3s;
+            transition: all 0.3s;
+            font-family: system-ui, -apple-system, sans-serif;
+            font-weight: 300;
+            box-sizing: border-box;
         }
 
         input[type="text"]:focus,
         input[type="password"]:focus {
-            border-color: #00ff00;
+            background: rgba(57, 255, 20, 0.05);
+            border-color: var(--primary);
+            box-shadow: 0 0 15px rgba(57, 255, 20, 0.2);
+            letter-spacing: 1px;
         }
 
         button {
-            background: #00ff00;
-            color: #000;
-            border: none;
-            padding: 10px 30px;
-            border-radius: 5px;
+            background: transparent;
+            color: var(--primary);
+            border: 1px solid var(--primary);
+            padding: 12px 40px;
+            border-radius: 4px;
             font-size: 16px;
             font-weight: bold;
             cursor: pointer;
-            transition: transform 0.2s, box-shadow 0.2s;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 0 10px rgba(57, 255, 20, 0.2);
+        }
+
+        button::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary);
+            transition: 0.4s;
+            z-index: -1;
+            transform: skewX(-20deg);
         }
 
         button:hover {
+            color: #000;
+            box-shadow: 0 0 30px var(--primary);
             transform: scale(1.05);
-            box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+        }
+
+        button:hover::before {
+            left: -10%;
+            width: 120%;
         }
 
         .switch-form {
-            margin-top: 15px;
+            margin-top: 20px;
             font-size: 14px;
-            color: #ccc;
+            color: #888;
         }
 
         .switch-form a {
-            color: #00ff00;
+            color: var(--primary);
             text-decoration: none;
             font-weight: bold;
+            transition: 0.3s;
+            position: relative;
         }
 
         .switch-form a:hover {
-            text-decoration: underline;
+            color: #fff;
+            text-shadow: 0 0 10px var(--primary);
+        }
+
+        .switch-form a::after {
+            content: '';
+            position: absolute;
+            bottom: -2px;
+            left: 0;
+            width: 0;
+            height: 1px;
+            background: var(--primary);
+            transition: 0.3s;
+        }
+
+        .switch-form a:hover::after {
+            width: 100%;
+        }
+
+        /* 移动端适配标题和输入框 */
+        @media (max-width: 600px) {
+            .glitch-title {
+                font-size: 1.8em;
+                /* 缩小字体 */
+                letter-spacing: 2px;
+                /* 减小字间距 */
+                margin-bottom: 25px;
+            }
+
+            .login-box {
+                padding: 30px 20px;
+                /* 减小内边距 */
+                width: 80%;
+                /* 手机端变窄 */
+            }
+
+            input[type="text"],
+            input[type="password"] {
+                padding: 10px 12px;
+                /* 手机端更小 */
+                font-size: 14px;
+                margin-bottom: 15px;
+                height: 40px;
+            }
+
+            button {
+                padding: 10px 30px;
+                font-size: 14px;
+            }
         }
 
         /* 模态框样式 */
@@ -444,38 +655,38 @@
 <body>
     <div id="login-screen">
         <div class="login-box">
-            <h1>宇宙海盗大战</h1>
+            <div class="login-content">
+                <h1 class="glitch-title">宇宙海盗大战</h1>
 
-            <!-- 登录表单 -->
-            <div id="login-form" class="auth-form">
-                <h2 style="color: #00ff00; margin-bottom: 20px;">登录</h2>
-                <input type="text" id="login-username" placeholder="用户名" maxlength="20">
-                <br>
-                <input type="password" id="login-password" placeholder="密码">
-                <br>
-                <button id="login-btn">登录</button>
-                <p class="switch-form">
-                    还没有账号？<a href="#" id="show-register">立即注册</a>
-                </p>
+                <!-- Login Form -->
+                <div id="login-form">
+                    <input type="text" id="login-username" placeholder="用户名">
+                    <input type="password" id="login-password" placeholder="密码">
+                    <button id="login-btn">登录</button>
+                    <div class="switch-form">
+                        还没有账号？ <a href="#" onclick="showRegister()">立即注册</a>
+                    </div>
+                </div>
+
+                <!-- Register Form -->
+                <div id="register-form" style="display: none;">
+                    <input type="text" id="register-username" placeholder="用户名 (3-20字符)">
+                    <input type="password" id="register-password" placeholder="密码 (至少6位)">
+                    <input type="text" id="register-nickname" placeholder="游戏昵称 (1-15字符)">
+                    <button id="register-btn">注册</button>
+                    <div class="switch-form">
+                        已有账号？ <a href="#" onclick="showLogin()">立即登录</a>
+                    </div>
+                </div>
+
+                <!-- Error/Success Messages -->
+                <div id="error-message"
+                    style="color: #ff4444; margin-top: 15px; min-height: 20px; font-size: 14px; text-shadow: 0 0 5px rgba(255,0,0,0.5);">
+                </div>
+                <div id="success-message"
+                    style="color: #00f3ff; margin-top: 15px; min-height: 20px; font-size: 14px; text-shadow: 0 0 5px rgba(0,243,255,0.5);">
+                </div>
             </div>
-
-            <!-- 注册表单 -->
-            <div id="register-form" class="auth-form" style="display: none;">
-                <h2 style="color: #00ff00; margin-bottom: 20px;">注册</h2>
-                <input type="text" id="register-username" placeholder="用户名 (3-20字符)" maxlength="20">
-                <br>
-                <input type="password" id="register-password" placeholder="密码 (至少6字符)">
-                <br>
-                <input type="text" id="register-nickname" placeholder="游戏昵称 (最多15字符)" maxlength="15">
-                <br>
-                <button id="register-btn">注册</button>
-                <p class="switch-form">
-                    已有账号？<a href="#" id="show-login">去登录</a>
-                </p>
-            </div>
-
-            <div id="error-message" style="color: #ff4444; margin-top: 10px; display: none;"></div>
-            <div id="success-message" style="color: #00ff00; margin-top: 10px; display: none;"></div>
         </div>
     </div>
 
@@ -621,18 +832,20 @@
             }, 2000);
         }
 
-        // 表单切换
-        document.getElementById('show-register').addEventListener('click', (e) => {
-            e.preventDefault();
+        // 表单切换函数 (全局作用域，供onclick调用)
+        window.showRegister = function () {
             document.getElementById('login-form').style.display = 'none';
             document.getElementById('register-form').style.display = 'block';
-        });
+            // 清空输入框
+            document.getElementById('error-message').style.display = 'none';
+        };
 
-        document.getElementById('show-login').addEventListener('click', (e) => {
-            e.preventDefault();
+        window.showLogin = function () {
             document.getElementById('register-form').style.display = 'none';
             document.getElementById('login-form').style.display = 'block';
-        });
+            // 清空输入框
+            document.getElementById('error-message').style.display = 'none';
+        };
 
         // 注册功能
         document.getElementById('register-btn').addEventListener('click', async () => {

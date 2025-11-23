@@ -229,6 +229,9 @@ function create() {
         self.otherPlayers.getChildren().forEach(function (otherPlayer) {
             if (playerId === otherPlayer.playerId) {
                 if (otherPlayer.nameText) otherPlayer.nameText.destroy();
+                if (otherPlayer.healthBar) otherPlayer.healthBar.destroy(); // 修复：销毁血条
+                if (otherPlayer.shieldSprite) otherPlayer.shieldSprite.destroy(); // 销毁护盾
+                if (otherPlayer.emote) otherPlayer.emote.destroy(); // 销毁表情
                 otherPlayer.destroy();
             }
         });
@@ -261,8 +264,23 @@ function create() {
         } else {
             self.otherPlayers.getChildren().forEach(function (otherPlayer) {
                 if (info.playerId === otherPlayer.playerId) {
-                    otherPlayer.health = info.health;
-                    updateHealthBar(self, otherPlayer, otherPlayer.health);
+                    // 优化：添加阈值检查，防止网络延迟导致的血条跳变（Rubber banding）
+                    // 只有当服务器数据与本地差异较大（>20），或者目标死亡，或者服务器血量更低（确认了更多伤害）时才更新
+                    // 注意：如果是回血（吃血包），差异通常会大于20（假设血包回血量较大）或者由专门的事件处理
+                    // 这里主要防止：本地预测扣血了(90)，服务器延迟包发来(100)，导致血条跳回100
+
+                    const diff = Math.abs(otherPlayer.health - info.health);
+
+                    // 1. 强制同步：差异过大或死亡
+                    if (diff > 20 || info.health <= 0) {
+                        otherPlayer.health = info.health;
+                        updateHealthBar(self, otherPlayer, otherPlayer.health);
+                    }
+                    // 2. 确认伤害：服务器血量比本地低，说明服务器确认了伤害，更新
+                    else if (info.health < otherPlayer.health) {
+                        otherPlayer.health = info.health;
+                        updateHealthBar(self, otherPlayer, otherPlayer.health);
+                    }
                 }
             });
         }
@@ -407,16 +425,28 @@ function update(time, delta) {
             const pointer = this.input.activePointer;
 
             if (pointer.isDown) {
-                // 计算指向指针的角度
-                const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
+                // 计算距离
+                const dist = Phaser.Math.Distance.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
 
-                // 调整旋转因为精灵默认朝下（1.57弧度）
-                this.ship.setRotation(angle - 1.57);
+                // 死区检测：只有距离大于20px才移动，防止到达目标点后抖动
+                if (dist > 20) {
+                    // 计算指向指针的角度
+                    const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
 
-                // 按指针方向向前移动
-                this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
+                    // 调整旋转因为精灵默认朝下（1.57弧度）
+                    this.ship.setRotation(angle - 1.57);
+
+                    // 改用直接速度控制，手感更灵敏，不会有"滑冰"的感觉
+                    this.physics.velocityFromRotation(angle, 200, this.ship.body.velocity);
+                } else {
+                    // 进入死区，立即停止
+                    this.ship.setVelocity(0);
+                    this.ship.setAngularVelocity(0);
+                }
             } else {
-                this.ship.setAcceleration(0);
+                // 手指抬起，立即停止
+                this.ship.setVelocity(0);
+                this.ship.setAngularVelocity(0);
             }
 
             // 自动射击
@@ -762,3 +792,5 @@ function fireTrackingMissile(scene, shooter, targetId, isOwner) {
         }
     }, 10000);
 }
+// End of file
+
