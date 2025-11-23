@@ -283,7 +283,8 @@
             /* Responsive width for mobile */
         }
 
-        input[type="text"] {
+        input[type="text"],
+        input[type="password"] {
             background: #111;
             border: 1px solid #333;
             padding: 10px 15px;
@@ -298,7 +299,8 @@
             transition: border-color 0.3s;
         }
 
-        input[type="text"]:focus {
+        input[type="text"]:focus,
+        input[type="password"]:focus {
             border-color: #00ff00;
         }
 
@@ -318,6 +320,22 @@
             transform: scale(1.05);
             box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
         }
+
+        .switch-form {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .switch-form a {
+            color: #00ff00;
+            text-decoration: none;
+            font-weight: bold;
+        }
+
+        .switch-form a:hover {
+            text-decoration: underline;
+        }
     </style>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
@@ -327,9 +345,37 @@
     <div id="login-screen">
         <div class="login-box">
             <h1>宇宙海盗大战</h1>
-            <input type="text" id="username" placeholder="输入你的飞行员名称" maxlength="15">
-            <br>
-            <button id="start-btn">开始游戏</button>
+
+            <!-- 登录表单 -->
+            <div id="login-form" class="auth-form">
+                <h2 style="color: #00ff00; margin-bottom: 20px;">登录</h2>
+                <input type="text" id="login-username" placeholder="用户名" maxlength="20">
+                <br>
+                <input type="password" id="login-password" placeholder="密码">
+                <br>
+                <button id="login-btn">登录</button>
+                <p class="switch-form">
+                    还没有账号？<a href="#" id="show-register">立即注册</a>
+                </p>
+            </div>
+
+            <!-- 注册表单 -->
+            <div id="register-form" class="auth-form" style="display: none;">
+                <h2 style="color: #00ff00; margin-bottom: 20px;">注册</h2>
+                <input type="text" id="register-username" placeholder="用户名 (3-20字符)" maxlength="20">
+                <br>
+                <input type="password" id="register-password" placeholder="密码 (至少6字符)">
+                <br>
+                <input type="text" id="register-nickname" placeholder="游戏昵称 (最多15字符)" maxlength="15">
+                <br>
+                <button id="register-btn">注册</button>
+                <p class="switch-form">
+                    已有账号？<a href="#" id="show-login">去登录</a>
+                </p>
+            </div>
+
+            <div id="error-message" style="color: #ff4444; margin-top: 10px; display: none;"></div>
+            <div id="success-message" style="color: #00ff00; margin-top: 10px; display: none;"></div>
         </div>
     </div>
 
@@ -363,8 +409,9 @@
         </div>
     </div>
     <script>
-        // 全局变量存储用户名
+        // 全局变量存储用户信息
         window.playerName = "飞行员";
+        window.username = "";
 
         // 尝试播放登录音乐
         const loginBgm = document.getElementById('login-bgm');
@@ -386,22 +433,169 @@
             document.querySelector('.hud-panel').style.display = 'none';
         }
 
-        document.getElementById('start-btn').addEventListener('click', () => {
-            const nameInput = document.getElementById('username');
-            if (nameInput.value.trim() !== "") {
-                // 停止登录音乐
-                loginBgm.pause();
-                loginBgm.currentTime = 0;
+        // 显示错误消息
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+            successDiv.style.display = 'none';
+            setTimeout(() => {
+                errorDiv.style.display = 'none';
+            }, 3000);
+        }
 
-                window.playerName = nameInput.value.trim();
-                document.getElementById('login-screen').style.display = 'none';
-                document.getElementById('ui-layer').style.display = 'block';
+        // 显示成功消息
+        function showSuccess(message) {
+            const errorDiv = document.getElementById('error-message');
+            const successDiv = document.getElementById('success-message');
+            successDiv.textContent = message;
+            successDiv.style.display = 'block';
+            errorDiv.style.display = 'none';
+            setTimeout(() => {
+                successDiv.style.display = 'none';
+            }, 2000);
+        }
 
-                // 登录后才初始化游戏
-                const script = document.createElement('script');
-                script.src = 'js/game.js';
-                document.body.appendChild(script);
+        // 表单切换
+        document.getElementById('show-register').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('login-form').style.display = 'none';
+            document.getElementById('register-form').style.display = 'block';
+        });
+
+        document.getElementById('show-login').addEventListener('click', (e) => {
+            e.preventDefault();
+            document.getElementById('register-form').style.display = 'none';
+            document.getElementById('login-form').style.display = 'block';
+        });
+
+        // 注册功能
+        document.getElementById('register-btn').addEventListener('click', async () => {
+            const username = document.getElementById('register-username').value.trim();
+            const password = document.getElementById('register-password').value;
+            const nickname = document.getElementById('register-nickname').value.trim();
+
+            if (!username || !password || !nickname) {
+                showError('请填写所有字段');
+                return;
             }
+
+            if (username.length < 3 || username.length > 20) {
+                showError('用户名长度必须在3-20个字符之间');
+                return;
+            }
+
+            if (password.length < 6) {
+                showError('密码长度至少为6个字符');
+                return;
+            }
+
+            if (nickname.length === 0 || nickname.length > 15) {
+                showError('昵称长度必须在1-15个字符之间');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password, nickname })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('注册成功！正在进入游戏...');
+                    window.playerName = data.user.nickname;
+                    window.username = data.user.username;
+
+                    setTimeout(() => {
+                        startGame();
+                    }, 1000);
+                } else {
+                    showError(data.message || '注册失败');
+                }
+            } catch (error) {
+                console.error('注册错误:', error);
+                showError('网络错误，请稍后重试');
+            }
+        });
+
+        // 登录功能
+        document.getElementById('login-btn').addEventListener('click', async () => {
+            const username = document.getElementById('login-username').value.trim();
+            const password = document.getElementById('login-password').value;
+
+            if (!username || !password) {
+                showError('请填写用户名和密码');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ username, password })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    showSuccess('登录成功！正在进入游戏...');
+                    window.playerName = data.user.nickname;
+                    window.username = data.user.username;
+
+                    setTimeout(() => {
+                        startGame();
+                    }, 1000);
+                } else {
+                    showError(data.message || '登录失败');
+                }
+            } catch (error) {
+                console.error('登录错误:', error);
+                showError('网络错误，请稍后重试');
+            }
+        });
+
+        // 启动游戏
+        function startGame() {
+            // 停止登录音乐
+            loginBgm.pause();
+            loginBgm.currentTime = 0;
+
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('ui-layer').style.display = 'block';
+
+            // 登录后才初始化游戏
+            const script = document.createElement('script');
+            script.src = 'js/game.js';
+            document.body.appendChild(script);
+        }
+
+        // 回车键触发登录/注册
+        document.getElementById('login-username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('login-password').focus();
+        });
+
+        document.getElementById('login-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('login-btn').click();
+        });
+
+        document.getElementById('register-username').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('register-password').focus();
+        });
+
+        document.getElementById('register-password').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('register-nickname').focus();
+        });
+
+        document.getElementById('register-nickname').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') document.getElementById('register-btn').click();
         });
     </script>
 </body>
