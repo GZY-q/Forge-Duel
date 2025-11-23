@@ -1,11 +1,43 @@
+require('dotenv').config();
 const express = require('express');
+const mongoose = require('mongoose');
+const session = require('express-session');
+const MongoStore = require('connect-mongo');
 const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
 
+// 中间件
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(express.static('public'));
+
+// MongoDB连接
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/forge-duel')
+    .then(() => console.log('MongoDB连接成功'))
+    .catch(err => console.error('MongoDB连接失败:', err));
+
+// Session配置
+app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key-change-this',
+    resave: false,
+    saveUninitialized: false,
+    store: MongoStore.create({
+        mongoUrl: process.env.MONGODB_URI || 'mongodb://localhost:27017/forge-duel',
+        touchAfter: 24 * 3600 // 24小时内不重复更新session
+    }),
+    cookie: {
+        maxAge: 1000 * 60 * 60 * 24 * 7, // 7天
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production' // 生产环境使用HTTPS
+    }
+}));
+
+// 认证路由
+const authRoutes = require('./routes/auth');
+app.use('/api/auth', authRoutes);
 
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/public/index.html');

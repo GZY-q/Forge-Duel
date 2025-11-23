@@ -11,8 +11,14 @@ logs
 npm-debug.log*
 README.md
 # 环境变量
-.env
+
 .env.local
+.env.production
+
+# 部署相关
+forge-duel-deploy.tar.gz
+deploy/
+logs/
 
 # 系统文件
 .DS_Store
@@ -35,3 +41,7 @@ pigs.db
 pigs.db
 public/assets/bullet0.png
 public/assets/ship0.png
+.env.example
+AUTH_README.md
+IMPLEMENTATION_SUMMARY.md
+SETUP_GUIDE.md

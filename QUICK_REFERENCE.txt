@@ -1,0 +1,131 @@
+
+┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┓
+┃  🎮 宇宙海盗大战 - 用户系统快速参考                        ┃
+┗━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┛
+
+📦 快速安装步骤
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  安装依赖
+   npm install
+
+2️⃣  配置MongoDB（选择一个）
+
+   方案A - MongoDB Atlas（推荐，最简单）
+   ────────────────────────────────────────
+   ✓ 访问：https://www.mongodb.com/cloud/atlas/register
+   ✓ 注册免费账号，创建集群
+   ✓ 获取连接字符串
+   ✓ 更新 .env 文件
+
+   方案B - 本地MongoDB
+   ────────────────────────────────────────
+   macOS:    brew install mongodb-community@7.0
+             brew services start mongodb-community@7.0
+   
+   Windows:  下载安装 https://www.mongodb.com/try/download/community
+   
+   Linux:    sudo apt-get install mongodb
+             sudo systemctl start mongodb
+
+3️⃣  配置环境变量
+   
+   创建 .env 文件（参考 .env.example）：
+   
+   MONGODB_URI=你的数据库连接字符串
+   SESSION_SECRET=任意随机字符串
+   PORT=8080
+   NODE_ENV=development
+
+4️⃣  启动服务器
+   npm start
+
+5️⃣  打开浏览器
+   http://localhost:8080
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 常用命令
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+启动服务（生产）：      npm start
+启动服务（开发）：      npm run dev
+安装依赖：              npm install
+启动MongoDB（macOS）：  brew services start mongodb-community@7.0
+停止MongoDB（macOS）：  brew services stop mongodb-community@7.0
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌐 API接口
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+POST   /api/auth/register      注册新用户
+       Body: { username, password, nickname }
+
+POST   /api/auth/login         用户登录
+       Body: { username, password }
+
+POST   /api/auth/logout        用户登出
+
+GET    /api/auth/check         检查登录状态
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📁 新增文件
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+models/User.js                  用户数据模型
+routes/auth.js                  认证路由
+.env.example                    环境变量示例
+AUTH_README.md                  功能详细说明
+SETUP_GUIDE.md                  安装配置指南
+IMPLEMENTATION_SUMMARY.md       开发总结
+start.sh                        启动脚本
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔐 用户字段说明
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+username      用户名（登录用，3-20字符）
+password      密码（加密存储，至少6字符）
+nickname      游戏昵称（游戏中显示，1-15字符）
+createdAt     注册时间
+totalGames    总游戏场次
+totalWins     总胜利次数
+highestScore  历史最高分
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+💡 技术栈
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+后端：        Express.js, Socket.IO
+数据库：      MongoDB, Mongoose
+安全：        bcrypt, express-session, connect-mongo
+环境：        dotenv
+前端：        HTML, CSS, JavaScript (Vanilla)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+❓ 常见问题
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Q: MongoDB连接失败？
+A: 1. 检查MongoDB是否运行：ps aux | grep mongod
+   2. 检查 .env 中连接字符串是否正确
+   3. 如使用Atlas，检查IP白名单
+
+Q: 端口已被占用？
+A: 修改 .env 中的 PORT 值
+
+Q: Session不工作？
+A: 1. 确保 .env 中有 SESSION_SECRET
+   2. 清除浏览器Cookie
+   3. 检查浏览器是否允许Cookie
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📚 更多文档
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+SETUP_GUIDE.md              完整安装指南
+AUTH_README.md              功能详细说明
+IMPLEMENTATION_SUMMARY.md   技术实现总结
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ 祝您游戏愉快！如有问题，请查看详细文档或检查控制台日志。
