@@ -24,6 +24,34 @@
             -webkit-user-select: none;
         }
 
+        @keyframes expandHorizontal {
+            0% {
+                transform: translate(-50%, -50%) scaleX(0);
+                opacity: 0;
+            }
+
+            50% {
+                opacity: 1;
+            }
+
+            100% {
+                transform: translate(-50%, -50%) scaleX(1);
+                opacity: 1;
+            }
+        }
+
+        @keyframes glowPulse {
+
+            0%,
+            100% {
+                text-shadow: 0 0 20px rgba(0, 255, 0, 0.8), 0 0 40px rgba(0, 255, 0, 0.5);
+            }
+
+            50% {
+                text-shadow: 0 0 30px rgba(0, 255, 0, 1), 0 0 60px rgba(0, 255, 0, 0.8), 0 0 80px rgba(0, 255, 0, 0.6);
+            }
+        }
+
         canvas {
             display: block;
             box-shadow: 0 0 50px rgba(0, 255, 0, 0.2);
@@ -723,8 +751,28 @@
             </div>
         </div>
 
-        <div id="game-over-screen" style="display: none;">
-            <h1 id="winner-text">胜利!</h1>
+        <div id="game-over-screen" style="
+            display: none; 
+            position: fixed; 
+            top: 50%; 
+            left: 50%; 
+            transform: translate(-50%, -50%); 
+            z-index: 10000; 
+            text-align: center; 
+            background: linear-gradient(90deg, rgba(0, 0, 0, 0.95), rgba(0, 50, 0, 0.95), rgba(0, 0, 0, 0.95)); 
+            padding: 30px 80px; 
+            border-radius: 50px; 
+            border: 3px solid #00ff00; 
+            box-shadow: 0 0 40px rgba(0, 255, 0, 0.6), inset 0 0 20px rgba(0, 255, 0, 0.2);
+            animation: expandHorizontal 0.6s ease-out;">
+            <h1 id="winner-text" style="
+                margin: 0; 
+                font-size: 56px; 
+                color: #00ff00; 
+                text-shadow: 0 0 20px rgba(0, 255, 0, 0.8), 0 0 40px rgba(0, 255, 0, 0.5); 
+                letter-spacing: 8px;
+                white-space: nowrap;
+                animation: glowPulse 1.5s infinite;">胜利!</h1>
         </div>
     </div>
 
@@ -794,6 +842,28 @@
                 <button id="save-settings-btn" style="width: 100%;">保存设置</button>
             </div>
         </div>
+    </div>
+
+    <!-- 技能按钮 (金身) -->
+    <div id="skill-container" style="position: fixed; top: 10px; left: 10px; display: none; z-index: 1000;">
+        <div id="skill-btn" style="
+            width: 60px; 
+            height: 60px; 
+            border-radius: 50%; 
+            background: radial-gradient(circle, #ffd700, #b8860b); 
+            border: 3px solid #fff; 
+            box-shadow: 0 0 15px #ffd700; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            cursor: pointer; 
+            overflow: hidden;">
+            <img src="assets/shield_effect.png"
+                style="width: 50px; height: 50px; object-fit: contain; filter: brightness(1.2) saturate(1.5);">
+        </div>
+        <div
+            style="text-align: center; color: #ffd700; font-weight: bold; font-size: 12px; margin-top: 5px; text-shadow: 1px 1px 2px black;">
+            金身</div>
     </div>
     <script>
         // 全局变量存储用户信息
