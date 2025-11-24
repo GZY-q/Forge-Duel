@@ -91,11 +91,32 @@ let gameUpdateTimer = null;
 
 // ============= 工具函数 =============
 
+// 获取随机重生位置（分散在地图各处）
+function getRandomSpawnPosition() {
+    const spawnZones = [
+        { x: 100, y: 100, width: 200, height: 200 },      // 左上
+        { x: 1300, y: 100, width: 200, height: 200 },     // 右上
+        { x: 100, y: 900, width: 200, height: 200 },      // 左下
+        { x: 1300, y: 900, width: 200, height: 200 },     // 右下
+        { x: 700, y: 100, width: 200, height: 200 },      // 上中
+        { x: 700, y: 900, width: 200, height: 200 },      // 下中
+        { x: 100, y: 500, width: 200, height: 200 },      // 左中
+        { x: 1300, y: 500, width: 200, height: 200 }      // 右中
+    ];
+
+    const zone = spawnZones[Math.floor(Math.random() * spawnZones.length)];
+    return {
+        x: zone.x + Math.floor(Math.random() * zone.width),
+        y: zone.y + Math.floor(Math.random() * zone.height)
+    };
+}
+
 // 创建玩家数据结构
 function createPlayerData(socketId, playerName, username = null, userId = null, dbHighestScore = 0) {
+    const spawnPos = getRandomSpawnPosition();
     return {
-        x: Math.floor(Math.random() * 700) + 50,
-        y: Math.floor(Math.random() * 500) + 50,
+        x: spawnPos.x,
+        y: spawnPos.y,
         playerId: socketId,
         health: 100,
         score: 0,
@@ -128,8 +149,11 @@ function respawnPlayer(playerId) {
     player.hasGoldenBody = false;
     player.isInvulnerable = false;
     player.isImmobile = false;
-    player.x = Math.floor(Math.random() * 700) + 50;
-    player.y = Math.floor(Math.random() * 500) + 50;
+
+    // 使用分散的重生位置
+    const spawnPos = getRandomSpawnPosition();
+    player.x = spawnPos.x;
+    player.y = spawnPos.y;
 
     io.emit('playerRespawn', player);
 }
@@ -219,9 +243,25 @@ gameUpdateTimer = setInterval(() => {
             isIntermission = false;
             gameEndTime = Date.now() + GAME_DURATION;
 
+            // 清理所有Bot
+            Object.keys(players).forEach(id => {
+                if (players[id] && players[id].isBot) {
+                    delete players[id];
+                    io.emit('playerDisconnected', id);
+                }
+            });
+
+            // 重置Bot计数器
+            botIdCounter = 0;
+
+            // 重生真人玩家
             Object.keys(players).forEach(id => respawnPlayer(id));
+
+            // 清理道具
             Object.keys(powerUps).forEach(key => delete powerUps[key]);
             io.emit('currentPowerUps', powerUps);
+
+            // 清理宝箱
             Object.keys(chests).forEach(key => {
                 io.emit('chestBroken', key);
                 delete chests[key];
@@ -247,6 +287,17 @@ gameUpdateTimer = setInterval(() => {
         Object.values(players).forEach(async (player) => {
             const isWinner = winner && winner.id === player.playerId;
             await savePlayerScore(player, isWinner);
+        });
+
+        // 立即清理所有道具和宝箱
+        Object.keys(powerUps).forEach(key => {
+            io.emit('powerUpCollected', key); // 通知客户端移除道具
+            delete powerUps[key];
+        });
+
+        Object.keys(chests).forEach(key => {
+            io.emit('chestBroken', key); // 通知客户端移除宝箱
+            delete chests[key];
         });
 
         isIntermission = true;
