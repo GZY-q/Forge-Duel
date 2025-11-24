@@ -20,6 +20,8 @@
             /* 防止手机端滚动 */
             touch-action: none;
             /* 防止默认触摸操作如缩放 */
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         canvas {
@@ -149,7 +151,7 @@
             .leaderboard {
                 top: 50px;
                 /* 移到计时器或控制器下方 */
-                right: 10px;
+                right: 12px;
                 padding: 10px;
                 min-width: 100px;
             }
@@ -715,6 +717,8 @@
                     <button id="emote-btn" style="flex: 1;">表情</button>
                     <button id="history-btn"
                         style="flex: 1; background: linear-gradient(45deg, #00ccff, #0099cc); border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; padding: 4px 0; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);">排行</button>
+                    <button id="settings-btn"
+                        style="flex: 1; background: linear-gradient(45deg, #888, #666); border: none; color: white; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 11px; padding: 4px 0; box-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);">设置</button>
                 </div>
             </div>
         </div>
@@ -727,7 +731,7 @@
     <!-- 历史排行榜模态框 -->
     <div id="history-modal" class="modal" style="display: none;">
         <div class="modal-content">
-            <span class="close-modal">&times;</span>
+            <span class="close-modal" id="close-history">&times;</span>
             <h2 style="color: #00ccff; text-align: center; margin-top: 0;">🏆 历史最高分排行</h2>
             <table id="history-table">
                 <thead>
@@ -741,6 +745,54 @@
                     <!-- JS注入 -->
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <!-- 设置模态框 -->
+    <div id="settings-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="user-select: none; -webkit-user-select: none;">
+            <span class="close-modal" id="close-settings">&times;</span>
+            <h2 style="color: #ccc; text-align: center; margin-top: 0;">⚙️ 游戏设置</h2>
+
+            <div style="margin-top: 20px;">
+                <h3 style="color: #00ff00; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">移动端控制方式
+                </h3>
+                <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
+                        <input type="radio" name="control-mode" value="tap" style="margin-right: 10px;">
+                        <span>👆 点击 (Tap to Move)</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
+                        <input type="radio" name="control-mode" value="joystick" style="margin-right: 10px;">
+                        <span>🕹️ 轮盘 (Joystick)</span>
+                    </label>
+                </div>
+            </div>
+
+            <div id="joystick-settings" style="margin-top: 20px; display: none;">
+                <h3 style="color: #00ff00; font-size: 16px; border-bottom: 1px solid #333; padding-bottom: 5px;">轮盘位置
+                </h3>
+                <div style="margin-top: 15px; display: flex; justify-content: space-between; gap: 10px;">
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
+                        <input type="radio" name="joystick-pos" value="left" style="margin-right: 5px;">
+                        <span>左侧</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
+                        <input type="radio" name="joystick-pos" value="center" style="margin-right: 5px;">
+                        <span>中间</span>
+                    </label>
+                    <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
+                        <input type="radio" name="joystick-pos" value="right" style="margin-right: 5px;">
+                        <span>右侧</span>
+                    </label>
+                </div>
+            </div>
+
+            <p style="color: #888; font-size: 12px; margin-top: 20px;">* 仅在移动设备生效，切换后立即应用</p>
+
+            <div style="margin-top: 20px; text-align: center;">
+                <button id="save-settings-btn" style="width: 100%;">保存设置</button>
+            </div>
         </div>
     </div>
     <script>
@@ -977,41 +1029,49 @@
         // 排行榜逻辑
         const historyModal = document.getElementById('history-modal');
         const historyBtn = document.getElementById('history-btn');
-        const closeModal = document.querySelector('.close-modal');
+        const closeHistory = document.getElementById('close-history');
 
-        historyBtn.addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/leaderboard');
-                const data = await response.json();
-                console.log('排行榜数据:', data); // 调试日志
+        if (historyBtn) {
+            const openHistory = async (e) => {
+                if (e) e.stopPropagation();
+                try {
+                    const response = await fetch('/api/leaderboard');
+                    const data = await response.json();
+                    console.log('排行榜数据:', data);
 
-                if (data.success) {
-                    const tbody = document.getElementById('history-list');
-                    tbody.innerHTML = '';
+                    if (data.success) {
+                        const tbody = document.getElementById('history-list');
+                        tbody.innerHTML = '';
 
-                    data.leaderboard.forEach((player, index) => {
-                        // 确保分数存在，如果不存在显示0
-                        const score = player.highestScore !== undefined ? player.highestScore : 0;
+                        data.leaderboard.forEach((player, index) => {
+                            const score = player.highestScore !== undefined ? player.highestScore : 0;
+                            const tr = document.createElement('tr');
+                            tr.innerHTML = `
+                                <td>${index + 1}</td>
+                                <td>${player.nickname || '未知'}</td>
+                                <td>${score}</td>
+                            `;
+                            tbody.appendChild(tr);
+                        });
 
-                        const tr = document.createElement('tr');
-                        tr.innerHTML = `
-                            <td>${index + 1}</td>
-                            <td>${player.nickname || '未知'}</td>
-                            <td>${score}</td>
-                        `;
-                        tbody.appendChild(tr);
-                    });
-
-                    historyModal.style.display = 'flex';
+                        historyModal.style.display = 'flex';
+                    }
+                } catch (error) {
+                    console.error('加载排行榜失败', error);
                 }
-            } catch (error) {
-                console.error('加载排行榜失败', error);
-            }
-        });
+            };
 
-        closeModal.addEventListener('click', () => {
-            historyModal.style.display = 'none';
-        });
+            historyBtn.addEventListener('click', openHistory);
+            // 防止触摸穿透
+            historyBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+            historyBtn.addEventListener('touchend', (e) => e.stopPropagation());
+        }
+
+        if (closeHistory) {
+            closeHistory.addEventListener('click', () => {
+                historyModal.style.display = 'none';
+            });
+        }
 
         window.addEventListener('click', (e) => {
             if (e.target === historyModal) {
