@@ -37,10 +37,14 @@ function preload() {
     // 新增资源
     this.load.image('treasure_chest', 'assets/treasure_chest.png');
     this.load.image('health_orb', 'assets/health_orb.png');
-    this.load.image('shield_orb', 'assets/shield_orb.png');
-    this.load.image('shield_effect', 'assets/shield_effect.png');
+    this.load.image('shield_orb', 'assets/lightshield_orb.png'); // 护盾掉落物
+    this.load.image('shield_effect', 'assets/lightshield_effect.png'); // 护盾特效
+    this.load.image('golden_orb', 'assets/shield_orb.png'); // 金身掉落物，使用旧护盾图标（后续代码会染金色）
+    this.load.image('golden_effect', 'assets/shield_effect.png'); // 金身技能图标，使用旧护盾图标
+    this.load.image('tracking_missile', 'assets/trackmissiles.png');
     this.load.image('tracking_missile', 'assets/trackmissiles.png');
     this.load.image('tracking_orb', 'assets/trackmissiles.png'); // 掉落物图标
+    this.load.image('golden_orb', 'assets/shield_orb.png'); // 金身掉落物，暂时复用护盾球，代码里染色
 
     // 加载表情包
     for (let i = 1; i <= 8; i++) {
@@ -189,6 +193,92 @@ function create() {
 
     this.socket.on('playerShieldUpdate', function (data) {
         // 护盾受击反馈?
+    });
+
+    // 获得技能
+    this.socket.on('playerObtainSkill', function (data) {
+        console.log('playerObtainSkill event received:', data);
+        if (data.playerId === self.socket.id) {
+            if (data.skill === 'golden_body') {
+                console.log('Showing golden body skill button');
+                const skillContainer = document.getElementById('skill-container');
+                if (skillContainer) {
+                    skillContainer.style.display = 'block';
+                    // 禁用按钮500ms，防止捡到道具时误触
+                    const btn = document.getElementById('skill-btn');
+                    if (btn) {
+                        btn.style.pointerEvents = 'none';
+                        btn.style.opacity = '0.5';
+                        setTimeout(() => {
+                            btn.style.pointerEvents = 'auto';
+                            btn.style.opacity = '1';
+                        }, 500);
+                    }
+                }
+            }
+        }
+    });
+
+    // 技能释放视觉效果
+    this.socket.on('playerUseSkill', function (data) {
+        console.log('playerUseSkill event received:', data);
+        const target = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+
+        if (target) {
+            if (data.skill === 'golden_body') {
+                // 金身特效：金色光环 + 强光
+                if (!target.goldenAura) {
+                    // 创建一个发光的圆形背景
+                    const aura = self.add.circle(target.x, target.y, 40, 0xffd700, 0.6);
+                    aura.setDepth(9); // 在飞船之下
+
+                    // 创建一个闪烁的补间动画
+                    self.tweens.add({
+                        targets: aura,
+                        alpha: 0.2,
+                        scale: 1.2,
+                        duration: 500,
+                        yoyo: true,
+                        repeat: -1
+                    });
+
+                    target.goldenAura = aura;
+
+                    // 飞船本身变金 (纯金色)
+                    target.setTintFill(0xffd700);
+                }
+
+                // 如果是自己，禁用控制
+                if (data.playerId === self.socket.id) {
+                    self.isImmobile = true;
+                    // 停止当前移动
+                    self.ship.setVelocity(0);
+                    self.ship.setAngularVelocity(0);
+                    self.moveTarget = null; // 清除点击移动目标
+                }
+            }
+        }
+    });
+
+    // 技能结束
+    this.socket.on('playerSkillEnd', function (data) {
+        const target = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+
+        if (target) {
+            if (data.skill === 'golden_body') {
+                // 移除特效
+                if (target.goldenAura) {
+                    target.goldenAura.destroy();
+                    target.goldenAura = null;
+                }
+                target.clearTint();
+
+                // 如果是自己，恢复控制
+                if (data.playerId === self.socket.id) {
+                    self.isImmobile = false;
+                }
+            }
+        }
     });
 
     // 连杀计数
@@ -401,6 +491,22 @@ function create() {
         }
     }
 
+    // 浏览器自动播放限制处理：首次点击时恢复音乐
+    const resumeBGM = () => {
+        if (this.bgm && !this.bgm.isPlaying) {
+            this.bgm.play();
+        }
+        // 只执行一次
+        this.input.off('pointerdown', resumeBGM);
+        if (this.input.keyboard) {
+            this.input.keyboard.off('keydown', resumeBGM);
+        }
+    };
+    this.input.on('pointerdown', resumeBGM);
+    if (this.input.keyboard) {
+        this.input.keyboard.on('keydown', resumeBGM);
+    }
+
     // 音效播放辅助函数
     this.playSound = (key) => {
         if (this.cache.audio.exists(key)) {
@@ -418,6 +524,21 @@ function create() {
 
     // 通过在物理步骤后更新位置来修复UI重影问题
     this.events.on('postupdate', postUpdate, this);
+
+    // --- 金身技能按钮事件 ---
+    const skillBtn = document.getElementById('skill-btn');
+    const skillContainer = document.getElementById('skill-container');
+    if (skillBtn && skillContainer) {
+        skillBtn.onclick = (e) => {
+            e.stopPropagation();
+            console.log('Golden body skill button clicked');
+            this.socket.emit('playerUseSkill', 'golden_body');
+            skillContainer.style.display = 'none';
+        };
+        // 防止触摸穿透
+        skillBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+        skillBtn.addEventListener('touchend', (e) => e.stopPropagation());
+    }
 
     // --- 设置相关逻辑 ---
     this.controlMode = localStorage.getItem('forge_duel_control_mode') || 'tap';
@@ -481,7 +602,9 @@ function create() {
     }
 
     if (saveSettingsBtn) {
-        saveSettingsBtn.onclick = () => {
+        saveSettingsBtn.onclick = (e) => {
+            e.stopPropagation();
+            console.log('Saving settings...');
             for (let input of radioInputs) {
                 if (input.checked) {
                     this.controlMode = input.value;
@@ -509,6 +632,10 @@ function create() {
                 }
             }
         };
+
+        // 防止触摸穿透
+        saveSettingsBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+        saveSettingsBtn.addEventListener('touchend', (e) => e.stopPropagation());
     }
 
     // 初始化摇杆 (如果是移动端且模式为joystick)
@@ -523,7 +650,7 @@ function update(time, delta) {
             // 移动端控制
             if (this.controlMode === 'joystick' && this.joystick) {
                 // --- 摇杆模式 ---
-                if (this.joystick.active) {
+                if (this.joystick.active && !this.isImmobile) {
                     const force = Math.min(this.joystick.distance / this.joystick.radius, 1); // 0-1
                     const angle = this.joystick.angle;
 
@@ -546,13 +673,13 @@ function update(time, delta) {
                 // 这种模式下，点击屏幕设置目标点，飞船会自动飞向该点，直到到达或设置新目标
                 const pointer = this.input.activePointer;
 
-                if (pointer.isDown) {
+                if (pointer.isDown && !this.isImmobile) {
                     // 排除摇杆区域 (虽然在点击模式下不显示摇杆，但为了逻辑统一)
                     // 更新移动目标点
                     this.moveTarget = { x: pointer.worldX, y: pointer.worldY };
                 }
 
-                if (this.moveTarget) {
+                if (this.moveTarget && !this.isImmobile) {
                     // 计算距离
                     const dist = Phaser.Math.Distance.Between(this.ship.x, this.ship.y, this.moveTarget.x, this.moveTarget.y);
 
@@ -592,21 +719,27 @@ function update(time, delta) {
 
         } else {
             // 桌面端控制
-            if (this.cursors.left.isDown) {
-                this.ship.setAngularVelocity(-150);
-            } else if (this.cursors.right.isDown) {
-                this.ship.setAngularVelocity(150);
-            } else {
+            if (this.isImmobile) {
+                // 定身状态，无法操作
                 this.ship.setAngularVelocity(0);
-            }
-
-            if (this.cursors.up.isDown) {
-                this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
-            } else {
                 this.ship.setAcceleration(0);
+            } else {
+                if (this.cursors.left.isDown) {
+                    this.ship.setAngularVelocity(-150);
+                } else if (this.cursors.right.isDown) {
+                    this.ship.setAngularVelocity(150);
+                } else {
+                    this.ship.setAngularVelocity(0);
+                }
+
+                if (this.cursors.up.isDown) {
+                    this.physics.velocityFromRotation(this.ship.rotation + 1.57, 200, this.ship.body.acceleration);
+                } else {
+                    this.ship.setAcceleration(0);
+                }
             }
 
-            if (Phaser.Input.Keyboard.JustDown(this.spaceKey)) {
+            if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && !this.isImmobile) {
                 fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
                 this.socket.emit('playerShoot');
             }
@@ -647,6 +780,9 @@ function postUpdate(time, delta) {
         }
 
         // 更新攻击方向指示箭头
+        if (this.ship.goldenAura) {
+            this.ship.goldenAura.setPosition(this.ship.x, this.ship.y);
+        }
         if (this.ship.directionArrow) {
             const offset = 40; // 距离飞船中心的距离
             const angle = this.ship.rotation + 1.41; // 修正角度（飞船朝向）
@@ -669,6 +805,9 @@ function postUpdate(time, delta) {
         }
         if (otherPlayer.emote) {
             otherPlayer.emote.setPosition(otherPlayer.x, otherPlayer.y - 50);
+        }
+        if (otherPlayer.goldenAura) {
+            otherPlayer.goldenAura.setPosition(otherPlayer.x, otherPlayer.y);
         }
         if (otherPlayer.laserContainer) {
             otherPlayer.laserContainer.setPosition(otherPlayer.x, otherPlayer.y);
@@ -788,14 +927,27 @@ function addOtherPlayers(self, playerInfo) {
 }
 
 function addPowerUp(self, powerUpInfo) {
-    let key = 'powerup';
-    if (powerUpInfo.type === 'vampire') key = 'health_orb';
-    else if (powerUpInfo.type === 'shield') key = 'shield_orb';
-    else if (powerUpInfo.type === 'tracking') key = 'tracking_orb';
-
-    const powerUp = self.physics.add.sprite(powerUpInfo.x, powerUpInfo.y, key);
+    const powerUp = self.physics.add.sprite(powerUpInfo.x, powerUpInfo.y, 'powerup'); // Default texture
     powerUp.id = powerUpInfo.id;
-    powerUp.setDisplaySize(30, 30);
+
+    if (powerUpInfo.type === 'vampire') {
+        powerUp.setTexture('health_orb');
+        powerUp.setDisplaySize(30, 30);
+    } else if (powerUpInfo.type === 'shield') {
+        powerUp.setTexture('shield_orb');
+        powerUp.setDisplaySize(30, 30);
+    } else if (powerUpInfo.type === 'tracking') {
+        powerUp.setTexture('tracking_orb');
+        powerUp.setDisplaySize(30, 30);
+    } else if (powerUpInfo.type === 'golden_body') {
+        powerUp.setTexture('golden_orb'); // Assuming 'golden_orb' asset exists, or use 'shield_orb' with tint
+        powerUp.setDisplaySize(30, 30);
+        powerUp.setTint(0xffd700); // Gold tint
+    } else {
+        // Default for score or unknown power-ups
+        powerUp.setTexture('powerup');
+        powerUp.setDisplaySize(20, 20);
+    }
     powerUp.spawnTime = Date.now(); // 记录生成时间，用于保护期
     self.powerUps.add(powerUp);
 }
@@ -908,15 +1060,30 @@ function showEmote(scene, player, emoteId) {
 function updateHealthBar(scene, player, health) {
     if (!player.healthBar) {
         player.healthBar = scene.add.rectangle(player.x, player.y - 30, 40, 5, 0x00ff00);
+        player.healthBar.setOrigin(0.5, 0.5); // 设置原点为中心，使血条居中显示
     }
     player.healthBar.x = player.x;
     player.healthBar.y = player.y - 30;
-    player.healthBar.width = 40 * (health / 100);
 
-    if (health < 30) {
-        player.healthBar.fillColor = 0xff0000;
+    // 支持超过100的血量显示（最大200）
+    const maxHealth = 200;
+    const baseWidth = 40;
+
+    // 计算血条宽度：血量100以内正常显示，超过100后继续增长
+    if (health <= 100) {
+        player.healthBar.width = baseWidth * (health / 100);
     } else {
-        player.healthBar.fillColor = 0x00ff00;
+        // 超过100后，血条继续增长（最多到80px，即200%）
+        player.healthBar.width = baseWidth * (health / 100);
+    }
+
+    // 根据血量设置颜色
+    if (health < 30) {
+        player.healthBar.fillColor = 0xff0000; // 红色
+    } else if (health > 100) {
+        player.healthBar.fillColor = 0xffd700; // 金色（超过100）
+    } else {
+        player.healthBar.fillColor = 0x00ff00; // 绿色
     }
 }
 
