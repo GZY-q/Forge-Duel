@@ -207,7 +207,11 @@ io.on('connection', (socket) => {
             // 存储数据库相关信息
             username: username,
             userId: userId,
-            dbHighestScore: dbHighestScore
+            dbHighestScore: dbHighestScore,
+            // 技能状态
+            hasGoldenBody: false,
+            isInvulnerable: false,
+            isImmobile: false
         };
 
         // 向新玩家发送玩家对象
@@ -245,6 +249,9 @@ io.on('connection', (socket) => {
 
     socket.on('playerMovement', (movementData) => {
         if (players[socket.id]) {
+            // 如果处于定身状态，忽略移动请求
+            if (players[socket.id].isImmobile) return;
+
             players[socket.id].x = movementData.x;
             players[socket.id].y = movementData.y;
             players[socket.id].rotation = movementData.rotation;
@@ -261,6 +268,8 @@ io.on('connection', (socket) => {
     socket.on('playerHit', (damage, attackerId) => {
         if (players[socket.id]) {
             if (players[socket.id].health <= 0) return;
+            // 金身无敌状态
+            if (players[socket.id].isInvulnerable) return;
 
             let actualDamage = damage;
 
@@ -283,9 +292,14 @@ io.on('connection', (socket) => {
 
             players[socket.id].health -= actualDamage;
 
-            // 吸血逻辑 (如果攻击者存在且开启了吸血)
-            if (attackerId && players[attackerId] && players[attackerId].hasVampire) {
-                players[attackerId].health = Math.min(100, players[attackerId].health + damage * 0.5); // 吸血50%
+            // 吸血逻辑 (攻击真人玩家可突破血量上限)
+            if (attackerId && players[attackerId] && players[attackerId].hasVampire && !players[attackerId].isBot) {
+                const healAmount = damage * 0.5;
+                players[attackerId].health += healAmount;
+                // 设置最大血量上限为200
+                if (players[attackerId].health > 200) {
+                    players[attackerId].health = 200;
+                }
                 io.emit('updateHealth', { playerId: attackerId, health: players[attackerId].health });
             }
 
@@ -328,6 +342,9 @@ io.on('connection', (socket) => {
                     players[socket.id].hasVampire = false;
                     players[socket.id].hasShield = false;
                     players[socket.id].shieldHealth = 0;
+                    players[socket.id].hasGoldenBody = false;
+                    players[socket.id].isInvulnerable = false;
+                    players[socket.id].isImmobile = false;
                     players[socket.id].x = Math.floor(Math.random() * 700) + 50;
                     players[socket.id].y = Math.floor(Math.random() * 500) + 50;
 
@@ -359,8 +376,10 @@ io.on('connection', (socket) => {
                     type = 'vampire';
                 } else if (rand < 0.66) {
                     type = 'shield';
-                } else {
+                } else if (rand < 0.85) {
                     type = 'tracking';
+                } else {
+                    type = 'golden_body';
                 }
 
                 powerUps[powerUpId] = {
@@ -393,8 +412,14 @@ io.on('connection', (socket) => {
                     players[socket.id].shieldExpires = Date.now() + 30000; // 护盾持续30秒
                     io.emit('playerPowerUpActive', { playerId: socket.id, type: 'shield', value: 100, duration: 30000 });
                 } else if (powerUp.type === 'tracking') {
-                    // 追踪导弹 - 随机选择一个敌人
-                    const otherPlayerIds = Object.keys(players).filter(id => id !== socket.id);
+                    // 追踪导弹 - 优先选择真人玩家
+                    let otherPlayerIds = Object.keys(players).filter(id => id !== socket.id && !players[id].isBot);
+
+                    // 如果没有真人玩家，才选择机器人
+                    if (otherPlayerIds.length === 0) {
+                        otherPlayerIds = Object.keys(players).filter(id => id !== socket.id && players[id].isBot);
+                    }
+
                     if (otherPlayerIds.length > 0) {
                         const targetId = otherPlayerIds[Math.floor(Math.random() * otherPlayerIds.length)];
                         io.emit('playerPowerUpActive', { playerId: socket.id, type: 'tracking', targetId: targetId });
@@ -405,7 +430,31 @@ io.on('connection', (socket) => {
                     players[socket.id].weaponLevel = Math.min(players[socket.id].weaponLevel + 1, 3);
                     players[socket.id].score += value;
                     io.emit('updateWeaponLevel', { playerId: socket.id, weaponLevel: players[socket.id].weaponLevel });
+                } else if (powerUp.type === 'golden_body') {
+                    players[socket.id].hasGoldenBody = true;
+                    io.emit('playerObtainSkill', { playerId: socket.id, skill: 'golden_body' });
                 }
+            }
+        }
+    });
+
+    // 使用技能
+    socket.on('playerUseSkill', (skillName) => {
+        if (players[socket.id]) {
+            if (skillName === 'golden_body' && players[socket.id].hasGoldenBody) {
+                players[socket.id].hasGoldenBody = false;
+                players[socket.id].isInvulnerable = true;
+                players[socket.id].isImmobile = true;
+
+                io.emit('playerUseSkill', { playerId: socket.id, skill: 'golden_body', duration: 3000 });
+
+                setTimeout(() => {
+                    if (players[socket.id]) {
+                        players[socket.id].isInvulnerable = false;
+                        players[socket.id].isImmobile = false;
+                        io.emit('playerSkillEnd', { playerId: socket.id, skill: 'golden_body' });
+                    }
+                }, 3000);
             }
         }
     });
@@ -420,6 +469,8 @@ io.on('connection', (socket) => {
     socket.on('trackingMissileHit', (targetId) => {
         if (players[targetId]) {
             if (players[targetId].health <= 0) return;
+            // 金身无敌状态
+            if (players[targetId].isInvulnerable) return;
 
             let damage = 45; // 追踪导弹造45点伤害
 
@@ -442,9 +493,14 @@ io.on('connection', (socket) => {
 
             players[targetId].health -= damage;
 
-            // 吸血逻辑 (如果攻击者存在且开启了吸血)
-            if (players[socket.id] && players[socket.id].hasVampire) {
-                players[socket.id].health = Math.min(100, players[socket.id].health + damage * 0.5); // 吸血50%
+            // 吸血逻辑 (攻击真人玩家可突破血量上限)
+            if (players[socket.id] && players[socket.id].hasVampire && !players[socket.id].isBot) {
+                const healAmount = damage * 0.5;
+                players[socket.id].health += healAmount;
+                // 设置最大血量上限为200
+                if (players[socket.id].health > 200) {
+                    players[socket.id].health = 200;
+                }
                 io.emit('updateHealth', { playerId: socket.id, health: players[socket.id].health });
             }
 
@@ -484,6 +540,9 @@ io.on('connection', (socket) => {
                     players[targetId].hasVampire = false;
                     players[targetId].hasShield = false;
                     players[targetId].shieldHealth = 0;
+                    players[targetId].hasGoldenBody = false;
+                    players[targetId].isInvulnerable = false;
+                    players[targetId].isImmobile = false;
                     players[targetId].x = Math.floor(Math.random() * 700) + 50;
                     players[targetId].y = Math.floor(Math.random() * 500) + 50;
 
@@ -503,6 +562,17 @@ io.on('connection', (socket) => {
             bot.health -= damage;
             io.emit('updateHealth', { playerId: botId, health: bot.health });
 
+            // 吸血逻辑 (玩家攻击机器人也能吸血，保持已有的超额血量)
+            if (players[socket.id] && players[socket.id].hasVampire) {
+                const healAmount = damage * 0.5;
+                players[socket.id].health += healAmount;
+                // 设置最大血量上限为200
+                if (players[socket.id].health > 200) {
+                    players[socket.id].health = 200;
+                }
+                io.emit('updateHealth', { playerId: socket.id, health: players[socket.id].health });
+            }
+
             if (bot.health <= 0) {
                 bot.health = 0;
 
@@ -518,7 +588,8 @@ io.on('connection', (socket) => {
                 let type;
                 if (rand < 0.33) type = 'vampire';
                 else if (rand < 0.66) type = 'shield';
-                else type = 'tracking';
+                else if (rand < 0.85) type = 'tracking';
+                else type = 'golden_body';
 
                 powerUps[powerUpId] = {
                     id: powerUpId,
@@ -634,6 +705,12 @@ setInterval(() => {
                         const pDist = Math.sqrt(pdx * pdx + pdy * pdy);
 
                         if (pDist < ATTACK_RADIUS) {
+                            // 金身无敌状态检查
+                            if (player.isInvulnerable) {
+                                // 跳过这个玩家，不造成伤害
+                                return;
+                            }
+
                             // 造成伤害
                             let actualDamage = DAMAGE;
 
@@ -682,6 +759,9 @@ setInterval(() => {
                                         player.hasVampire = false;
                                         player.hasShield = false;
                                         player.shieldHealth = 0;
+                                        player.hasGoldenBody = false;
+                                        player.isInvulnerable = false;
+                                        player.isImmobile = false;
                                         player.x = Math.floor(Math.random() * 700) + 50;
                                         player.y = Math.floor(Math.random() * 500) + 50;
                                         io.emit('playerRespawn', player);
