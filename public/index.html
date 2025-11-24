@@ -24,31 +24,58 @@
             -webkit-user-select: none;
         }
 
-        @keyframes expandHorizontal {
+        @keyframes slideFromTop {
             0% {
-                transform: translate(-50%, -50%) scaleX(0);
+                transform: translate(-50%, -200%);
                 opacity: 0;
             }
 
-            50% {
-                opacity: 1;
-            }
-
             100% {
-                transform: translate(-50%, -50%) scaleX(1);
+                transform: translate(-50%, 0);
                 opacity: 1;
             }
         }
 
-        @keyframes glowPulse {
+        @keyframes neonGlow {
 
             0%,
             100% {
-                text-shadow: 0 0 20px rgba(0, 255, 0, 0.8), 0 0 40px rgba(0, 255, 0, 0.5);
+                filter: drop-shadow(0 0 10px #00ff00) drop-shadow(0 0 20px #00ff00);
+                text-shadow:
+                    0 0 10px #00ff00,
+                    0 0 20px #00ff00,
+                    0 0 30px #00ff00;
             }
 
             50% {
-                text-shadow: 0 0 30px rgba(0, 255, 0, 1), 0 0 60px rgba(0, 255, 0, 0.8), 0 0 80px rgba(0, 255, 0, 0.6);
+                filter: drop-shadow(0 0 20px #00ff00) drop-shadow(0 0 40px #00ff00) drop-shadow(0 0 60px #00ff00);
+                text-shadow:
+                    0 0 20px #00ff00,
+                    0 0 40px #00ff00,
+                    0 0 60px #00ff00,
+                    0 0 80px #00ff00;
+            }
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% center;
+            }
+
+            100% {
+                background-position: 200% center;
+            }
+        }
+
+        @keyframes floating {
+
+            0%,
+            100% {
+                transform: translateY(0);
+            }
+
+            50% {
+                transform: translateY(-10px);
             }
         }
 
@@ -754,25 +781,53 @@
         <div id="game-over-screen" style="
             display: none; 
             position: fixed; 
-            top: 50%; 
+            top: 25%; 
             left: 50%; 
-            transform: translate(-50%, -50%); 
+            transform: translate(-50%, 0); 
             z-index: 10000; 
-            text-align: center; 
-            background: linear-gradient(90deg, rgba(0, 0, 0, 0.95), rgba(0, 50, 0, 0.95), rgba(0, 0, 0, 0.95)); 
-            padding: 30px 80px; 
-            border-radius: 50px; 
-            border: 3px solid #00ff00; 
-            box-shadow: 0 0 40px rgba(0, 255, 0, 0.6), inset 0 0 20px rgba(0, 255, 0, 0.2);
-            animation: expandHorizontal 0.6s ease-out;">
-            <h1 id="winner-text" style="
-                margin: 0; 
-                font-size: 56px; 
-                color: #00ff00; 
-                text-shadow: 0 0 20px rgba(0, 255, 0, 0.8), 0 0 40px rgba(0, 255, 0, 0.5); 
-                letter-spacing: 8px;
-                white-space: nowrap;
-                animation: glowPulse 1.5s infinite;">胜利!</h1>
+            animation: slideFromTop 0.6s ease-out;">
+
+            <!-- 主内容 -->
+            <div style="
+                background: linear-gradient(135deg, rgba(20, 20, 25, 0.98), rgba(30, 30, 40, 0.98));
+                padding: 30px 45px;
+                border-radius: 16px;
+                border: 1px solid rgba(255, 255, 255, 0.15);
+                box-shadow: 
+                    0 8px 32px rgba(0, 0, 0, 0.4),
+                    0 2px 8px rgba(0, 0, 0, 0.2);
+                backdrop-filter: blur(10px);
+                text-align: center;
+                min-width: 280px;">
+
+                <!-- 图标 -->
+                <div style="
+                    font-size: 48px;
+                    margin-bottom: 12px;
+                    opacity: 0.9;">
+                    👑
+                </div>
+
+                <!-- 胜利文字 -->
+                <h1 id="winner-text" style="
+                    margin: 0 0 8px 0;
+                    font-size: 28px;
+                    font-weight: 600;
+                    background: linear-gradient(135deg, #ffd700, #ffed4e);
+                    -webkit-background-clip: text;
+                    -webkit-text-fill-color: transparent;
+                    background-clip: text;
+                    letter-spacing: 2px;">VICTORY</h1>
+
+                <!-- 副标题 -->
+                <div style="
+                    font-size: 13px;
+                    color: rgba(255, 255, 255, 0.5);
+                    font-weight: 400;
+                    letter-spacing: 1px;">
+                    祝贺获胜
+                </div>
+            </div>
         </div>
     </div>
 
