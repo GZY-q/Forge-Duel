@@ -232,6 +232,7 @@ function create() {
                 if (otherPlayer.healthBar) otherPlayer.healthBar.destroy(); // 修复：销毁血条
                 if (otherPlayer.shieldSprite) otherPlayer.shieldSprite.destroy(); // 销毁护盾
                 if (otherPlayer.emote) otherPlayer.emote.destroy(); // 销毁表情
+                if (otherPlayer.laserContainer) otherPlayer.laserContainer.destroy(); // 销毁激光圈容器
                 otherPlayer.destroy();
             }
         });
@@ -257,7 +258,8 @@ function create() {
         if (self.ship && info.playerId === self.socket.id) {
             // 仅在服务器值显著不同时更新（重新同步）
             // 或者我们死亡时（血量 <= 0）
-            if (Math.abs(self.health - info.health) > 20 || info.health <= 0) {
+            // 或者服务器报告的血量更低（说明受到了客户端未预测到的伤害，如激光圈）
+            if (Math.abs(self.health - info.health) > 2 || info.health < self.health || info.health <= 0) {
                 self.health = info.health;
                 updateHealthBar(self, self.ship, self.health);
             }
@@ -536,6 +538,12 @@ function postUpdate(time, delta) {
         if (otherPlayer.emote) {
             otherPlayer.emote.setPosition(otherPlayer.x, otherPlayer.y - 50);
         }
+        if (otherPlayer.laserContainer) {
+            otherPlayer.laserContainer.setPosition(otherPlayer.x, otherPlayer.y);
+            // 旋转动画
+            if (otherPlayer.laserOuter) otherPlayer.laserOuter.rotation += 0.02;
+            if (otherPlayer.laserInner) otherPlayer.laserInner.rotation -= 0.05;
+        }
     });
 
     if (this.ship && this.ship.shieldSprite) {
@@ -582,7 +590,61 @@ function addOtherPlayers(self, playerInfo) {
     otherPlayer.playerId = playerInfo.playerId;
     otherPlayer.health = playerInfo.health || 100;
     otherPlayer.weaponLevel = playerInfo.weaponLevel || 1;
-    otherPlayer.setTint(0x3370d2ff); // 将敌方飞船染为蓝色
+    otherPlayer.isBot = playerInfo.isBot;
+    if (otherPlayer.isBot) {
+        otherPlayer.setTint(0xff00ff); // 机器人染为紫色
+        otherPlayer.setDepth(10); // 确保飞船在光环之上
+
+        // 创建容器
+        const container = self.add.container(playerInfo.x, playerInfo.y);
+        container.setDepth(5); // 光环在飞船之下
+
+        // 1. 危险区域填充 (脉冲效果)
+        const dangerZone = self.add.graphics();
+        dangerZone.fillStyle(0xff0000, 0.1);
+        dangerZone.fillCircle(0, 0, 120);
+        container.add(dangerZone);
+
+        // 2. 旋转的外圈 (科技感断开圆环)
+        const outerRing = self.add.graphics();
+        outerRing.lineStyle(3, 0xff0000, 0.8);
+        // 绘制三个弧段
+        outerRing.beginPath();
+        outerRing.arc(0, 0, 120, 0, 1.5, false);
+        outerRing.strokePath();
+        outerRing.beginPath();
+        outerRing.arc(0, 0, 120, 2.1, 3.6, false);
+        outerRing.strokePath();
+        outerRing.beginPath();
+        outerRing.arc(0, 0, 120, 4.2, 5.7, false);
+        outerRing.strokePath();
+        container.add(outerRing);
+
+        // 3. 内圈扫描线
+        const innerRing = self.add.graphics();
+        innerRing.lineStyle(1, 0xff4444, 0.5);
+        innerRing.strokeCircle(0, 0, 100);
+        innerRing.beginPath();
+        innerRing.moveTo(0, 0);
+        innerRing.lineTo(100, 0); // 扫描针
+        innerRing.strokePath();
+        container.add(innerRing);
+
+        otherPlayer.laserContainer = container;
+        otherPlayer.laserOuter = outerRing;
+        otherPlayer.laserInner = innerRing;
+
+        // 简单的脉冲动画
+        self.tweens.add({
+            targets: dangerZone,
+            alpha: 0.25,
+            duration: 800,
+            yoyo: true,
+            repeat: -1
+        });
+    } else {
+        otherPlayer.setTint(0x3370d2ff); // 玩家染为蓝色
+    }
     self.otherPlayers.add(otherPlayer);
 
     // 添加名字文本
@@ -640,6 +702,11 @@ function fireBullet(scene, playerInfo, isOwner) {
                     if (enemySprite.health !== undefined) {
                         enemySprite.health -= 10;
                         updateHealthBar(scene, enemySprite, enemySprite.health);
+                    }
+
+                    // 如果是机器人，由射手端发送命中事件
+                    if (enemySprite.isBot) {
+                        scene.socket.emit('botHit', enemySprite.playerId, 10);
                     }
                 }
             });

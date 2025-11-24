@@ -495,6 +495,50 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('botHit', (botId, damage) => {
+        const bot = players[botId];
+        if (bot && bot.isBot) {
+            if (bot.health <= 0) return;
+
+            bot.health -= damage;
+            io.emit('updateHealth', { playerId: botId, health: bot.health });
+
+            if (bot.health <= 0) {
+                bot.health = 0;
+
+                // 击杀者加分
+                if (players[socket.id]) {
+                    players[socket.id].score += 100;
+                    io.emit('updateScore', { playerId: socket.id, score: players[socket.id].score });
+                }
+
+                // 掉落强力道具 (随机一种: 吸血、护盾、追踪导弹)
+                const powerUpId = `powerup_${powerUpIdCounter++}`;
+                const rand = Math.random();
+                let type;
+                if (rand < 0.33) type = 'vampire';
+                else if (rand < 0.66) type = 'shield';
+                else type = 'tracking';
+
+                powerUps[powerUpId] = {
+                    id: powerUpId,
+                    x: bot.x,
+                    y: bot.y,
+                    type: type,
+                    value: 0
+                };
+                io.emit('powerUpDropped', powerUps[powerUpId]);
+
+                // 广播击杀
+                io.emit('playerKilled', { killerId: socket.id, victimId: botId });
+
+                // 移除Bot (稍后由ensureBots重生)
+                delete players[botId];
+                io.emit('playerDisconnected', botId);
+            }
+        }
+    });
+
     // 检查buff过期
     setInterval(() => {
         const now = Date.now();
@@ -513,6 +557,149 @@ io.on('connection', (socket) => {
         });
     }, 1000);
 });
+
+// AI Bot 逻辑
+const BOT_COUNT = 3;
+let botIdCounter = 0;
+
+function createBot() {
+    const id = `bot_${botIdCounter++}`;
+    players[id] = {
+        x: Math.floor(Math.random() * 1400) + 100,
+        y: Math.floor(Math.random() * 1000) + 100,
+        playerId: id,
+        health: 100,
+        score: 0,
+        name: `AI-Bot-${botIdCounter}`,
+        weaponLevel: 1,
+        isBot: true,
+        // AI 状态
+        targetX: Math.random() * 1600,
+        targetY: Math.random() * 1200,
+        lastShot: 0,
+        moveTimer: 0
+    };
+    io.emit('newPlayer', players[id]);
+}
+
+// Bot 更新循环
+setInterval(() => {
+    // 1. 确保Bot数量
+    const currentBots = Object.values(players).filter(p => p.isBot);
+    if (currentBots.length < BOT_COUNT) {
+        createBot();
+    }
+
+    // 2. 更新Bot行为
+    const now = Date.now();
+    Object.values(players).forEach(bot => {
+        if (bot.isBot) {
+            // 移动逻辑
+            if (now > bot.moveTimer) {
+                // 每2-4秒更换目标点
+                bot.targetX = Math.floor(Math.random() * 1400) + 100;
+                bot.targetY = Math.floor(Math.random() * 1000) + 100;
+                bot.moveTimer = now + 2000 + Math.random() * 2000;
+            }
+
+            // 简单的向目标移动
+            const dx = bot.targetX - bot.x;
+            const dy = bot.targetY - bot.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const speed = 10; // 10px per 50ms = 200px/s (更平滑)
+
+            if (dist > 10) {
+                bot.x += (dx / dist) * speed;
+                bot.y += (dy / dist) * speed;
+                // 计算角度
+                bot.rotation = Math.atan2(dy, dx) + 1.57; // +90度修正
+
+                io.emit('playerMoved', bot);
+            }
+
+            // 激光圈攻击逻辑 (替代射击)
+            // 检查周围玩家
+            const ATTACK_RADIUS = 120;
+            const DAMAGE_INTERVAL = 500; // 每0.5秒造成一次伤害
+            const DAMAGE = 15;
+
+            if (!bot.lastDamageTime) bot.lastDamageTime = 0;
+
+            if (now - bot.lastDamageTime > DAMAGE_INTERVAL) {
+                let hitPlayer = false;
+                Object.values(players).forEach(player => {
+                    if (!player.isBot && player.health > 0) {
+                        const pdx = player.x - bot.x;
+                        const pdy = player.y - bot.y;
+                        const pDist = Math.sqrt(pdx * pdx + pdy * pdy);
+
+                        if (pDist < ATTACK_RADIUS) {
+                            // 造成伤害
+                            let actualDamage = DAMAGE;
+
+                            // 护盾逻辑
+                            if (player.hasShield) {
+                                if (player.shieldHealth >= actualDamage) {
+                                    player.shieldHealth -= actualDamage;
+                                    actualDamage = 0;
+                                } else {
+                                    actualDamage -= player.shieldHealth;
+                                    player.shieldHealth = 0;
+                                    player.hasShield = false;
+                                    io.emit('playerPowerUpExpired', { playerId: player.playerId, type: 'shield' });
+                                }
+                                io.emit('playerShieldUpdate', { playerId: player.playerId, shieldHealth: player.shieldHealth });
+                            }
+
+                            if (actualDamage > 0) {
+                                player.health -= actualDamage;
+                                if (player.health < 0) player.health = 0;
+                                io.emit('updateHealth', { playerId: player.playerId, health: player.health });
+
+                                // 如果击杀
+                                if (player.health <= 0) {
+                                    io.emit('playerKilled', { killerId: bot.playerId, victimId: player.playerId });
+                                    // Bot加分? 暂时不需要
+
+                                    // 玩家死亡逻辑 (复用之前的逻辑，这里简化处理，客户端会处理死亡画面，服务端重置在gameUpdate或客户端请求)
+                                    // 这里我们需要手动处理玩家死亡掉落
+
+                                    const powerUpId = `powerup_${powerUpIdCounter++}`;
+                                    const scoreValue = player.score + 1;
+                                    powerUps[powerUpId] = {
+                                        id: powerUpId,
+                                        x: player.x,
+                                        y: player.y,
+                                        type: 'score',
+                                        value: scoreValue
+                                    };
+                                    io.emit('powerUpDropped', powerUps[powerUpId]);
+
+                                    setTimeout(() => {
+                                        player.score = 0;
+                                        player.health = 100;
+                                        player.weaponLevel = 1;
+                                        player.hasVampire = false;
+                                        player.hasShield = false;
+                                        player.shieldHealth = 0;
+                                        player.x = Math.floor(Math.random() * 700) + 50;
+                                        player.y = Math.floor(Math.random() * 500) + 50;
+                                        io.emit('playerRespawn', player);
+                                    }, 100);
+                                }
+                            }
+                            hitPlayer = true;
+                        }
+                    }
+                });
+
+                if (hitPlayer) {
+                    bot.lastDamageTime = now;
+                }
+            }
+        }
+    });
+}, 50);
 
 const PORT = process.env.PORT || 8080;
 
