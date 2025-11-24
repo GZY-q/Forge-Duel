@@ -32,18 +32,9 @@ doc.md
 *~
 
 # 临时文件
-tmp/
-temp/
-
-gemini-co-drawing.zip
-pigs.db
-pigs.db
-pigs.db
 public/assets/bullet0.png
-public/assets/ship0.png
-.env.example
+public/assets/ship0.pn
 AUTH_README.md
 IMPLEMENTATION_SUMMARY.md
 SETUP_GUIDE.md
-.env
-.env
+
