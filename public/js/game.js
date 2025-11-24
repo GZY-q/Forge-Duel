@@ -372,10 +372,10 @@ function create() {
 
             // 按钮冷却效果
             emoteBtn.disabled = true;
-            emoteBtn.innerText = "冷却中...";
+            emoteBtn.innerText = "冷却";
             setTimeout(() => {
                 emoteBtn.disabled = false;
-                emoteBtn.innerText = "发送表情";
+                emoteBtn.innerText = "表情";
             }, 3000);
         };
 
@@ -418,39 +418,171 @@ function create() {
 
     // 通过在物理步骤后更新位置来修复UI重影问题
     this.events.on('postupdate', postUpdate, this);
+
+    // --- 设置相关逻辑 ---
+    this.controlMode = localStorage.getItem('forge_duel_control_mode') || 'tap';
+    this.joystickPosition = localStorage.getItem('forge_duel_joystick_pos') || 'left';
+
+    // 设置按钮事件
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const closeSettings = document.getElementById('close-settings');
+    const saveSettingsBtn = document.getElementById('save-settings-btn');
+    const radioInputs = document.getElementsByName('control-mode');
+    const posInputs = document.getElementsByName('joystick-pos');
+    const joystickSettingsDiv = document.getElementById('joystick-settings');
+
+    // 切换控制模式时显示/隐藏轮盘位置设置
+    const updateSettingsUI = () => {
+        let isJoystick = false;
+        for (let input of radioInputs) {
+            if (input.checked && input.value === 'joystick') {
+                isJoystick = true;
+                break;
+            }
+        }
+        if (joystickSettingsDiv) {
+            joystickSettingsDiv.style.display = isJoystick ? 'block' : 'none';
+        }
+    };
+
+    // 监听单选框变化
+    for (let input of radioInputs) {
+        input.addEventListener('change', updateSettingsUI);
+    }
+
+    if (settingsBtn) {
+        settingsBtn.onclick = (e) => {
+            e.stopPropagation();
+            // 设置当前选中的选项
+            for (let input of radioInputs) {
+                if (input.value === this.controlMode) {
+                    input.checked = true;
+                }
+            }
+            for (let input of posInputs) {
+                if (input.value === this.joystickPosition) {
+                    input.checked = true;
+                }
+            }
+            updateSettingsUI();
+            settingsModal.style.display = 'flex';
+        };
+
+        // 防止触摸穿透
+        settingsBtn.addEventListener('touchstart', (e) => e.stopPropagation());
+        settingsBtn.addEventListener('touchend', (e) => e.stopPropagation());
+    }
+
+    if (closeSettings) {
+        closeSettings.onclick = () => {
+            settingsModal.style.display = 'none';
+        };
+    }
+
+    if (saveSettingsBtn) {
+        saveSettingsBtn.onclick = () => {
+            for (let input of radioInputs) {
+                if (input.checked) {
+                    this.controlMode = input.value;
+                    localStorage.setItem('forge_duel_control_mode', this.controlMode);
+                    break;
+                }
+            }
+            for (let input of posInputs) {
+                if (input.checked) {
+                    this.joystickPosition = input.value;
+                    localStorage.setItem('forge_duel_joystick_pos', this.joystickPosition);
+                    break;
+                }
+            }
+            settingsModal.style.display = 'none';
+
+            // 应用更改
+            if (this.isMobile) {
+                // 先销毁旧的
+                if (this.joystick) destroyJoystick(this);
+
+                // 如果是摇杆模式，重新创建
+                if (this.controlMode === 'joystick') {
+                    createJoystick(this);
+                }
+            }
+        };
+    }
+
+    // 初始化摇杆 (如果是移动端且模式为joystick)
+    if (this.isMobile && this.controlMode === 'joystick') {
+        createJoystick(this);
+    }
 }
 
 function update(time, delta) {
     if (this.ship) {
         if (this.isMobile) {
             // 移动端控制
-            const pointer = this.input.activePointer;
+            if (this.controlMode === 'joystick' && this.joystick) {
+                // --- 摇杆模式 ---
+                if (this.joystick.active) {
+                    const force = Math.min(this.joystick.distance / this.joystick.radius, 1); // 0-1
+                    const angle = this.joystick.angle;
 
-            if (pointer.isDown) {
-                // 计算距离
-                const dist = Phaser.Math.Distance.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
+                    // 只有推杆超过一定程度才移动
+                    if (force > 0.1) {
+                        this.ship.setRotation(angle - 1.57);
+                        this.physics.velocityFromRotation(angle, 200 * force, this.ship.body.velocity);
 
-                // 死区检测：只有距离大于20px才移动，防止到达目标点后抖动
-                if (dist > 20) {
-                    // 计算指向指针的角度
-                    const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, pointer.worldX, pointer.worldY);
-
-                    // 调整旋转因为精灵默认朝下（1.57弧度）
-                    this.ship.setRotation(angle - 1.57);
-
-                    // 改用直接速度控制，手感更灵敏，不会有"滑冰"的感觉
-                    this.physics.velocityFromRotation(angle, 200, this.ship.body.velocity);
+                        // 移动时自动射击 (可选，或者保留自动射击逻辑)
+                    } else {
+                        this.ship.setVelocity(0);
+                        this.ship.setAngularVelocity(0);
+                    }
                 } else {
-                    // 进入死区，立即停止
                     this.ship.setVelocity(0);
                     this.ship.setAngularVelocity(0);
                 }
             } else {
-                // 手指抬起，立即停止
-                this.ship.setVelocity(0);
-                this.ship.setAngularVelocity(0);
-            }
+                // --- 点击模式 (Tap to Move) ---
+                // 这种模式下，点击屏幕设置目标点，飞船会自动飞向该点，直到到达或设置新目标
+                const pointer = this.input.activePointer;
 
+                if (pointer.isDown) {
+                    // 排除摇杆区域 (虽然在点击模式下不显示摇杆，但为了逻辑统一)
+                    // 更新移动目标点
+                    this.moveTarget = { x: pointer.worldX, y: pointer.worldY };
+                }
+
+                if (this.moveTarget) {
+                    // 计算距离
+                    const dist = Phaser.Math.Distance.Between(this.ship.x, this.ship.y, this.moveTarget.x, this.moveTarget.y);
+
+                    // 到达判定 (20px)
+                    if (dist > 20) {
+                        // 计算角度
+                        const angle = Phaser.Math.Angle.Between(this.ship.x, this.ship.y, this.moveTarget.x, this.moveTarget.y);
+
+                        // 旋转飞船
+                        this.ship.setRotation(angle - 1.57);
+
+                        // 移动
+                        this.physics.velocityFromRotation(angle, 200, this.ship.body.velocity);
+                    } else {
+                        // 到达目标，清除目标点并停止
+                        this.moveTarget = null;
+                        this.ship.setVelocity(0);
+                        this.ship.setAngularVelocity(0);
+                    }
+                } else {
+                    // 没有目标点，停止 (依靠阻力自然减速，或者强制停止)
+                    // 为了防止漂移，这里强制停止，或者保留一点惯性
+                    if (this.ship.body.speed > 10) {
+                        this.ship.setDrag(300); // 增加阻力快速停下
+                    } else {
+                        this.ship.setVelocity(0);
+                        this.ship.setAngularVelocity(0);
+                    }
+                }
+            }
             // 自动射击
             if (time > this.lastFired) {
                 fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
@@ -858,6 +990,100 @@ function fireTrackingMissile(scene, shooter, targetId, isOwner) {
             missile.destroy();
         }
     }, 10000);
+}
+
+// --- 虚拟摇杆实现 ---
+function createJoystick(scene) {
+    if (scene.joystick) return;
+
+    const radius = 60;
+    let x = 100;
+    const y = scene.scale.height - 100;
+
+    // 根据设置调整位置
+    if (scene.joystickPosition === 'center') {
+        x = scene.scale.width / 2;
+    } else if (scene.joystickPosition === 'right') {
+        x = scene.scale.width - 100;
+    } else {
+        // default left
+        x = 100;
+    }
+
+    // 摇杆底座
+    const base = scene.add.circle(x, y, radius, 0x888888, 0.5)
+        .setScrollFactor(0)
+        .setDepth(1000)
+        .setInteractive();
+
+    // 摇杆头部
+    const thumb = scene.add.circle(x, y, 30, 0xcccccc, 0.8)
+        .setScrollFactor(0)
+        .setDepth(1001);
+
+    scene.joystick = {
+        base: base,
+        thumb: thumb,
+        active: false,
+        angle: 0,
+        distance: 0,
+        radius: radius,
+        originX: x,
+        originY: y,
+        pointerId: null
+    };
+
+    // 触摸事件处理
+    scene.input.on('pointerdown', (pointer) => {
+        // 检查是否点击在摇杆区域附近
+        // 直接检查距离摇杆中心的距离，不再限制象限，从而支持左/中/右所有位置
+        const d = Phaser.Math.Distance.Between(pointer.x, pointer.y, scene.joystick.originX, scene.joystick.originY);
+        // 扩大一点判定范围 (2.5倍半径)，方便手指粗的玩家
+        if (d < radius * 2.5) {
+            scene.joystick.active = true;
+            scene.joystick.pointerId = pointer.id;
+            updateJoystickVisuals(scene, pointer);
+        }
+    });
+
+    scene.input.on('pointermove', (pointer) => {
+        if (scene.joystick.active && pointer.id === scene.joystick.pointerId) {
+            updateJoystickVisuals(scene, pointer);
+        }
+    });
+
+    scene.input.on('pointerup', (pointer) => {
+        if (scene.joystick.active && pointer.id === scene.joystick.pointerId) {
+            scene.joystick.active = false;
+            scene.joystick.pointerId = null;
+            // 复位
+            scene.joystick.thumb.setPosition(scene.joystick.originX, scene.joystick.originY);
+            scene.joystick.distance = 0;
+        }
+    });
+}
+
+function updateJoystickVisuals(scene, pointer) {
+    const joy = scene.joystick;
+    const angle = Phaser.Math.Angle.Between(joy.originX, joy.originY, pointer.x, pointer.y);
+    const dist = Phaser.Math.Distance.Between(joy.originX, joy.originY, pointer.x, pointer.y);
+
+    // 限制摇杆头部在底座范围内
+    const clampDist = Math.min(dist, joy.radius);
+
+    joy.thumb.x = joy.originX + Math.cos(angle) * clampDist;
+    joy.thumb.y = joy.originY + Math.sin(angle) * clampDist;
+
+    joy.angle = angle;
+    joy.distance = clampDist;
+}
+
+function destroyJoystick(scene) {
+    if (scene.joystick) {
+        scene.joystick.base.destroy();
+        scene.joystick.thumb.destroy();
+        scene.joystick = null;
+    }
 }
 // End of file
 
