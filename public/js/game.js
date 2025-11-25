@@ -34,6 +34,11 @@ function preload() {
     this.load.image('powerup', 'assets/powerup.png');
     this.load.image('bg', 'assets/bg.png');
 
+    // 加载新飞船
+    this.load.image('ship1', 'assets/ship1.png');
+    this.load.image('ship2', 'assets/ship2.png');
+    this.load.image('ship3', 'assets/ship3.png');
+
     // 新增资源
     this.load.image('treasure_chest', 'assets/treasure_chest.png');
     this.load.image('health_orb', 'assets/health_orb.png');
@@ -71,6 +76,7 @@ function preload() {
 
 function create() {
     const self = this;
+    window.gameScene = this; // 暴露给全局，供HTML UI调用
 
 
 
@@ -186,7 +192,7 @@ function create() {
                 }
             } else if (data.type === 'vampire') {
                 target.clearTint();
-                if (target !== self.ship) target.setTint(0xff0000); // 恢复敌人红色
+                // 不再恢复红色遮罩
             }
         }
     });
@@ -226,6 +232,12 @@ function create() {
 
         if (target) {
             if (data.skill === 'golden_body') {
+                // 如果是自己，设置定身标志
+                if (data.playerId === self.socket.id) {
+                    self.isImmobile = true;
+                    console.log('Player is now immobile (golden body active)');
+                }
+
                 // 金身特效：金色光环 + 强光
                 if (!target.goldenAura) {
                     // 创建一个发光的圆形背景
@@ -243,19 +255,131 @@ function create() {
                     });
 
                     target.goldenAura = aura;
-
-                    // 飞船本身变金 (纯金色)
-                    target.setTintFill(0xffd700);
                 }
+                // 飞船变金
+                target.setTintFill(0xffd700);
+            }
+        }
+    });
 
-                // 如果是自己，禁用控制
-                if (data.playerId === self.socket.id) {
-                    self.isImmobile = true;
-                    // 停止当前移动
-                    self.ship.setVelocity(0);
-                    self.ship.setAngularVelocity(0);
-                    self.moveTarget = null; // 清除点击移动目标
+    // 选择阶段开始
+    this.socket.on('startSelectionPhase', function (duration) {
+        console.log('=== Selection phase started ===');
+
+        // 完全隐藏游戏画布，确保不会阻挡点击
+        const gameCanvas = document.querySelector('canvas');
+        if (gameCanvas) {
+            gameCanvas.style.display = 'none';
+            console.log('Canvas hidden');
+        }
+
+        const modal = document.getElementById('ship-selection-modal');
+        if (modal) {
+            modal.style.display = 'flex';
+            modal.style.pointerEvents = 'auto'; // 确保可点击
+            console.log('Modal shown');
+        }
+
+        let timeLeft = duration / 1000;
+        const timerEl = document.getElementById('selection-timer');
+        if (timerEl) timerEl.innerText = timeLeft;
+
+        if (self.selectionInterval) clearInterval(self.selectionInterval);
+        self.selectionInterval = setInterval(() => {
+            timeLeft--;
+            if (timerEl) timerEl.innerText = timeLeft;
+            if (timeLeft <= 0) clearInterval(self.selectionInterval);
+        }, 1000);
+    });
+
+    // 选择阶段结束
+    this.socket.on('endSelectionPhase', function () {
+        console.log('=== Selection phase ended ===');
+
+        // 恢复游戏画布显示（移除样式，恢复默认）
+        const gameCanvas = document.querySelector('canvas');
+        if (gameCanvas) {
+            gameCanvas.style.removeProperty('display'); // 移除display属性，恢复默认
+            console.log('Canvas restored');
+        }
+
+        const modal = document.getElementById('ship-selection-modal');
+        if (modal) {
+            modal.style.display = 'none';
+            console.log('Modal hidden');
+        }
+
+        if (self.selectionInterval) clearInterval(self.selectionInterval);
+    });
+
+    // 玩家切换飞船
+    this.socket.on('playerSwitchShip', function (data) {
+        const target = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+        if (target) {
+            // 更新纹理
+            if (data.shipType === 1) target.setTexture('ship1');
+            else if (data.shipType === 2) target.setTexture('ship2');
+            else if (data.shipType === 3) target.setTexture('ship3');
+            else target.setTexture('ship'); // 默认
+
+            // 保存飞船类型
+            target.shipType = data.shipType;
+        }
+    });
+
+
+
+    // 激光特效
+    this.socket.on('playerLaserFired', function (data) {
+        const attacker = (data.playerId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.playerId);
+
+        if (attacker && data.targetId) {
+            // 绘制激光
+            const graphics = self.add.graphics();
+            const width = 2 + (data.weaponLevel || 1) * 2; // 基础2，每级+2
+            graphics.lineStyle(width, 0x00ccff, 1); // 蓝色激光
+
+            // 如果有目标坐标（服务端传回）
+            let targetX = data.x;
+            let targetY = data.y;
+
+            // 如果没有坐标，尝试在本地找目标对象
+            if (targetX === undefined || targetY === undefined) {
+                const target = (data.targetId === self.socket.id) ? self.ship : self.otherPlayers.getChildren().find(p => p.playerId === data.targetId);
+                // 也要检查Bot
+                // 注意：客户端可能没有所有Bot的引用，或者Bot在otherPlayers里
+                if (target) {
+                    targetX = target.x;
+                    targetY = target.y;
                 }
+            }
+
+            if (targetX !== undefined && targetY !== undefined) {
+                // 绘制闪电效果（多段线）
+                const startX = attacker.x;
+                const startY = attacker.y;
+                const segments = 5;
+                let prevX = startX;
+                let prevY = startY;
+
+                graphics.beginPath();
+                graphics.moveTo(startX, startY);
+
+                for (let i = 1; i < segments; i++) {
+                    const t = i / segments;
+                    const midX = startX + (targetX - startX) * t + (Math.random() - 0.5) * 20;
+                    const midY = startY + (targetY - startY) * t + (Math.random() - 0.5) * 20;
+                    graphics.lineTo(midX, midY);
+                    prevX = midX;
+                    prevY = midY;
+                }
+                graphics.lineTo(targetX, targetY);
+                graphics.strokePath();
+
+                // 100ms后清除
+                setTimeout(() => {
+                    graphics.destroy();
+                }, 100);
             }
         }
     });
@@ -710,11 +834,18 @@ function update(time, delta) {
                     }
                 }
             }
-            // 自动射击
+            // 自动射击 (移动端)
+            let fireInterval = 300;
+            if (this.ship.shipType === 1) fireInterval = 200;
+            else if (this.ship.shipType === 2) fireInterval = 800;
+            else if (this.ship.shipType === 3) fireInterval = 100;
+
             if (time > this.lastFired) {
-                fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
+                if (this.ship.shipType !== 3) {
+                    fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel, shipType: this.ship.shipType }, true);
+                }
                 this.socket.emit('playerShoot');
-                this.lastFired = time + 300; // 每300毫秒射击一次
+                this.lastFired = time + fireInterval;
             }
 
         } else {
@@ -739,9 +870,20 @@ function update(time, delta) {
                 }
             }
 
-            if (Phaser.Input.Keyboard.JustDown(this.spaceKey) && !this.isImmobile) {
-                fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel }, true);
-                this.socket.emit('playerShoot');
+            // 射击逻辑 (支持按住连发)
+            let fireInterval = 300;
+            if (this.ship && this.ship.shipType === 1) fireInterval = 200;
+            else if (this.ship && this.ship.shipType === 2) fireInterval = 800;
+            else if (this.ship && this.ship.shipType === 3) fireInterval = 100;
+
+            if (this.spaceKey.isDown && !this.isImmobile) {
+                if (time > this.lastFired) {
+                    if (this.ship.shipType !== 3) {
+                        fireBullet(this, { x: this.ship.x, y: this.ship.y, rotation: this.ship.rotation, weaponLevel: this.ship.weaponLevel, shipType: this.ship.shipType }, true);
+                    }
+                    this.socket.emit('playerShoot');
+                    this.lastFired = time + fireInterval;
+                }
             }
         }
 
@@ -855,15 +997,23 @@ function addPlayer(self, playerInfo) {
 }
 
 function addOtherPlayers(self, playerInfo) {
-    const otherPlayer = self.physics.add.sprite(playerInfo.x, playerInfo.y, 'ship');
+    // 根据玩家的 shipType 设置正确的纹理
+    let texture = 'ship';
+    if (playerInfo.shipType === 1) texture = 'ship1';
+    else if (playerInfo.shipType === 2) texture = 'ship2';
+    else if (playerInfo.shipType === 3) texture = 'ship3';
+    else if (playerInfo.shipType === 0) texture = 'ship';
+
+    const otherPlayer = self.physics.add.sprite(playerInfo.x, playerInfo.y, texture);
     otherPlayer.setOrigin(0.5, 0.5);
     otherPlayer.setDisplaySize(50, 50);
     otherPlayer.playerId = playerInfo.playerId;
     otherPlayer.health = playerInfo.health || 100;
     otherPlayer.weaponLevel = playerInfo.weaponLevel || 1;
+    otherPlayer.shipType = playerInfo.shipType || 0;
     otherPlayer.isBot = playerInfo.isBot;
     if (otherPlayer.isBot) {
-        otherPlayer.setTint(0xff00ff); // 机器人染为紫色
+        // 不再设置颜色遮罩，保持原始战机颜色
         otherPlayer.setDepth(10); // 确保飞船在光环之上
 
         // 创建容器
@@ -914,7 +1064,7 @@ function addOtherPlayers(self, playerInfo) {
             repeat: -1
         });
     } else {
-        otherPlayer.setTint(0x3370d2ff); // 玩家染为蓝色
+        // 真人玩家也不设置颜色遮罩，保持原始战机颜色
     }
     self.otherPlayers.add(otherPlayer);
 
@@ -962,15 +1112,44 @@ function addChest(self, chestInfo) {
 
 function fireBullet(scene, playerInfo, isOwner) {
     const weaponLevel = playerInfo.weaponLevel || 1;
+    const shipType = playerInfo.shipType || 1;
 
+    // 播放音效
+    if (scene.sound && scene.sound.get('shoot')) {
+        scene.sound.play('shoot', { volume: 0.5 });
+    }
 
     const createBullet = (offsetX, offsetY, angleOffset) => {
         const bullet = scene.physics.add.sprite(playerInfo.x + offsetX, playerInfo.y + offsetY, 'bullet');
-        bullet.setDisplaySize(20, 20);
         bullet.ownerId = playerInfo.playerId || scene.socket.id; // 记录发射者ID
 
+        // 根据飞船类型调整子弹属性
+        let speed = 600;
+        let size = 20;
+        let tint = 0xffffff;
+        let damage = 15; // 默认伤害 (Type 0)
+
+        if (shipType === 1) {
+            // 影袭者：子弹小而快
+            speed = 800;
+            size = 15;
+            tint = 0x00ff00;
+            damage = 6;
+        } else if (shipType === 2) {
+            // 毁灭者：子弹大而慢
+            speed = 400;
+            size = 30;
+            tint = 0xff4400;
+            damage = 60;
+        }
+
+        bullet.damage = damage;
+
+        bullet.setDisplaySize(size, size);
+        bullet.setTint(tint);
+
         const angle = playerInfo.rotation + 1.57 + angleOffset; // 1.57是90度修正
-        scene.physics.velocityFromRotation(angle, 600, bullet.body.velocity);
+        scene.physics.velocityFromRotation(angle, speed, bullet.body.velocity);
         bullet.rotation = playerInfo.rotation + angleOffset;
 
         setTimeout(() => {
@@ -1008,7 +1187,7 @@ function fireBullet(scene, playerInfo, isOwner) {
                 if (b.active) {
                     b.destroy();
                     // 自身血量的乐观更新
-                    const damage = 10;
+                    const damage = b.damage || 10; // 使用子弹的伤害属性
                     // 简单的客户端护盾预测
                     if (scene.ship.shieldSprite) {
                         // 视觉上不做扣血，等待服务器同步? 或者乐观扣除护盾?
