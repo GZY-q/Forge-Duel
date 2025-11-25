@@ -66,6 +66,8 @@ const GAME_DURATION = 3 * 60 * 1000;
 let gameEndTime = Date.now() + GAME_DURATION;
 let isIntermission = false;
 let intermissionEndTime = 0;
+let isSelectionPhase = false;
+let selectionEndTime = 0;
 
 // 游戏实体
 const players = {};
@@ -131,7 +133,10 @@ function createPlayerData(socketId, playerName, username = null, userId = null, 
         hasGoldenBody: false,
         isInvulnerable: false,
         isImmobile: false,
-        isBot: false
+        isBot: false,
+        shipType: 0, // 默认飞船0 (均衡教派)
+        lastFireTime: 0, // 射击冷却时间
+        isSelecting: true // 是否在选择飞船阶段
     };
 }
 
@@ -239,9 +244,13 @@ function createBot() {
 gameUpdateTimer = setInterval(() => {
     if (isIntermission) {
         if (Date.now() > intermissionEndTime) {
-            // 重置游戏
+            // 间歇期结束，进入选择阶段
             isIntermission = false;
-            gameEndTime = Date.now() + GAME_DURATION;
+            isSelectionPhase = true;
+            selectionEndTime = Date.now() + 5000; // 5秒选择时间
+
+            // 重置游戏结束时间（加上选择时间）
+            gameEndTime = Date.now() + GAME_DURATION + 5000;
 
             // 清理所有Bot
             Object.keys(players).forEach(id => {
@@ -255,7 +264,10 @@ gameUpdateTimer = setInterval(() => {
             botIdCounter = 0;
 
             // 重生真人玩家
-            Object.keys(players).forEach(id => respawnPlayer(id));
+            Object.keys(players).forEach(id => {
+                respawnPlayer(id);
+                players[id].isSelecting = true; // 重置为选择状态
+            });
 
             // 清理道具
             Object.keys(powerUps).forEach(key => delete powerUps[key]);
@@ -267,8 +279,20 @@ gameUpdateTimer = setInterval(() => {
                 delete chests[key];
             });
             chestIdCounter = 0;
+
+            // 通知客户端进入选择阶段
+            io.emit('startSelectionPhase', 5000);
         }
         return;
+    }
+
+    // 选择阶段处理
+    if (isSelectionPhase) {
+        if (Date.now() > selectionEndTime) {
+            isSelectionPhase = false;
+            io.emit('endSelectionPhase');
+        }
+        return; // 选择阶段暂停游戏逻辑更新
     }
 
     const timeLeft = Math.max(0, Math.ceil((gameEndTime - Date.now()) / 1000));
@@ -461,6 +485,16 @@ io.on('connection', (socket) => {
         players[socket.id] = createPlayerData(socket.id, playerName, username, userId, dbHighestScore);
         socket.emit('currentPlayers', players);
         socket.broadcast.emit('newPlayer', players[socket.id]);
+
+        // 触发选择界面 (长时间，等待玩家确认)
+        socket.emit('startSelectionPhase', 999999);
+    });
+
+    // 玩家准备就绪
+    socket.on('playerReady', () => {
+        if (players[socket.id]) {
+            players[socket.id].isSelecting = false;
+        }
     });
 
     // 玩家断开（清理工作）
@@ -492,8 +526,142 @@ io.on('connection', (socket) => {
 
     // 玩家射击
     socket.on('playerShoot', () => {
-        if (players[socket.id]) {
-            socket.broadcast.emit('playerFired', players[socket.id]);
+        const player = players[socket.id];
+        if (!player || isSelectionPhase) return; // 选择阶段不能射击
+
+        const now = Date.now();
+        let cooldown = 200;
+        let damage = 10;
+
+        // 根据飞船类型设置参数
+        if (player.shipType === 1) {
+            cooldown = 200; // 攻速快
+            damage = 6; // 降低伤害 (原10)
+        } else if (player.shipType === 2) {
+            cooldown = 800; // 攻速慢
+            damage = 60; // 提高伤害 (原40)
+        } else if (player.shipType === 3) {
+            cooldown = 100; // 激光频率
+            damage = 1.5; // 降低伤害 (原3)
+        } else {
+            // Type 0 (均衡教派) 或其他
+            cooldown = 300;
+            damage = 15;
+        }
+
+        if (now - (player.lastFireTime || 0) < cooldown) return;
+        player.lastFireTime = now;
+
+        if (player.shipType === 3) {
+            // 激光伤害随等级提升
+            damage = damage * (player.weaponLevel || 1);
+
+            // 激光逻辑：寻找最近敌人（玩家、Bot或宝箱）
+            let nearestTarget = null;
+            let targetType = null; // 'player' or 'chest'
+            let minDist = 500; // 激光射程
+
+            // 检查玩家
+            Object.values(players).forEach(p => {
+                if (p.playerId !== socket.id && p.health > 0 && !p.isInvulnerable) {
+                    const dist = Math.sqrt(Math.pow(p.x - player.x, 2) + Math.pow(p.y - player.y, 2));
+                    if (dist < minDist) {
+                        minDist = dist;
+                        nearestTarget = p;
+                        targetType = 'player';
+                    }
+                }
+            });
+
+            // 检查宝箱
+            Object.values(chests).forEach(c => {
+                const dist = Math.sqrt(Math.pow(c.x - player.x, 2) + Math.pow(c.y - player.y, 2));
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearestTarget = c;
+                    targetType = 'chest';
+                }
+            });
+
+            if (nearestTarget) {
+                // 造成伤害
+                let actualDamage = damage;
+
+                if (targetType === 'player') {
+                    // 护盾逻辑
+                    if (nearestTarget.hasShield) {
+                        if (nearestTarget.shieldHealth >= actualDamage) {
+                            nearestTarget.shieldHealth -= actualDamage;
+                            actualDamage = 0;
+                        } else {
+                            actualDamage -= nearestTarget.shieldHealth;
+                            nearestTarget.shieldHealth = 0;
+                            nearestTarget.hasShield = false;
+                            io.emit('playerPowerUpExpired', { playerId: nearestTarget.playerId, type: 'shield' });
+                        }
+                        io.emit('playerShieldUpdate', { playerId: nearestTarget.playerId, shieldHealth: nearestTarget.shieldHealth });
+                    }
+
+                    if (actualDamage > 0) {
+                        nearestTarget.health -= actualDamage;
+
+                        // 吸血逻辑
+                        if (player.hasVampire && !player.isBot) {
+                            const healAmount = actualDamage * 0.5;
+                            player.health += healAmount;
+                            if (player.health > 200) player.health = 200;
+                            io.emit('updateHealth', { playerId: player.playerId, health: player.health });
+                        }
+
+                        io.emit('updateHealth', { playerId: nearestTarget.playerId, health: nearestTarget.health });
+
+                        if (nearestTarget.health <= 0) {
+                            handlePlayerDeath(nearestTarget.playerId, player.playerId);
+                        }
+                    }
+                } else if (targetType === 'chest') {
+                    // 宝箱逻辑
+                    nearestTarget.health -= actualDamage;
+                    io.emit('chestDamaged', { id: nearestTarget.id, health: nearestTarget.health });
+
+                    if (nearestTarget.health <= 0) {
+                        const chestId = nearestTarget.id;
+                        delete chests[chestId];
+                        io.emit('chestBroken', chestId);
+
+                        // 掉落装备
+                        const powerUpId = `powerup_${powerUpIdCounter++}`;
+                        const rand = Math.random();
+                        let type;
+                        if (rand < 0.33) type = 'vampire';
+                        else if (rand < 0.66) type = 'shield';
+                        else if (rand < 0.85) type = 'tracking';
+                        else type = 'golden_body';
+
+                        powerUps[powerUpId] = {
+                            id: powerUpId,
+                            x: nearestTarget.x,
+                            y: nearestTarget.y,
+                            type: type,
+                            value: 0
+                        };
+                        io.emit('powerUpDropped', powerUps[powerUpId]);
+                    }
+                }
+
+                // 广播激光命中，带上 weaponLevel
+                io.emit('playerLaserFired', {
+                    playerId: socket.id,
+                    targetId: nearestTarget.playerId || nearestTarget.id,
+                    x: nearestTarget.x,
+                    y: nearestTarget.y,
+                    weaponLevel: player.weaponLevel || 1
+                });
+            }
+        } else {
+            // 普通子弹逻辑 (Type 1 & 2)
+            // 广播包含 shipType，以便客户端区分
+            socket.broadcast.emit('playerFired', { ...player, shipType: player.shipType });
         }
     });
 
@@ -672,6 +840,20 @@ io.on('connection', (socket) => {
             handlePlayerDeath(targetId, socket.id);
         } else {
             io.emit('updateHealth', { playerId: targetId, health: players[targetId].health });
+        }
+    });
+
+    // 切换飞船
+    socket.on('switchShip', (type) => {
+        if (!players[socket.id]) return;
+        // 只有在选择阶段或刚加入游戏时允许切换
+        // 这里简化为：只要活着就可以切换，或者限制在选择阶段
+        // 为了用户体验，允许随时切换（或者根据需求限制）
+        // 用户需求：在每局游戏开始阶段有5秒时间切换
+        // 允许切换的条件：全局选择阶段 OR 玩家个人处于选择状态
+        if (isSelectionPhase || players[socket.id].isSelecting) {
+            players[socket.id].shipType = type;
+            io.emit('playerSwitchShip', { playerId: socket.id, shipType: type });
         }
     });
 
