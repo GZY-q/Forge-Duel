@@ -786,152 +786,80 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.85);
             z-index: 20000;
-            flex-direction: column;
             justify-content: center;
             align-items: center;
-            backdrop-filter: blur(10px);">
+            flex-direction: column;
+            backdrop-filter: blur(5px);">
 
-            <h2 style="color: #fff; font-size: 24px; margin-bottom: 20px; text-shadow: 0 0 10px #00ff00;">选择你的战机</h2>
+            <h2 style="color: #fff; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 10px #00ff00;">选择你的战机</h2>
+            <div id="selection-timer" style="font-size: 48px; color: #ffd700; font-weight: bold; margin-bottom: 30px;">5
+            </div>
 
-            <!-- 横向滚动容器 -->
-            <div class="ship-carousel" style="
-                display: flex;
-                gap: 20px;
-                overflow-x: auto;
-                padding: 20px;
-                width: 100%;
-                max-width: 800px;
-                scroll-snap-type: x mandatory;
-                -webkit-overflow-scrolling: touch;
-                justify-content: flex-start; /* 移动端靠左开始 */
-                align-items: center;">
-
-                <!-- 飞船 0: 均衡教派 -->
-                <div class="ship-card" data-type="0" onclick="selectShip(0)" style="
-                    flex: 0 0 220px;
-                    scroll-snap-align: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    position: relative;">
-                    <div class="card-inner" style="
-                        background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
-                        border: 2px solid #444;
-                        border-radius: 15px;
-                        padding: 20px;
-                        text-align: center;
-                        height: 300px;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                        align-items: center;">
-                        <img src="assets/ship.png"
-                            style="width: 100px; height: 100px; object-fit: contain; margin-bottom: 15px;">
-                        <h3 style="color: #ffffff; margin: 5px 0; font-size: 20px;">均衡教派</h3>
-                        <p style="color: #aaa; font-size: 14px; line-height: 1.5;">
-                            <span style="color: #fff;">●</span> 攻速: 中等<br>
-                            <span style="color: #fff;">●</span> 伤害: 中等<br>
-                            <span style="color: #888;">特性: 全面均衡</span>
-                        </p>
-                    </div>
-                </div>
-
+            <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
                 <!-- 飞船 1 -->
-                <div class="ship-card" data-type="1" onclick="selectShip(1)" style="
-                    flex: 0 0 220px;
-                    scroll-snap-align: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    position: relative;">
+                <div class="ship-card" onclick="selectShip(1)" style="cursor: pointer; transition: transform 0.2s;">
                     <div class="card-inner" style="
                         background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
                         border: 2px solid #444;
                         border-radius: 15px;
                         padding: 20px;
+                        width: 200px;
                         text-align: center;
-                        height: 300px;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                        align-items: center;">
+                        position: relative;
+                        overflow: hidden;">
+                        <div class="glow-effect"></div>
                         <img src="assets/ship1.png"
-                            style="width: 100px; height: 100px; object-fit: contain; margin-bottom: 15px;">
-                        <h3 style="color: #00ff00; margin: 5px 0; font-size: 20px;">影袭者</h3>
-                        <p style="color: #aaa; font-size: 14px; line-height: 1.5;">
-                            <span style="color: #00ff00;">●</span> 攻速: 极快<br>
-                            <span style="color: #fff;">●</span> 伤害: 普通<br>
-                            <span style="color: #888;">特性: 极速射击</span>
-                        </p>
+                            style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px;">
+                        <h3 style="color: #00ff00; margin: 5px 0;">影袭者</h3>
+                        <p style="color: #aaa; font-size: 12px;">攻速: ★★★★★<br>伤害: ★★☆☆☆<br>特性: 极速射击</p>
                     </div>
                 </div>
 
                 <!-- 飞船 2 -->
-                <div class="ship-card" data-type="2" onclick="selectShip(2)" style="
-                    flex: 0 0 220px;
-                    scroll-snap-align: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    position: relative;">
+                <div class="ship-card" onclick="selectShip(2)" style="cursor: pointer; transition: transform 0.2s;">
                     <div class="card-inner" style="
                         background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
                         border: 2px solid #444;
                         border-radius: 15px;
                         padding: 20px;
+                        width: 200px;
                         text-align: center;
-                        height: 300px;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                        align-items: center;">
+                        position: relative;
+                        overflow: hidden;">
+                        <div class="glow-effect"></div>
                         <img src="assets/ship2.png"
-                            style="width: 100px; height: 100px; object-fit: contain; margin-bottom: 15px;">
-                        <h3 style="color: #ff4400; margin: 5px 0; font-size: 20px;">毁灭者</h3>
-                        <p style="color: #aaa; font-size: 14px; line-height: 1.5;">
-                            <span style="color: #ff4400;">●</span> 攻速: 缓慢<br>
-                            <span style="color: #fff;">●</span> 伤害: 极高<br>
-                            <span style="color: #888;">特性: 高爆伤害</span>
-                        </p>
+                            style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px;">
+                        <h3 style="color: #ff4400; margin: 5px 0;">毁灭者</h3>
+                        <p style="color: #aaa; font-size: 12px;">攻速: ★★☆☆☆<br>伤害: ★★★★★<br>特性: 高爆范围伤</p>
                     </div>
                 </div>
 
                 <!-- 飞船 3 -->
-                <div class="ship-card" data-type="3" onclick="selectShip(3)" style="
-                    flex: 0 0 220px;
-                    scroll-snap-align: center;
-                    cursor: pointer;
-                    transition: all 0.3s;
-                    position: relative;">
+                <div class="ship-card" onclick="selectShip(3)" style="cursor: pointer; transition: transform 0.2s;">
                     <div class="card-inner" style="
                         background: linear-gradient(145deg, #1a1a1a, #2a2a2a);
                         border: 2px solid #444;
                         border-radius: 15px;
                         padding: 20px;
+                        width: 200px;
                         text-align: center;
-                        height: 300px;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;
-                        align-items: center;">
+                        position: relative;
+                        overflow: hidden;">
+                        <div class="glow-effect"></div>
                         <img src="assets/ship3.png"
-                            style="width: 100px; height: 100px; object-fit: contain; margin-bottom: 15px;">
-                        <h3 style="color: #00ccff; margin: 5px 0; font-size: 20px;">雷霆领主</h3>
-                        <p style="color: #aaa; font-size: 14px; line-height: 1.5;">
-                            <span style="color: #00ccff;">●</span> 攻速: 持续<br>
-                            <span style="color: #fff;">●</span> 伤害: 较低<br>
-                            <span style="color: #888;">特性: 自动锁敌</span>
-                        </p>
+                            style="width: 80px; height: 80px; object-fit: contain; margin-bottom: 15px;">
+                        <h3 style="color: #00ccff; margin: 5px 0;">雷霆领主</h3>
+                        <p style="color: #aaa; font-size: 12px;">攻速: 持续<br>伤害: ★★★☆☆<br>特性: 连锁闪电</p>
                     </div>
                 </div>
-
-                <!-- 占位符 -->
-                <div style="flex: 0 0 20px;"></div>
             </div>
 
             <button id="confirm-ship-btn" onclick="confirmShip()" style="
-                margin-top: 20px;
-                padding: 15px 60px;
-                font-size: 20px;
+                margin-top: 30px;
+                padding: 15px 40px;
+                font-size: 24px;
                 font-weight: bold;
                 color: #000;
                 background: linear-gradient(90deg, #00ff00, #00cc00);
@@ -941,137 +869,65 @@
                 box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
                 transition: all 0.2s;
                 opacity: 0.5;
-                pointer-events: none;
-                z-index: 20001;">
+                pointer-events: none;">
                 开始战斗
             </button>
+
         </div>
 
         <style>
-            /* 隐藏滚动条 */
-            .ship-carousel::-webkit-scrollbar {
-                display: none;
+            .ship-card:hover {
+                transform: scale(1.05);
             }
 
-            .ship-carousel {
-                -ms-overflow-style: none;
-                scrollbar-width: none;
+            .ship-card:hover .card-inner {
+                border-color: #ffd700;
+                box-shadow: 0 0 20px rgba(255, 215, 0, 0.3);
             }
 
             .ship-card.selected .card-inner {
                 border-color: #00ff00;
                 box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
-                background: rgba(0, 50, 0, 0.9);
+                background: rgba(0, 50, 0, 0.8);
+            }
+
+            #confirm-ship-btn:hover {
                 transform: scale(1.05);
+                box-shadow: 0 0 30px rgba(0, 255, 0, 0.8);
             }
 
             #confirm-ship-btn.active {
                 opacity: 1;
                 pointer-events: auto;
-                animation: pulseBtn 1.5s infinite;
-            }
-
-            @keyframes pulseBtn {
-                0% {
-                    transform: scale(1);
-                    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-                }
-
-                50% {
-                    transform: scale(1.05);
-                    box-shadow: 0 0 40px rgba(0, 255, 0, 0.8);
-                }
-
-                100% {
-                    transform: scale(1);
-                    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-                }
-            }
-
-            /* 桌面端优化：居中显示 */
-            @media (min-width: 768px) {
-                .ship-carousel {
-                    justify-content: center;
-                }
             }
         </style>
 
         <script>
-            // 全局变量和函数
-            var selectedShipType = -1;
+            let selectedShipType = 0;
 
             function selectShip(type) {
-                console.log('=== selectShip called with type:', type);
-                selectedShipType = parseInt(type);
+                selectedShipType = type;
+                // 移除其他选中状态
+                document.querySelectorAll('.ship-card').forEach(el => el.classList.remove('selected'));
+                // 添加当前选中状态
+                document.querySelectorAll('.ship-card')[type - 1].classList.add('selected');
 
-                // 更新 UI
-                var cards = document.querySelectorAll('.ship-card');
-                console.log('Found cards:', cards.length);
-
-                for (var i = 0; i < cards.length; i++) {
-                    cards[i].classList.remove('selected');
-                    if (parseInt(cards[i].getAttribute('data-type')) === selectedShipType) {
-                        cards[i].classList.add('selected');
-                        console.log('Selected card', i);
-                    }
-                }
-
-                // 激活按钮
-                var btn = document.getElementById('confirm-ship-btn');
-                if (btn) {
-                    btn.classList.add('active');
-                    btn.style.opacity = '1';
-                    btn.style.pointerEvents = 'auto'; // 直接修改内联样式
-                    console.log('Button activated');
-                }
+                // 激活确认按钮
+                const btn = document.getElementById('confirm-ship-btn');
+                btn.classList.add('active');
             }
 
             function confirmShip() {
-                console.log('=== confirmShip called, selected:', selectedShipType);
-                if (selectedShipType === -1) {
-                    alert('请先选择一个战机！');
-                    return;
-                }
+                if (selectedShipType === 0) return;
 
-                // 尝试多种方式获取 socket
-                var socket = null;
-
+                // 发送选择事件
                 if (window.gameScene && window.gameScene.socket) {
-                    socket = window.gameScene.socket;
-                    console.log('Got socket from window.gameScene');
-                } else if (window.game && window.game.scene && window.game.scene.scenes[0] && window.game.scene.scenes[0].socket) {
-                    socket = window.game.scene.scenes[0].socket;
-                    console.log('Got socket from window.game');
-                }
-
-                if (socket) {
-                    console.log('Emitting switchShip and playerReady');
-                    socket.emit('switchShip', selectedShipType);
-                    socket.emit('playerReady');
-
-                    // 立即恢复画布和隐藏模态框
-                    var gameCanvas = document.querySelector('canvas');
-                    if (gameCanvas) {
-                        gameCanvas.style.removeProperty('display');
-                        console.log('Canvas restored in confirmShip');
-                    }
-
+                    window.gameScene.socket.emit('switchShip', selectedShipType);
+                    window.gameScene.socket.emit('playerReady'); // 确认准备就绪
                     document.getElementById('ship-selection-modal').style.display = 'none';
-                    console.log('Modal hidden, game should start');
-                } else {
-                    console.error('Socket not found! Retrying in 500ms...');
-                    alert('连接中，请稍后再试...');
-                    setTimeout(confirmShip, 500);
                 }
-            }
-
-            // 测试函数
-            function testClick() {
-                console.log('Test click works!');
-                alert('点击测试成功！');
             }
         </script>
-
 
         <div id="game-over-screen" style="
             display: none; 
@@ -1120,7 +976,7 @@
                     color: rgba(255, 255, 255, 0.5);
                     font-weight: 400;
                     letter-spacing: 1px;">
-                    祝贺获胜
+                    你是全场第一！
                 </div>
             </div>
         </div>
@@ -1159,11 +1015,11 @@
                 <div style="margin-top: 15px; display: flex; flex-direction: column; gap: 10px;">
                     <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
                         <input type="radio" name="control-mode" value="tap" style="margin-right: 10px;">
-                        <span>👆 点击 (Tap to Move)</span>
+                        <span> 点击 (Tap to Move)</span>
                     </label>
                     <label style="display: flex; align-items: center; cursor: pointer; color: #fff;">
                         <input type="radio" name="control-mode" value="joystick" style="margin-right: 10px;">
-                        <span>🕹️ 轮盘 (Joystick)</span>
+                        <span> 轮盘 (Joystick)</span>
                     </label>
                 </div>
             </div>
