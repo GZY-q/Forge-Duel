@@ -1,12 +1,12 @@
 #!/bin/bash
 
-echo "🚀 正在启动宇宙海盗大战服务器..."
+echo " 正在启动宇宙海盗大战服务器..."
 echo ""
 
 # 检查MongoDB是否运行
-echo "📦 检查MongoDB状态..."
+echo " 检查MongoDB状态..."
 if ! pgrep -x "mongod" > /dev/null; then
-    echo "⚠️  MongoDB未运行！"
+    echo "  MongoDB未运行！"
     echo ""
     echo "请选择一个选项："
     echo "1. 使用本地MongoDB（需要先安装并启动）"
