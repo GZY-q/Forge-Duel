@@ -51,8 +51,14 @@ function preload() {
     this.load.image('tracking_orb', 'assets/trackmissiles.png'); // 掉落物图标
     this.load.image('golden_orb', 'assets/shield_orb.png'); // 金身掉落物，暂时复用护盾球，代码里染色
 
-    // 加载表情包
-    for (let i = 1; i <= 8; i++) {
+    // 加载表情包 1-5 是spritesheet (512x512帧), 6-8是单图标
+    for (let i = 1; i <= 5; i++) {
+        this.load.spritesheet(`emote_${i}`, `assets/${i}.png`, {
+            frameWidth: 512,
+            frameHeight: 512
+        });
+    }
+    for (let i = 6; i <= 8; i++) {
         this.load.image(`emote_${i}`, `assets/${i}.png`);
     }
 
@@ -1223,6 +1229,9 @@ function showEmote(scene, player, emoteId) {
     // 创建新表情
     const key = `emote_${emoteId}`;
     const emote = scene.add.sprite(player.x, player.y - 50, key);
+    if (emoteId <= 5) {
+        emote.setFrame(0); // 显示spritesheet第一帧
+    }
     emote.setDisplaySize(60, 60); // 比飞船(50)稍大
     emote.setDepth(100); // 确保显示在最上层
     player.emote = emote;
