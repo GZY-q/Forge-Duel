@@ -286,6 +286,14 @@ function create() {
             console.log('Modal shown');
         }
 
+        // 重置选船 UI 状态
+        window.selectedShipType = 0;
+        document.querySelectorAll('.ship-card').forEach(el => el.classList.remove('selected'));
+        const confirmBtn = document.getElementById('confirm-ship-btn');
+        if (confirmBtn) {
+            confirmBtn.classList.remove('active');
+        }
+
         let timeLeft = duration / 1000;
         const timerEl = document.getElementById('selection-timer');
         if (timerEl) timerEl.innerText = timeLeft;
@@ -294,7 +302,14 @@ function create() {
         self.selectionInterval = setInterval(() => {
             timeLeft--;
             if (timerEl) timerEl.innerText = timeLeft;
-            if (timeLeft <= 0) clearInterval(self.selectionInterval);
+            if (timeLeft <= 0) {
+                clearInterval(self.selectionInterval);
+                // 自动确认：未选择则默认选战机1
+                if (typeof selectedShipType !== 'undefined' && selectedShipType === 0) {
+                    if (typeof selectShip === 'function') selectShip(1);
+                }
+                if (typeof confirmShip === 'function') confirmShip();
+            }
         }, 1000);
     });
 
@@ -302,11 +317,12 @@ function create() {
     this.socket.on('endSelectionPhase', function () {
         console.log('=== Selection phase ended ===');
 
-        // 恢复游戏画布显示（移除样式，恢复默认）
+        // 恢复游戏画布显示
         const gameCanvas = document.querySelector('canvas');
         if (gameCanvas) {
-            gameCanvas.style.removeProperty('display'); // 移除display属性，恢复默认
-            console.log('Canvas restored');
+            // 显式设置为 block，确保画布可见
+            gameCanvas.style.display = 'block';
+            console.log('Canvas restored to visible');
         }
 
         const modal = document.getElementById('ship-selection-modal');
@@ -1169,13 +1185,13 @@ function fireBullet(scene, playerInfo, isOwner) {
                     b.destroy();
                     // 敌人血量的乐观视觉更新
                     if (enemySprite.health !== undefined) {
-                        enemySprite.health -= 10;
+                        enemySprite.health -= b.damage;
                         updateHealthBar(scene, enemySprite, enemySprite.health);
                     }
 
                     // 如果是机器人，由射手端发送命中事件
                     if (enemySprite.isBot) {
-                        scene.socket.emit('botHit', enemySprite.playerId, 10);
+                        scene.socket.emit('botHit', enemySprite.playerId, b.damage);
                     }
                 }
             });
@@ -1184,7 +1200,7 @@ function fireBullet(scene, playerInfo, isOwner) {
             scene.physics.add.overlap(bullet, scene.chests, (b, chest) => {
                 if (b.active) {
                     b.destroy();
-                    scene.socket.emit('chestHit', chest.id, 10);
+                    scene.socket.emit('chestHit', chest.id, b.damage);
                 }
             });
         } else {
@@ -1192,8 +1208,8 @@ function fireBullet(scene, playerInfo, isOwner) {
             scene.physics.add.overlap(bullet, scene.ship, (b, ship) => {
                 if (b.active) {
                     b.destroy();
-                    // 自身血量的乐观更新
-                    const damage = b.damage || 10; // 使用子弹的伤害属性
+                    // 自身血量的乐观更新 — 使用子弹实际伤害（由发射方飞船类型决定）
+                    const damage = b.damage || 10;
                     // 简单的客户端护盾预测
                     if (scene.ship.shieldSprite) {
                         // 视觉上不做扣血，等待服务器同步? 或者乐观扣除护盾?
@@ -1376,6 +1392,31 @@ function createJoystick(scene) {
         .setScrollFactor(0)
         .setDepth(1001);
 
+    // 定义事件回调（保存引用以便销毁时移除）
+    const onPointerDown = (pointer) => {
+        const d = Phaser.Math.Distance.Between(pointer.x, pointer.y, x, y);
+        if (d < radius * 2.5) {
+            scene.joystick.active = true;
+            scene.joystick.pointerId = pointer.id;
+            updateJoystickVisuals(scene, pointer);
+        }
+    };
+
+    const onPointerMove = (pointer) => {
+        if (scene.joystick && scene.joystick.active && pointer.id === scene.joystick.pointerId) {
+            updateJoystickVisuals(scene, pointer);
+        }
+    };
+
+    const onPointerUp = (pointer) => {
+        if (scene.joystick && scene.joystick.active && pointer.id === scene.joystick.pointerId) {
+            scene.joystick.active = false;
+            scene.joystick.pointerId = null;
+            scene.joystick.thumb.setPosition(scene.joystick.originX, scene.joystick.originY);
+            scene.joystick.distance = 0;
+        }
+    };
+
     scene.joystick = {
         base: base,
         thumb: thumb,
@@ -1385,37 +1426,16 @@ function createJoystick(scene) {
         radius: radius,
         originX: x,
         originY: y,
-        pointerId: null
+        pointerId: null,
+        _onPointerDown: onPointerDown,
+        _onPointerMove: onPointerMove,
+        _onPointerUp: onPointerUp
     };
 
     // 触摸事件处理
-    scene.input.on('pointerdown', (pointer) => {
-        // 检查是否点击在摇杆区域附近
-        // 直接检查距离摇杆中心的距离，不再限制象限，从而支持左/中/右所有位置
-        const d = Phaser.Math.Distance.Between(pointer.x, pointer.y, scene.joystick.originX, scene.joystick.originY);
-        // 扩大一点判定范围 (2.5倍半径)，方便手指粗的玩家
-        if (d < radius * 2.5) {
-            scene.joystick.active = true;
-            scene.joystick.pointerId = pointer.id;
-            updateJoystickVisuals(scene, pointer);
-        }
-    });
-
-    scene.input.on('pointermove', (pointer) => {
-        if (scene.joystick.active && pointer.id === scene.joystick.pointerId) {
-            updateJoystickVisuals(scene, pointer);
-        }
-    });
-
-    scene.input.on('pointerup', (pointer) => {
-        if (scene.joystick.active && pointer.id === scene.joystick.pointerId) {
-            scene.joystick.active = false;
-            scene.joystick.pointerId = null;
-            // 复位
-            scene.joystick.thumb.setPosition(scene.joystick.originX, scene.joystick.originY);
-            scene.joystick.distance = 0;
-        }
-    });
+    scene.input.on('pointerdown', onPointerDown);
+    scene.input.on('pointermove', onPointerMove);
+    scene.input.on('pointerup', onPointerUp);
 }
 
 function updateJoystickVisuals(scene, pointer) {
@@ -1435,6 +1455,12 @@ function updateJoystickVisuals(scene, pointer) {
 
 function destroyJoystick(scene) {
     if (scene.joystick) {
+        // 移除事件监听器，防止内存泄漏
+        if (scene.joystick._onPointerDown) {
+            scene.input.off('pointerdown', scene.joystick._onPointerDown);
+            scene.input.off('pointermove', scene.joystick._onPointerMove);
+            scene.input.off('pointerup', scene.joystick._onPointerUp);
+        }
         scene.joystick.base.destroy();
         scene.joystick.thumb.destroy();
         scene.joystick = null;

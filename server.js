@@ -247,10 +247,10 @@ gameUpdateTimer = setInterval(() => {
             // 间歇期结束，进入选择阶段
             isIntermission = false;
             isSelectionPhase = true;
-            selectionEndTime = Date.now() + 5000; // 5秒选择时间
+            selectionEndTime = Date.now() + 10000; // 10秒选择时间
 
             // 重置游戏结束时间（加上选择时间）
-            gameEndTime = Date.now() + GAME_DURATION + 5000;
+            gameEndTime = Date.now() + GAME_DURATION + 10000;
 
             // 清理所有Bot
             Object.keys(players).forEach(id => {
@@ -281,7 +281,7 @@ gameUpdateTimer = setInterval(() => {
             chestIdCounter = 0;
 
             // 通知客户端进入选择阶段
-            io.emit('startSelectionPhase', 5000);
+            io.emit('startSelectionPhase', 10000);
         }
         return;
     }

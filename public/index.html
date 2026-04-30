@@ -794,7 +794,7 @@
             backdrop-filter: blur(5px);">
 
             <h2 style="color: #fff; font-size: 32px; margin-bottom: 10px; text-shadow: 0 0 10px #00ff00;">选择你的战机</h2>
-            <div id="selection-timer" style="font-size: 48px; color: #ffd700; font-weight: bold; margin-bottom: 30px;">5
+            <div id="selection-timer" style="font-size: 48px; color: #ffd700; font-weight: bold; margin-bottom: 30px;">10
             </div>
 
             <div style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
@@ -867,9 +867,7 @@
                 border-radius: 30px;
                 cursor: pointer;
                 box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
-                transition: all 0.2s;
-                opacity: 0.5;
-                pointer-events: none;">
+                transition: all 0.2s;">
                 开始战斗
             </button>
 
@@ -889,6 +887,11 @@
                 border-color: #00ff00;
                 box-shadow: 0 0 30px rgba(0, 255, 0, 0.5);
                 background: rgba(0, 50, 0, 0.8);
+            }
+
+            #confirm-ship-btn {
+                opacity: 0.5;
+                pointer-events: none;
             }
 
             #confirm-ship-btn:hover {
@@ -925,6 +928,12 @@
                     window.gameScene.socket.emit('switchShip', selectedShipType);
                     window.gameScene.socket.emit('playerReady'); // 确认准备就绪
                     document.getElementById('ship-selection-modal').style.display = 'none';
+
+                    // 恢复游戏画布显示（startSelectionPhase 中将其隐藏了）
+                    const gameCanvas = document.querySelector('canvas');
+                    if (gameCanvas) {
+                        gameCanvas.style.display = 'block';
+                    }
                 }
             }
         </script>
@@ -1277,10 +1286,38 @@
             document.getElementById('login-screen').style.display = 'none';
             document.getElementById('ui-layer').style.display = 'block';
 
+            // 防止重复加载游戏
+            if (window.gameInstance) {
+                // 如果已有游戏实例，先销毁它
+                window.gameInstance.destroy(true);
+                window.gameInstance = null;
+            }
+
+            // 清理可能残留的canvas
+            const oldCanvas = document.querySelector('canvas');
+            if (oldCanvas) oldCanvas.remove();
+
+            // 清理选择阶段定时器
+            if (window.selectionInterval) {
+                clearInterval(window.selectionInterval);
+                window.selectionInterval = null;
+            }
+
+            // 重置游戏相关变量
+            window.gameScene = null;
+            window.selectedShipType = 0;
+
             // 登录后才初始化游戏
             const script = document.createElement('script');
             script.src = 'js/game.js?v=' + Date.now();
             document.body.appendChild(script);
+
+            // 保存游戏实例引用
+            script.onload = function() {
+                if (window.game) {
+                    window.gameInstance = window.game;
+                }
+            };
         }
 
         // 回车键触发登录/注册
