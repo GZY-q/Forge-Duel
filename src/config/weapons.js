@@ -71,6 +71,66 @@ export const WEAPON_DEFINITIONS = {
     projectileBehavior: "homing",
     projectileSpeed: 280,
     homingTurnRate: 0.06
+  },
+  laser: {
+    type: "laser",
+    damage: 18,
+    cooldownMs: 1100,
+    range: 350,
+    knockbackForce: 60,
+    projectileBehavior: "laser",
+    laserWidth: 4,
+    laserDurationMs: 180,
+    pierceCount: 1
+  },
+  thunderstorm: {
+    type: "thunderstorm",
+    damage: 35,
+    cooldownMs: 1200,
+    range: 380,
+    knockbackForce: 100,
+    projectileBehavior: "chain",
+    chainCount: 5,
+    chainRange: 200,
+    chainFalloff: 1.0,
+    evolved: true
+  },
+  gatling: {
+    type: "gatling",
+    damage: 6,
+    cooldownMs: 400,
+    range: 220,
+    knockbackForce: 70,
+    projectileBehavior: "scatter",
+    projectileSpeed: 500,
+    scatterCount: 8,
+    scatterSpreadDeg: 60,
+    evolved: true
+  },
+  mega_missile: {
+    type: "mega_missile",
+    damage: 40,
+    cooldownMs: 1600,
+    range: 450,
+    knockbackForce: 180,
+    projectileBehavior: "homing",
+    projectileSpeed: 300,
+    homingTurnRate: 0.09,
+    explosionRadius: 80,
+    explosionDamageMultiplier: 0.85,
+    evolved: true
+  },
+  prismatic_laser: {
+    type: "prismatic_laser",
+    damage: 28,
+    cooldownMs: 900,
+    range: 400,
+    knockbackForce: 80,
+    projectileBehavior: "laser",
+    laserWidth: 8,
+    laserDurationMs: 220,
+    pierceCount: 3,
+    evolved: true
   }
 };
 
@@ -86,6 +146,30 @@ export const WEAPON_EVOLUTION_RULES = [
     level: 5,
     requiredPassive: "blade_sigil",
     evolution: "orbit_blades"
+  },
+  {
+    weapon: "lightning",
+    level: 5,
+    requiredPassive: "iron_shell",
+    evolution: "thunderstorm"
+  },
+  {
+    weapon: "scatter_shot",
+    level: 5,
+    requiredPassive: "swift_feet",
+    evolution: "gatling"
+  },
+  {
+    weapon: "homing_missile",
+    level: 5,
+    requiredPassive: "wings",
+    evolution: "mega_missile"
+  },
+  {
+    weapon: "laser",
+    level: 5,
+    requiredPassive: "blade_sigil",
+    evolution: "prismatic_laser"
   }
 ];
 
@@ -94,7 +178,9 @@ export const PROJECTILE_TEXTURE_BY_WEAPON = {
   fireball: "proj_fireball",
   meteor: "proj_meteor",
   scatter_shot: "proj_scatter",
-  homing_missile: "proj_homing"
+  homing_missile: "proj_homing",
+  gatling: "proj_scatter",
+  mega_missile: "proj_homing"
 };
 
 export const PROJECTILE_POOL_SIZE_BY_TEXTURE = {
@@ -104,6 +190,8 @@ export const PROJECTILE_POOL_SIZE_BY_TEXTURE = {
   proj_scatter: 300,
   proj_homing: 120
 };
+
+export const LASER_WEAPON_TYPES = Object.freeze(["laser", "prismatic_laser"]);
 
 export const LEVEL_UP_UPGRADES = [
   {
@@ -166,6 +254,46 @@ export const LEVEL_UP_UPGRADES = [
     description: "移动速度 +8%",
     value: 0.08,
     passiveKey: "swift_feet",
+    isPassive: true
+  },
+  {
+    id: "passive_wings",
+    label: "飞翼",
+    description: "武器范围 +15%，解锁追踪弹进化",
+    value: 0.15,
+    passiveKey: "wings",
+    isPassive: true
+  },
+  {
+    id: "passive_armor",
+    label: "铠甲",
+    description: "受到伤害 -1 点（最低 1）",
+    value: 1,
+    passiveKey: "armor",
+    isPassive: true
+  },
+  {
+    id: "passive_hollow_heart",
+    label: "空心之心",
+    description: "最大生命 +20%",
+    value: 0.2,
+    passiveKey: "hollow_heart",
+    isPassive: true
+  },
+  {
+    id: "passive_attractorb",
+    label: "引力珠",
+    description: "拾取范围 +50%",
+    value: 0.5,
+    passiveKey: "attractorb",
+    isPassive: true
+  },
+  {
+    id: "passive_frost_shard",
+    label: "冰晶",
+    description: "冰系伤害 +15%，解锁冻结效果",
+    value: 0.15,
+    passiveKey: "frost_shard",
     isPassive: true
   }
 ];

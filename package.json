@@ -6,10 +6,23 @@
     "build": "node scripts/build.mjs",
     "serve:dist": "node scripts/serve-dist.mjs",
     "preview": "npm run serve:dist",
+    "server": "node server/index.js",
+    "dev": "node server/index.js",
     "pw:test": "playwright test",
     "pw:test:headed": "playwright test --project=chromium --headed",
     "pw:test:debug": "PWDEBUG=1 playwright test --project=chromium",
     "pw:test:smoke": "playwright test tests/smoke.spec.js --project=chromium"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^8.9.5",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.3"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

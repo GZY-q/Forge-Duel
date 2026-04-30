@@ -76,6 +76,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.shieldRemainingMs = 0;
     this.speedBoostActive = false;
     this.damageReduction = 0;
+    this.armorFlat = 0;
 
     this.setCircle(16, 0, 0);
     this.setCollideWorldBounds(true);
@@ -211,8 +212,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
       return false;
     }
 
-    // Apply damage reduction
-    const reducedAmount = Math.max(1, Math.round(amount * (1 - this.damageReduction)));
+    // Apply damage reduction (flat armor first, then percentage)
+    const afterFlat = Math.max(1, amount - this.armorFlat);
+    const reducedAmount = Math.max(1, Math.round(afterFlat * (1 - this.damageReduction)));
     this.hp = Math.max(0, this.hp - reducedAmount);
     this.nextDamageAt = now + this.damageCooldownMs;
     this.lastHurtAt = now;

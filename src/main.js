@@ -2,6 +2,9 @@ import { GameScene } from "./scenes/GameScene.js";
 import { RunSummaryScene } from "./scenes/RunSummaryScene.js";
 import { UpgradeScene } from "./scenes/UpgradeScene.js";
 import { MainMenuScene } from "./scenes/MainMenuScene.js";
+import { AuthScene } from "./scenes/AuthScene.js";
+import { LobbyScene } from "./scenes/LobbyScene.js";
+import { LeaderboardScene } from "./scenes/LeaderboardScene.js";
 
 const config = {
   type: Phaser.AUTO,
@@ -38,9 +41,10 @@ const config = {
     autoCenter: Phaser.Scale.CENTER_BOTH,
     autoRound: true,
     width: 1280,
-    height: 720
+    height: 720,
+    fullscreenTarget: "game-root"
   },
-  scene: [MainMenuScene, GameScene, RunSummaryScene, UpgradeScene]
+  scene: [MainMenuScene, GameScene, RunSummaryScene, UpgradeScene, AuthScene, LobbyScene, LeaderboardScene]
 };
 
 new Phaser.Game(config);

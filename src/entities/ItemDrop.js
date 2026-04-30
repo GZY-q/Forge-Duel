@@ -133,6 +133,16 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
           });
         }
         break;
+      case "weapon_upgrade":
+        if (scene.weaponSystem) {
+          const weapons = player.weapons ?? [];
+          if (weapons.length > 0) {
+            const weapon = weapons[Math.floor(Math.random() * weapons.length)];
+            scene.weaponSystem.levelUpWeapon(weapon);
+            scene.weaponSystem.checkEvolution(weapon);
+          }
+        }
+        break;
     }
   }
 }

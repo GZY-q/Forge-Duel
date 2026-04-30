@@ -4,8 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
     <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ForgeDuel" />
+    <meta name="screen-orientation" content="landscape" />
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
-    <title>ForgeDuel Prototype</title>
+    <title>ForgeDuel</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -19,8 +23,41 @@
           </div>
         </div>
       </div>
+      <div id="orientation-overlay">
+        <div id="orientation-card">
+          <div id="orientation-icon">📱</div>
+          <div id="orientation-text">请横屏游玩</div>
+          <div id="orientation-subtext">Rotate your device to landscape</div>
+        </div>
+      </div>
       <div id="game-root"></div>
       <div id="help">WASD Move · SPACE Dash · R Restart</div>
+      <button id="fullscreen-btn" title="全屏">⛶</button>
+      <button id="settings-btn" title="设置">⚙</button>
+      <div id="settings-panel" style="display:none;">
+        <div id="settings-panel-inner">
+          <div id="settings-title">设置</div>
+          <div class="settings-row">
+            <span class="settings-label">音乐音量</span>
+            <input type="range" id="settings-bgm-vol" min="0" max="100" value="60" />
+            <span class="settings-val" id="settings-bgm-val">60%</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">音效音量</span>
+            <input type="range" id="settings-sfx-vol" min="0" max="100" value="80" />
+            <span class="settings-val" id="settings-sfx-val">80%</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">伤害数字</span>
+            <button class="settings-toggle" id="settings-dmg-num" data-on="true">开</button>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">屏幕震动</span>
+            <button class="settings-toggle" id="settings-shake" data-on="true">开</button>
+          </div>
+          <button id="settings-close">确定</button>
+        </div>
+      </div>
     </div>
 
     <script
@@ -29,5 +66,133 @@
       crossorigin="anonymous"
     ></script>
     <script type="module" src="./src/main.js"></script>
+    <script>
+      (function() {
+        var overlay = document.getElementById('orientation-overlay');
+        var fsBtn = document.getElementById('fullscreen-btn');
+        var settingsBtn = document.getElementById('settings-btn');
+        var settingsPanel = document.getElementById('settings-panel');
+
+        function checkOrientation() {
+          var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+          if (!isMobile) {
+            overlay.style.display = 'none';
+            return;
+          }
+          var isLandscape = window.innerWidth > window.innerHeight;
+          overlay.style.display = isLandscape ? 'none' : 'flex';
+        }
+
+        window.addEventListener('orientationchange', function() {
+          setTimeout(checkOrientation, 150);
+        });
+        window.addEventListener('resize', checkOrientation);
+        checkOrientation();
+
+        if (fsBtn) {
+          fsBtn.addEventListener('click', function() {
+            var el = document.documentElement;
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+              (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen).call(el);
+              if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function() {});
+              }
+            } else {
+              (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
+            }
+          });
+          var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+          if (!isMobile) fsBtn.style.display = 'none';
+        }
+
+        // Settings panel
+        var SETTINGS_KEY = 'forgeduel_settings';
+        var defaults = { bgmVol: 60, sfxVol: 80, showDmgNum: true, screenShake: true };
+        var settings = Object.assign({}, defaults);
+
+        try {
+          var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+          if (saved) Object.assign(settings, saved);
+        } catch(e) {}
+
+        function saveSettings() {
+          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+        }
+
+        function applySettings() {
+          if (window.__forgeduelGame && window.__forgeduelGame.scene) {
+            var gs = window.__forgeduelGame.scene.getScene('GameScene');
+            if (gs) {
+              gs.settingsBgmVol = settings.bgmVol / 100;
+              gs.settingsSfxVol = settings.sfxVol / 100;
+              gs.settingsShowDmgNum = settings.showDmgNum;
+              gs.settingsScreenShake = settings.screenShake;
+            }
+          }
+        }
+
+        var bgmSlider = document.getElementById('settings-bgm-vol');
+        var bgmVal = document.getElementById('settings-bgm-val');
+        var sfxSlider = document.getElementById('settings-sfx-vol');
+        var sfxVal = document.getElementById('settings-sfx-val');
+        var dmgBtn = document.getElementById('settings-dmg-num');
+        var shakeBtn = document.getElementById('settings-shake');
+        var closeBtn = document.getElementById('settings-close');
+
+        bgmSlider.value = settings.bgmVol;
+        bgmVal.textContent = settings.bgmVol + '%';
+        sfxSlider.value = settings.sfxVol;
+        sfxVal.textContent = settings.sfxVol + '%';
+        dmgBtn.textContent = settings.showDmgNum ? '开' : '关';
+        dmgBtn.dataset.on = String(settings.showDmgNum);
+        shakeBtn.textContent = settings.screenShake ? '开' : '关';
+        shakeBtn.dataset.on = String(settings.screenShake);
+
+        bgmSlider.addEventListener('input', function() {
+          settings.bgmVol = parseInt(this.value, 10);
+          bgmVal.textContent = settings.bgmVol + '%';
+          saveSettings();
+          applySettings();
+        });
+        sfxSlider.addEventListener('input', function() {
+          settings.sfxVol = parseInt(this.value, 10);
+          sfxVal.textContent = settings.sfxVol + '%';
+          saveSettings();
+          applySettings();
+        });
+        dmgBtn.addEventListener('click', function() {
+          settings.showDmgNum = !settings.showDmgNum;
+          this.textContent = settings.showDmgNum ? '开' : '关';
+          this.dataset.on = String(settings.showDmgNum);
+          saveSettings();
+          applySettings();
+        });
+        shakeBtn.addEventListener('click', function() {
+          settings.screenShake = !settings.screenShake;
+          this.textContent = settings.screenShake ? '开' : '关';
+          this.dataset.on = String(settings.screenShake);
+          saveSettings();
+          applySettings();
+        });
+
+        function openSettings() {
+          settingsPanel.classList.add('open');
+          applySettings();
+        }
+        function closeSettings() {
+          settingsPanel.classList.remove('open');
+        }
+
+        settingsBtn.addEventListener('click', openSettings);
+        closeBtn.addEventListener('click', closeSettings);
+        settingsPanel.addEventListener('click', function(e) {
+          if (e.target === settingsPanel) closeSettings();
+        });
+
+        window.__forgeduelSettings = settings;
+        window.__forgeduelOpenSettings = openSettings;
+        window.__forgeduelCloseSettings = closeSettings;
+      })();
+    </script>
   </body>
 </html>

@@ -16,7 +16,8 @@ const ENEMY_TYPE_TO_FOLDER = Object.freeze({
   chaser: "enemy_chaser",
   swarm: "enemy_swarm",
   tank: "enemy_tank",
-  hunter: "enemy_hunter"
+  hunter: "enemy_hunter",
+  ranger: "enemy_ranger"
 });
 const HIT_FLASH_DURATION_MS = 100;
 const HIT_FLASH_TINT = 0xffaaaa;
@@ -64,6 +65,9 @@ function getEnemyTextureKey(type, scene, direction = "south") {
   if (type === "hunter") {
     return "enemy_hunter";
   }
+  if (type === "ranger") {
+    return "enemy_ranger";
+  }
   if (type === "boss") {
     return "enemy_boss";
   }
@@ -103,6 +107,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.dashVx = 0;
     this.dashVy = 0;
     this.nextPoisonTickAtMs = 0;
+    this.ranged = config.ranged ?? archetype.ranged ?? false;
+    this.preferredRange = config.preferredRange ?? archetype.preferredRange;
+    this.fireIntervalMs = config.fireIntervalMs ?? archetype.fireIntervalMs;
+    this.projectileSpeed = config.projectileSpeed ?? archetype.projectileSpeed;
+    this.projectileDamage = config.projectileDamage ?? archetype.projectileDamage;
+    this.nextRangerFireAtMs = 0;
     this.flashToken = (this.flashToken ?? 0) + 1;
     this.facingDirection = "south";
     this.encircleAngleOffsetRad = Phaser.Math.DegToRad(
@@ -200,6 +210,12 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       }
     }
 
+    // Ranger behavior: keep distance and shoot
+    if (this.ranged) {
+      this.chaseRanger(target, deltaMs, nowMs);
+      return;
+    }
+
     const playerAngle = Math.atan2(dy, dx);
     const encircleInfluence = Phaser.Math.Clamp(distance / 260, 0.35, 1);
     const approachAngle = playerAngle + this.encircleAngleOffsetRad * encircleInfluence;
@@ -209,6 +225,87 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const velocityY = chaseVy + this.knockbackVy;
     this.body.setVelocity(velocityX, velocityY);
     this.updateFacingFromVelocity(velocityX, velocityY);
+  }
+
+  chaseRanger(target, deltaMs, nowMs) {
+    if (!this.active || !target.active || this.isDead() || !this.body) {
+      return;
+    }
+
+    const dx = target.x - this.x;
+    const dy = target.y - this.y;
+    const distance = Math.hypot(dx, dy);
+
+    if (distance === 0) {
+      this.body.setVelocity(this.knockbackVx, this.knockbackVy);
+      return;
+    }
+
+    const dt = Math.max(1, deltaMs);
+    const decay = Math.pow(0.08, dt / 160);
+    this.knockbackVx *= decay;
+    this.knockbackVy *= decay;
+    if (Math.abs(this.knockbackVx) < 6) this.knockbackVx = 0;
+    if (Math.abs(this.knockbackVy) < 6) this.knockbackVy = 0;
+
+    const preferredRange = this.preferredRange || 280;
+    const playerAngle = Math.atan2(dy, dx);
+
+    let moveVx = 0;
+    let moveVy = 0;
+
+    if (distance < preferredRange * 0.7) {
+      moveVx = -Math.cos(playerAngle) * this.speed * 0.8;
+      moveVy = -Math.sin(playerAngle) * this.speed * 0.8;
+    } else if (distance > preferredRange * 1.3) {
+      moveVx = Math.cos(playerAngle) * this.speed;
+      moveVy = Math.sin(playerAngle) * this.speed;
+    }
+
+    this.body.setVelocity(moveVx + this.knockbackVx, moveVy + this.knockbackVy);
+    this.updateFacingFromVelocity(moveVx, moveVy);
+
+    if (distance <= preferredRange * 1.5 && nowMs >= (this.nextRangerFireAtMs || 0)) {
+      this.nextRangerFireAtMs = nowMs + (this.fireIntervalMs || 2800);
+      this.fireAtPlayer(target);
+    }
+  }
+
+  fireAtPlayer(target) {
+    if (!this.scene?.bossProjectiles) {
+      return;
+    }
+    const dx = target.x - this.x;
+    const dy = target.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.001) return;
+
+    const speed = this.projectileSpeed || 200;
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    let projectile = this.scene.bossProjectiles.getFirstDead(false);
+    if (!projectile) {
+      if (this.scene.bossProjectiles.getLength() >= 220) return;
+      projectile = this.scene.bossProjectiles.create(-1000, -1000, "boss_bullet");
+      if (!projectile?.body) return;
+      projectile.body.setCircle(Math.max(2, projectile.displayWidth * 0.42), 0, 0);
+      projectile.setDepth(8);
+    }
+
+    projectile.setActive(true);
+    projectile.setVisible(true);
+    projectile.body.enable = true;
+    projectile.setPosition(this.x, this.y);
+    projectile.body.setVelocity(nx * speed, ny * speed);
+    projectile.setData("damage", this.projectileDamage || 8);
+    projectile.setTint(0xdd88ff);
+
+    this.scene.time.delayedCall(3000, () => {
+      if (projectile.active) {
+        this.scene.releaseBossProjectile(projectile);
+      }
+    });
   }
 
   updateFacingFromVelocity(vx, vy) {

@@ -129,6 +129,14 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     dropChance: 0.02,
     scale: 1.25,
     duration: 0
+  }),
+  weapon_upgrade: Object.freeze({
+    id: "weapon_upgrade",
+    label: "武器升级",
+    color: 0xff8800,
+    dropChance: 0.04,
+    scale: 1.3,
+    duration: 0
   })
 });
 

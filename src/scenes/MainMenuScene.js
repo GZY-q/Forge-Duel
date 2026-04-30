@@ -72,12 +72,20 @@ export class MainMenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.createButton(centerX, 352, "开始游戏", () => {
-      this.openFighterSelection();
+    this.createButton(centerX, 312, "开始游戏", () => {
+      this.openFighterSelection("solo");
     });
 
-    this.createButton(centerX, 432, "升级商店", () => {
+    this.createButton(centerX, 392, "联机模式", () => {
+      this.openMultiplayerMenu();
+    });
+
+    this.createButton(centerX, 472, "升级商店", () => {
       this.scene.start("UpgradeScene");
+    });
+
+    this.createButton(centerX, 552, "排行榜", () => {
+      this.scene.start("LeaderboardScene");
     });
 
     this.fighterSelectionUi = [];
@@ -117,10 +125,23 @@ export class MainMenuScene extends Phaser.Scene {
     text.on("pointerdown", trigger);
   }
 
-  openFighterSelection() {
+  openMultiplayerMenu() {
+    const token = typeof window !== "undefined" && window.localStorage
+      ? window.localStorage.getItem("forgeduel_token") : null;
+
+    if (!token) {
+      this.scene.start("AuthScene");
+      return;
+    }
+
+    this.openFighterSelection("coop");
+  }
+
+  openFighterSelection(mode) {
     if (this.fighterSelectionUi.length > 0) {
       return;
     }
+    this.pendingMode = mode || "solo";
 
     const camera = this.cameras.main;
     const centerX = camera.width * 0.5;
@@ -201,7 +222,7 @@ export class MainMenuScene extends Phaser.Scene {
   }
 
   getWeaponLabel(weaponType) {
-    const labels = { dagger: "匕首", fireball: "火焰弹", lightning: "闪电", orbit_blades: "轨道刃" };
+    const labels = { dagger: "匕首", fireball: "火焰弹", lightning: "闪电", orbit_blades: "轨道刃", scatter_shot: "散弹", homing_missile: "导弹", laser: "激光" };
     return labels[weaponType] || weaponType;
   }
 
@@ -210,7 +231,19 @@ export class MainMenuScene extends Phaser.Scene {
       window.localStorage.setItem(FIGHTER_STORAGE_KEY, fighterKey);
     }
     this.closeFighterSelection();
-    this.scene.start("GameScene", { selectedFighter: fighterKey });
+
+    if (this.pendingMode === "coop") {
+      const token = window.localStorage.getItem("forgeduel_token") || "";
+      const user = JSON.parse(window.localStorage.getItem("forgeduel_user") || "null");
+      this.scene.start("LobbyScene", {
+        mode: "create",
+        fighterType: fighterKey,
+        authToken: token,
+        authUser: user
+      });
+    } else {
+      this.scene.start("GameScene", { selectedFighter: fighterKey });
+    }
   }
 
   closeFighterSelection() {

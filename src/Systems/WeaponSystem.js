@@ -20,7 +20,8 @@ const PROJECTILE_TINT_BY_WEAPON = Object.freeze({
   meteor: 0xff8757,
   lightning: 0xc6f1ff,
   scatter_shot: 0xffee88,
-  homing_missile: 0xff66aa
+  homing_missile: 0xff66aa,
+  laser: 0xff3333
 });
 const PROJECTILE_VISUAL_PROFILE_BY_WEAPON = Object.freeze({
   dagger: Object.freeze({
@@ -73,6 +74,7 @@ export class WeaponSystem {
     this.projectilePoolByTexture = new Map();
     this.globalDamageMultiplier = 1;
     this.globalCooldownMultiplier = 1;
+    this.globalRangeMultiplier = 1;
     this.projectileCount = 1;
     this.projectileGlowGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
     this.projectileTrailRectsGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH - 1);
@@ -270,12 +272,25 @@ export class WeaponSystem {
     return this.projectileCount;
   }
 
+  addGlobalRangePercent(percent) {
+    const safePercent = Number(percent) || 0;
+    if (safePercent <= 0) {
+      return this.globalRangeMultiplier;
+    }
+    this.globalRangeMultiplier *= 1 + safePercent;
+    return this.globalRangeMultiplier;
+  }
+
   getScaledWeaponDamage(weapon) {
     return Math.max(1, Math.round(weapon.damage * this.globalDamageMultiplier));
   }
 
   getEffectiveCooldownMs(weapon) {
     return Math.max(90, Math.round(weapon.cooldownMs * this.globalCooldownMultiplier));
+  }
+
+  getEffectiveRange(weapon) {
+    return Math.round(weapon.range * this.globalRangeMultiplier);
   }
 
   addWeapon(baseType) {
@@ -396,6 +411,15 @@ export class WeaponSystem {
     weapon.orbitBladeCount = evolved.orbitBladeCount ?? 0;
     weapon.orbitRadius = evolved.orbitRadius ?? 0;
     weapon.orbitSpeed = evolved.orbitSpeed ?? 0;
+    weapon.chainCount = evolved.chainCount ?? 0;
+    weapon.chainRange = evolved.chainRange ?? 0;
+    weapon.chainFalloff = evolved.chainFalloff ?? 0;
+    weapon.scatterCount = evolved.scatterCount ?? 0;
+    weapon.scatterSpreadDeg = evolved.scatterSpreadDeg ?? 0;
+    weapon.homingTurnRate = evolved.homingTurnRate ?? 0;
+    weapon.laserWidth = evolved.laserWidth ?? 0;
+    weapon.laserDurationMs = evolved.laserDurationMs ?? 0;
+    weapon.pierceCount = evolved.pierceCount ?? 0;
     weapon.nextFireAt = 0;
 
     if (weapon.type === "orbit_blades") {
@@ -593,7 +617,8 @@ export class WeaponSystem {
   }
 
   fireProjectileWeapon(weapon, spreadDeg) {
-    const target = this.findNearestEnemy(this.player.x, this.player.y, weapon.range);
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
     if (!target) {
       return false;
     }
@@ -618,7 +643,7 @@ export class WeaponSystem {
       const direction = this.rotateDirection(baseDirection.x, baseDirection.y, offset);
       const didFire = this.spawnProjectile(weapon.type, { x: this.player.x, y: this.player.y }, direction, {
         speed: weapon.projectileSpeed,
-        maxDistance: weapon.range,
+        maxDistance: effectiveRange,
         damage: scaledDamage,
         knockbackForce: weapon.knockbackForce,
         behavior: weapon.projectileBehavior,
@@ -639,12 +664,14 @@ export class WeaponSystem {
       fired = this.fireFireball(weapon);
     } else if (weapon.type === "meteor") {
       fired = this.fireMeteor(weapon);
-    } else if (weapon.type === "lightning") {
+    } else if (weapon.type === "lightning" || weapon.type === "thunderstorm") {
       fired = this.fireLightning(weapon);
-    } else if (weapon.type === "scatter_shot") {
+    } else if (weapon.type === "scatter_shot" || weapon.type === "gatling") {
       fired = this.fireScatterShot(weapon);
-    } else if (weapon.type === "homing_missile") {
+    } else if (weapon.type === "homing_missile" || weapon.type === "mega_missile") {
       fired = this.fireHomingMissile(weapon);
+    } else if (weapon.type === "laser" || weapon.type === "prismatic_laser") {
+      fired = this.fireLaser(weapon);
     }
 
     if (fired && this.scene?.playWeaponFireFeedback) {
@@ -667,16 +694,22 @@ export class WeaponSystem {
 
   fireLightning(weapon) {
     const hitEnemies = [];
-    const maxJumps = 3;
-    const jumpRange = 175;
+    const maxJumps = weapon.chainCount || 3;
+    const jumpRange = weapon.chainRange || 175;
+    const noFalloff = weapon.chainFalloff === 1.0;
 
-    let currentTarget = this.findNearestEnemy(this.player.x, this.player.y, weapon.range);
+    let currentTarget = this.findNearestEnemy(this.player.x, this.player.y, this.getEffectiveRange(weapon));
     if (!currentTarget) {
       return false;
     }
 
     let sourceX = this.player.x;
     let sourceY = this.player.y;
+
+    const isEvolved = weapon.evolved;
+    const baseColor = isEvolved ? 0xffee88 : 0xc1f6ff;
+    const outerColor = isEvolved ? 0xffcc44 : 0x74d8ff;
+    const fillColor = isEvolved ? 0xffffcc : 0xd8fbff;
 
     const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
 
@@ -686,16 +719,16 @@ export class WeaponSystem {
       const outerAlpha = Phaser.Math.Clamp(0.62 * segmentFalloff, 0.2, 0.62);
       const lineWidth = Phaser.Math.Linear(4.2, 2.2, i / Math.max(1, maxJumps - 1));
 
-      gfx.lineStyle(lineWidth, 0xc1f6ff, coreAlpha);
+      gfx.lineStyle(lineWidth, baseColor, coreAlpha);
       gfx.lineBetween(sourceX, sourceY, currentTarget.x, currentTarget.y);
-      gfx.lineStyle(Math.max(1.4, lineWidth * 0.52), 0x74d8ff, outerAlpha);
+      gfx.lineStyle(Math.max(1.4, lineWidth * 0.52), outerColor, outerAlpha);
       gfx.lineBetween(sourceX, sourceY, currentTarget.x, currentTarget.y);
-      gfx.fillStyle(0xd8fbff, Phaser.Math.Clamp(0.6 * segmentFalloff, 0.24, 0.6));
+      gfx.fillStyle(fillColor, Phaser.Math.Clamp(0.6 * segmentFalloff, 0.24, 0.6));
       gfx.fillCircle(currentTarget.x, currentTarget.y, Math.max(3, 7 - i));
 
-      const falloff = i === 0 ? 1 : i === 1 ? 0.8 : 0.65;
+      const falloff = noFalloff ? 1 : (i === 0 ? 1 : i === 1 ? 0.8 : 0.65);
       const scaledDamage = this.getScaledWeaponDamage(weapon);
-      this.applyDamage(currentTarget, Math.round(scaledDamage * falloff), weapon.knockbackForce, sourceX, sourceY);
+      this.applyDamage(currentTarget, Math.round(scaledDamage * falloff), weapon.knockbackForce, sourceX, sourceY, weapon.type);
       hitEnemies.push(currentTarget);
 
       sourceX = currentTarget.x;
@@ -714,7 +747,8 @@ export class WeaponSystem {
   }
 
   fireScatterShot(weapon) {
-    const target = this.findNearestEnemy(this.player.x, this.player.y, weapon.range);
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
     if (!target) {
       return false;
     }
@@ -735,7 +769,7 @@ export class WeaponSystem {
       const direction = this.rotateDirection(baseDirection.x, baseDirection.y, offset);
       const didFire = this.spawnProjectile(weapon.type, { x: this.player.x, y: this.player.y }, direction, {
         speed: weapon.projectileSpeed,
-        maxDistance: weapon.range,
+        maxDistance: effectiveRange,
         damage: scaledDamage,
         knockbackForce: weapon.knockbackForce,
         behavior: weapon.projectileBehavior
@@ -747,7 +781,8 @@ export class WeaponSystem {
   }
 
   fireHomingMissile(weapon) {
-    const target = this.findNearestEnemy(this.player.x, this.player.y, weapon.range);
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
     if (!target) {
       return false;
     }
@@ -765,7 +800,7 @@ export class WeaponSystem {
       const dir = this.rotateDirection(direction.x, direction.y, angleOffset);
       const didFire = this.spawnProjectile(weapon.type, { x: this.player.x, y: this.player.y }, dir, {
         speed: weapon.projectileSpeed,
-        maxDistance: weapon.range,
+        maxDistance: effectiveRange,
         damage: scaledDamage,
         knockbackForce: weapon.knockbackForce,
         behavior: "homing",
@@ -776,6 +811,90 @@ export class WeaponSystem {
     }
 
     return fired;
+  }
+
+  fireLaser(weapon) {
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
+    if (!target) {
+      return false;
+    }
+
+    const scaledDamage = this.getScaledWeaponDamage(weapon);
+    const pierceCount = Math.max(1, weapon.pierceCount || 1);
+    const beamWidth = weapon.laserWidth || 4;
+    const durationMs = weapon.laserDurationMs || 180;
+
+    // Direction from player to target
+    const dx = target.x - this.player.x;
+    const dy = target.y - this.player.y;
+    const dist = Math.hypot(dx, dy);
+    const nx = dist > 0.001 ? dx / dist : 1;
+    const ny = dist > 0.001 ? dy / dist : 0;
+
+    // Find enemies in a line
+    const hitEnemies = [];
+    const beamEndX = this.player.x + nx * effectiveRange;
+    const beamEndY = this.player.y + ny * effectiveRange;
+
+    // Collect all enemies in range and sort by distance
+    const enemiesInRange = [];
+    this.scene.enemies.getChildren().forEach((enemy) => {
+      if (!enemy?.active || enemy.hp <= 0 || enemy.getData("isDying")) {
+        return;
+      }
+      const ex = enemy.x - this.player.x;
+      const ey = enemy.y - this.player.y;
+      // Project onto beam direction
+      const proj = ex * nx + ey * ny;
+      if (proj < 0 || proj > effectiveRange) {
+        return;
+      }
+      // Perpendicular distance
+      const perp = Math.abs(ex * ny - ey * nx);
+      const hitRadius = (enemy.body?.radius || 14) + beamWidth;
+      if (perp <= hitRadius) {
+        enemiesInRange.push({ enemy, dist: proj });
+      }
+    });
+    enemiesInRange.sort((a, b) => a.dist - b.dist);
+
+    const count = Math.min(pierceCount, enemiesInRange.length);
+    for (let i = 0; i < count; i++) {
+      const { enemy } = enemiesInRange[i];
+      const falloff = i === 0 ? 1 : 0.7;
+      this.applyDamage(enemy, Math.round(scaledDamage * falloff), weapon.knockbackForce, this.player.x, this.player.y, weapon.type);
+      hitEnemies.push(enemy);
+    }
+
+    // Draw beam visual
+    this.drawLaserBeam(this.player.x, this.player.y, beamEndX, beamEndY, beamWidth, durationMs, hitEnemies.length > 0);
+
+    return hitEnemies.length > 0;
+  }
+
+  drawLaserBeam(x1, y1, x2, y2, width, durationMs, hit) {
+    const gfx = this.scene.add.graphics().setDepth(31);
+    // Core beam
+    gfx.lineStyle(width + 2, 0xff2222, 0.4);
+    gfx.lineBetween(x1, y1, x2, y2);
+    gfx.lineStyle(width, 0xff6644, 0.7);
+    gfx.lineBetween(x1, y1, x2, y2);
+    gfx.lineStyle(width - 1, 0xffccaa, 0.95);
+    gfx.lineBetween(x1, y1, x2, y2);
+
+    // Hit flash at impact
+    if (hit) {
+      gfx.fillStyle(0xffffff, 0.8);
+      gfx.fillCircle(x2, y2, width * 2);
+    }
+
+    this.scene.tweens.add({
+      targets: gfx,
+      alpha: 0,
+      duration: durationMs,
+      onComplete: () => gfx.destroy()
+    });
   }
 
   spawnProjectile(type, position, direction, config = {}) {
@@ -800,6 +919,7 @@ export class WeaponSystem {
     projectile.travelled = 0;
     projectile.damage = config.damage;
     projectile.knockbackForce = config.knockbackForce;
+    projectile.weaponType = type;
     projectile.behavior = config.behavior;
     projectile.explosionRadius = config.explosionRadius ?? 0;
     projectile.explosionDamage = config.explosionDamage ?? 0;
@@ -841,7 +961,7 @@ export class WeaponSystem {
     const explosionDamage = hitProjectile.explosionDamage;
     const behavior = hitProjectile.behavior;
 
-    this.applyDamage(hitEnemy, hitProjectile.damage, hitProjectile.knockbackForce, hitX, hitY);
+    this.applyDamage(hitEnemy, hitProjectile.damage, hitProjectile.knockbackForce, hitX, hitY, hitProjectile.weaponType);
 
     if (behavior === "explosion" || behavior === "meteor_explosion") {
       this.triggerExplosion(hitX, hitY, explosionRadius, explosionDamage);
@@ -868,7 +988,7 @@ export class WeaponSystem {
     const meleeMultiplier = this.player.meleeDamageMultiplier || 1;
     damage = Math.round(damage * meleeMultiplier);
     const knockback = Math.max(40, Math.round((blade.getData("knockbackForce") || 90) * 0.62));
-    this.applyDamage(enemy, damage, knockback, this.player.x, this.player.y);
+    this.applyDamage(enemy, damage, knockback, this.player.x, this.player.y, "orbit_blades");
   }
 
   triggerExplosion(x, y, radius, damage) {
@@ -906,7 +1026,7 @@ export class WeaponSystem {
     });
   }
 
-  applyDamage(enemy, damage, knockbackForce, sourceX, sourceY) {
+  applyDamage(enemy, damage, knockbackForce, sourceX, sourceY, sourceWeaponType) {
     if (!(enemy instanceof Enemy) || !enemy.active) {
       this.warnInvalidProjectileCollision(enemy);
       return;
@@ -922,6 +1042,11 @@ export class WeaponSystem {
       this.scene.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
     }
     enemy?.applyKnockbackFrom(sourceX, sourceY, safeKnockback);
+
+    // Apply status effects from weapon
+    if (sourceWeaponType && this.scene.statusEffectSystem) {
+      this.scene.statusEffectSystem.tryApplyFromWeapon(enemy, sourceWeaponType);
+    }
 
     if (!enemy.isDead()) {
       return;

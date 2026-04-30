@@ -16,15 +16,17 @@ export class RunSummaryScene extends Phaser.Scene {
     const centerX = camera.width * 0.5;
     const centerY = camera.height * 0.5;
     const cardWidth = 440;
-    const cardHeight = 460;
     const panelPadding = 32;
-    const titleMarginBottom = 24;
-    const statLineSpacing = 14;
-    const buttonGap = 18;
+    const titleMarginBottom = 20;
+    const statLineSpacing = 16;
+    const buttonGap = 16;
     const primaryButtonWidth = 260;
     const primaryButtonHeight = 56;
     const secondaryButtonWidth = 220;
     const secondaryButtonHeight = 48;
+    const statsContainerHeight = 230;
+    const buttonStackHeight = primaryButtonHeight + secondaryButtonHeight + buttonGap;
+    const cardHeight = panelPadding + 40 + titleMarginBottom + statsContainerHeight + 20 + buttonStackHeight + panelPadding;
 
     const stats = {
       timeSurvivedMs: data.timeSurvivedMs ?? 0,
@@ -78,9 +80,8 @@ export class RunSummaryScene extends Phaser.Scene {
 
     const titleBottomY = titleText.y + titleText.height;
     const statsTopY = titleBottomY + titleMarginBottom;
-    const statsContainerHeight = 192;
     const statsCenterY = statsTopY + statsContainerHeight * 0.5;
-    const statsBg = this.add.rectangle(0, statsCenterY, 336, statsContainerHeight, 0x152947, 0.92);
+    const statsBg = this.add.rectangle(0, statsCenterY, 360, statsContainerHeight, 0x152947, 0.92);
     statsBg.setStrokeStyle(2, 0x7bc3ff, 1);
     const statsText = this.add
       .text(0, statsCenterY, lines.join("\n"), {
@@ -92,7 +93,6 @@ export class RunSummaryScene extends Phaser.Scene {
       })
       .setOrigin(0.5, 0.5);
 
-    const buttonStackHeight = primaryButtonHeight + secondaryButtonHeight + buttonGap;
     const buttonsContainerTop = panelBottom - panelPadding - buttonStackHeight;
     const retryY = buttonsContainerTop + primaryButtonHeight * 0.5;
     const menuY = retryY + primaryButtonHeight * 0.5 + buttonGap + secondaryButtonHeight * 0.5;

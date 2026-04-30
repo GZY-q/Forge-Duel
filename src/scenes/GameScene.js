@@ -4,12 +4,15 @@ import { DirectorSystem, DIRECTOR_STATE } from "../systems/DirectorSystem.js";
 import { WeaponSystem } from "../systems/WeaponSystem.js";
 import { MetaProgressionSystem } from "../systems/MetaProgressionSystem.js";
 import { ObjectPool } from "../systems/ObjectPool.js";
-import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC } from "../config/enemies.js";
-import { LEVEL_UP_UPGRADES } from "../config/weapons.js";
+import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC, RANGER_UNLOCK_TIME_SEC } from "../config/enemies.js";
+import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
 import { CHARACTER_ASSET_MANIFEST, CHARACTER_DIRECTIONS } from "../config/assets.manifest.js";
 import { FIGHTER_CONFIGS, FIGHTER_STORAGE_KEY } from "../config/fighters.js";
 import { ItemPool } from "../entities/ItemDrop.js";
+import { TreasureChest } from "../entities/TreasureChest.js";
+import { StatusEffectSystem } from "../systems/StatusEffectSystem.js";
+import { spawnDestructibles } from "../entities/Destructible.js";
 import { ITEM_DROP_CONFIGS, ITEM_POOL_SIZE } from "../config/progression.js";
 import {
   BASE_SPAWN_CHECK_INTERVAL_MS,
@@ -418,6 +421,13 @@ const START_WEAPON_OPTIONS = [
     weaponType: "homing_missile",
     unlockCost: 160,
     defaultUnlocked: false
+  },
+  {
+    id: "laser_beam",
+    label: "激光束",
+    weaponType: "laser",
+    unlockCost: 150,
+    defaultUnlocked: false
   }
 ];
 const WEAPON_ICON_ASSETS = Object.freeze({
@@ -448,6 +458,10 @@ const WEAPON_ICON_ASSETS = Object.freeze({
   homing_missile: Object.freeze({
     key: "weapon_icon_fireball",
     path: "assets/sprites/weapons/weapon_fireball_icon.png"
+  }),
+  laser: Object.freeze({
+    key: "weapon_icon_lightning",
+    path: "assets/sprites/weapons/weapon_lightning_icon.png"
   })
 });
 
@@ -610,6 +624,25 @@ const PIXEL_BOSS_PATTERN = [
   "........................"
 ];
 
+const PIXEL_RANGER_PATTERN = [
+  "................",
+  "......1111......",
+  ".....122221.....",
+  "....12333321....",
+  "...1233333321...",
+  "..123333333321..",
+  "..123334433332..",
+  "..123334433332..",
+  "..123333333321..",
+  "...1233333321...",
+  "....12333321....",
+  ".....122221.....",
+  "......1111......",
+  ".......22.......",
+  "......2222......",
+  "................"
+];
+
 const PIXEL_CRATE_PATTERN = [
   "................",
   ".11111111111111.",
@@ -677,6 +710,7 @@ export class GameScene extends Phaser.Scene {
     this.runTimeMs = 0;
     this.playTime = 0;
     this.runStartTimeMs = 0;
+    this.lastStageAnnouncementSec = -1;
     this.hudElapsedSeconds = -1;
     this.targetEnemies = 0;
 
@@ -799,14 +833,25 @@ export class GameScene extends Phaser.Scene {
     this.pauseUi = [];
     this.activeBoss = null;
     this.bossHpBarElement = null;
+    this.bgmEnabled = true;
+    this.bgmNodes = null;
   }
 
   init(data) {
     this.selectedFighterKey = data?.selectedFighter || null;
+    this.gameMode = data?.gameMode || "solo";
+    this.networkManager = data?.networkManager || null;
+    this.socketClient = data?.socketClient || null;
+    this.voiceManager = data?.voiceManager || null;
+    this.isHost = data?.isHost ?? true;
+    this.coopPlayers = data?.players || [];
+    this.networkSyncAccumulator = 0;
+    this.lastEnemySyncTime = 0;
   }
 
   create() {
     this.isGameOver = false;
+    this._loadSettings();
     this.totalXp = 0;
     this.level = 1;
     this.currentXp = 0;
@@ -817,6 +862,7 @@ export class GameScene extends Phaser.Scene {
     this.spawnAccumulatorMs = 0;
     this.runTimeMs = 0;
     this.playTime = 0;
+    this.lastStageAnnouncementSec = -1;
     this.runStartTimeMs = this.time?.now ?? 0;
     this.hudElapsedSeconds = -1;
     this.targetEnemies = 0;
@@ -902,6 +948,8 @@ export class GameScene extends Phaser.Scene {
     this.enemyPool = new ObjectPool(this, this.enemies, { initialSize: ENEMY_POOL_SIZE });
     this.itemPool = new ItemPool(this, ITEM_POOL_SIZE);
     this.activeItems = [];
+    this.chests = [];
+    this.destructibles = spawnDestructibles(this, 12);
     this.xpOrbs = this.physics.add.group();
     this.obstacles = this.physics.add.staticGroup();
     this.createTerrainObstacles();
@@ -940,7 +988,16 @@ export class GameScene extends Phaser.Scene {
     this.physics.add.overlap(this.player, this.bossProjectiles, this.handleBossProjectileHit, null, this);
     this.physics.add.collider(this.player, this.obstacles);
     this.physics.add.collider(this.enemies, this.obstacles);
+    // Cover mechanic: obstacles block boss projectiles
+    this.physics.add.collider(this.bossProjectiles, this.obstacles, (projectile) => {
+      this.releaseBossProjectile(projectile);
+    });
     this.weaponSystem = new WeaponSystem(this, this.player);
+    this.statusEffectSystem = new StatusEffectSystem(this);
+    // Cover mechanic: obstacles also block player weapon projectiles
+    this.physics.add.collider(this.weaponSystem.projectiles, this.obstacles, (projectile) => {
+      this.weaponSystem.releaseProjectile(projectile);
+    });
     this.applyMetaBonusesForRun();
 
     this.cameras.main.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
@@ -1195,6 +1252,8 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.openWeaponSelection();
     }
+    // Start BGM after a short delay
+    this.time.delayedCall(1500, () => this.startBgm());
     this.maintainEnemyDensity();
     this.updateHUD();
   }
@@ -1234,6 +1293,77 @@ export class GameScene extends Phaser.Scene {
       }
       this.load.image(key, path);
     });
+
+    this.setupCoopMode();
+  }
+
+  setupCoopMode() {
+    if (this.gameMode !== "coop" || !this.networkManager) return;
+
+    import("../networking/PlayerSync.js").then(({ PlayerSync }) => {
+      this.playerSync = new PlayerSync(this);
+
+      for (const p of this.coopPlayers) {
+        if (p.playerId !== this.networkManager.playerId) {
+          this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
+        }
+      }
+    });
+
+    import("../networking/EnemySync.js").then(({ EnemySync }) => {
+      if (!this.isHost) {
+        this.enemySync = new EnemySync(this, null);
+      }
+    });
+
+    this.networkManager.onRemotePlayerUpdate = (data) => {
+      if (data.playerId === this.networkManager.playerId) return;
+      this.playerSync?.updatePlayerState(data.playerId, data);
+    };
+
+    this.networkManager.onEnemyStateUpdate = (data) => {
+      if (this.isHost) return;
+      this.enemySync?.applyEnemyState(data);
+    };
+
+    this.networkManager.onEnemyKilled = (data) => {
+      if (this.isHost) return;
+      const enemy = this.enemySync?.getEnemyByServerId(data.enemyId);
+      if (enemy && enemy.active) {
+        this.handleEnemyDefeat(enemy);
+      }
+    };
+
+    this.networkManager.onXpDrop = (data) => {
+      if (this.isHost) return;
+      this.spawnXpOrb(data.x, data.y, data.value);
+    };
+
+    this.networkManager.onItemDrop = (data) => {
+      if (this.isHost) return;
+      if (this.itemPool && data.type) {
+        const item = this.itemPool.acquire(data.x, data.y, data.type);
+        if (item) this.activeItems.push(item);
+      }
+    };
+
+    this.networkManager.onPlayerDied = (data) => {
+      this.playerSync?.markPlayerDead(data.playerId);
+      this.showHudAlert(`${data.playerId} 已阵亡`, 2000);
+    };
+
+    this.networkManager.onGameOver = (data) => {
+      if (!this.isGameOver) {
+        this.triggerGameOver();
+      }
+    };
+
+    this.networkManager.onHostMigrated = (data) => {
+      if (data.newHostId === this.networkManager.playerId) {
+        this.isHost = true;
+        this.showHudAlert("你已成为房主", 2000);
+      }
+    };
   }
 
   update(time, delta) {
@@ -1313,7 +1443,7 @@ export class GameScene extends Phaser.Scene {
 
     const stateChanged = this.director.update(delta);
     if (stateChanged && this.director.getState() === DIRECTOR_STATE.PEAK) {
-      this.cameras.main.shake(180, 0.0028);
+      this.shakeScreen(180, 0.0028);
     }
 
     this.runTimeMs += delta;
@@ -1321,6 +1451,7 @@ export class GameScene extends Phaser.Scene {
     if ((this.time?.now ?? 0) - this.lastKillAtMs > COMBO_RESET_WINDOW_MS) {
       this.killCombo = 0;
     }
+    this.checkStageAnnouncements();
     this.updateBossApproachWarning();
     this.spawnAccumulatorMs += delta;
     this.processDirectorBossSpawns();
@@ -1347,25 +1478,60 @@ export class GameScene extends Phaser.Scene {
     this.updatePlayerReadabilityAura();
     this.pullXpOrbsToPlayer();
     this.updateActiveItems(delta);
+    this.updateChests();
+    this.updateDestructibles(time);
     this.updateShieldEffect(delta);
     this.weaponSystem.update(time, delta);
+    this.statusEffectSystem?.update(time, delta);
     this.performAutoAttack(time);
 
     const speedMultiplier = this.getEffectiveEnemySpeedMultiplier();
     const damageMultiplier = this.director.getEnemyDamageMultiplier();
-    this.enemies.getChildren().forEach((enemy) => {
-      if (!enemy.active) {
-        return;
+
+    if (this.gameMode !== "coop" || this.isHost) {
+      this.enemies.getChildren().forEach((enemy) => {
+        if (!enemy.active) {
+          return;
+        }
+        enemy.speed = enemy.baseSpeed * speedMultiplier;
+        enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
+        enemy.chase(this.player, delta, time);
+        enemy.tryApplyPoisonAura(this.player, time);
+        if (enemy.updateBossPattern) {
+          enemy.updateBossPattern(this.player, time);
+        }
+        this.applyEnemyAntiJam(enemy, time);
+      });
+    }
+
+    if (this.gameMode === "coop" && this.networkManager) {
+      this.networkSyncAccumulator += delta;
+
+      if (this.networkSyncAccumulator >= 50) {
+        this.networkSyncAccumulator = 0;
+        this.networkManager.sendPlayerState(this.player);
+
+        if (this.isHost) {
+          const activeEnemies = this.enemies.getChildren()
+            .filter((e) => e.active)
+            .map((e) => ({
+              id: e.serverId || `${Math.round(e.x)}_${Math.round(e.y)}`,
+              type: e.type,
+              x: Math.round(e.x),
+              y: Math.round(e.y),
+              hp: e.hp,
+              maxHp: e.maxHp,
+              facing: e.facingDirection,
+              isElite: e.isElite || false,
+              eliteType: e.eliteType,
+              damage: e.damage
+            }));
+          this.networkManager.sendEnemyState(activeEnemies);
+        }
+
+        this.playerSync?.update(this.time.now);
       }
-      enemy.speed = enemy.baseSpeed * speedMultiplier;
-      enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
-      enemy.chase(this.player, delta, time);
-      enemy.tryApplyPoisonAura(this.player, time);
-      if (enemy.updateBossPattern) {
-        enemy.updateBossPattern(this.player, time);
-      }
-      this.applyEnemyAntiJam(enemy, time);
-    });
+    }
 
     if (this.player.isDead()) {
       this.triggerGameOver();
@@ -1409,6 +1575,12 @@ export class GameScene extends Phaser.Scene {
       "2": 0x1b6d84,
       "3": 0x54e1ff
     }, { shadowColor: 0x071120, shadowOffsetX: 1, shadowOffsetY: 1 });
+    this.generatePixelTexture("enemy_ranger", 2, PIXEL_RANGER_PATTERN, {
+      "1": 0x3a1e5e,
+      "2": 0x7b3fcf,
+      "3": 0xdd88ff,
+      "4": 0xffcc00
+    }, { shadowColor: 0x1a0e2e, shadowOffsetX: 1, shadowOffsetY: 1 });
     this.generatePixelTexture("enemy_chaser", 2, PIXEL_CHASER_PATTERN, {
       "1": 0x74242a,
       "2": 0xff6d6d,
@@ -1473,6 +1645,9 @@ export class GameScene extends Phaser.Scene {
       { x: 2, y: 10 }
     ], 0xfff2a0, 0xb8831e);
     this.generateCircleTexture("xp_orb", 6, 0x66f5b2, 0x1f8d63);
+    this.generateCircleTexture("xp_orb_blue", 6, 0x44aaff, 0x1a5599);
+    this.generateCircleTexture("xp_orb_purple", 7, 0xaa66ff, 0x552299);
+    this.generateCircleTexture("xp_orb_gold", 8, 0xffdd44, 0x997711);
     this.generateCircleTexture("proj_dagger", 4, 0xeef7ff, 0x7895af);
     this.generateCircleTexture("proj_fireball", 8, 0xff944d, 0xa84d1b);
     this.generateCircleTexture("proj_meteor", 11, 0xff8b44, 0x70220d);
@@ -1683,7 +1858,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.cameras?.main) {
       this.cameras.main.flash(flashDurationMs, 255, 246, 197, true);
-      this.cameras.main.shake(110, 0.0019);
+      this.shakeScreen(110, 0.0019);
     }
 
     if (this.evolutionEmitter && this.player && this.player.active) {
@@ -1788,10 +1963,44 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  _loadSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem("forgeduel_settings"));
+      if (saved) {
+        this.settingsBgmVol = (saved.bgmVol ?? 60) / 100;
+        this.settingsSfxVol = (saved.sfxVol ?? 80) / 100;
+        this.settingsShowDmgNum = saved.showDmgNum !== false;
+        this.settingsScreenShake = saved.screenShake !== false;
+      } else {
+        this.settingsBgmVol = 0.6;
+        this.settingsSfxVol = 0.8;
+        this.settingsShowDmgNum = true;
+        this.settingsScreenShake = true;
+      }
+    } catch {
+      this.settingsBgmVol = 0.6;
+      this.settingsSfxVol = 0.8;
+      this.settingsShowDmgNum = true;
+      this.settingsScreenShake = true;
+    }
+    if (typeof window !== "undefined") {
+      window.__forgeduelGame = this.game;
+    }
+  }
+
+  shakeScreen(duration, intensity) {
+    if (this.settingsScreenShake === false) return;
+    this.cameras.main.shake(duration, intensity);
+  }
+
   playSfxTone({ wave = "sine", startFreq = 440, endFreq = 220, duration = 0.1, gain = 0.04, curve = "exponential" }) {
     if (!this.sound || !this.sound.context) {
       return;
     }
+
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    gain = gain * sfxVol;
 
     const audioContext = this.sound.context;
     if (audioContext.state === "suspended" && audioContext.resume) {
@@ -1834,7 +2043,8 @@ export class GameScene extends Phaser.Scene {
 
     const key = SFX_KEY_BY_TYPE[type];
     const baseVolume = SFX_VOLUME[type] ?? 0.1;
-    const safeVolume = Phaser.Math.Clamp(baseVolume * (options.elite ? 1.08 : 1), 0.01, 0.24);
+    const sfxVol = this.settingsSfxVol ?? 1;
+    const safeVolume = Phaser.Math.Clamp(baseVolume * (options.elite ? 1.08 : 1) * sfxVol, 0.01, 0.24);
     if (key && this.cache?.audio?.exists(key) && this.sound) {
       this.sound.play(key, { volume: safeVolume });
       return;
@@ -1945,6 +2155,23 @@ export class GameScene extends Phaser.Scene {
         duration: 0.045,
         gain: 0.022
       });
+      return;
+    }
+
+    if (type === "chest_open") {
+      this.playSfxTone({ wave: "triangle", startFreq: 400, endFreq: 700, duration: 0.08, gain: 0.05, curve: "linear" });
+      this.time.delayedCall(80, () => {
+        this.playSfxTone({ wave: "triangle", startFreq: 600, endFreq: 1000, duration: 0.12, gain: 0.06, curve: "linear" });
+      });
+      this.time.delayedCall(180, () => {
+        this.playSfxTone({ wave: "sine", startFreq: 900, endFreq: 1200, duration: 0.15, gain: 0.04, curve: "linear" });
+      });
+      return;
+    }
+
+    if (type === "item_spawn") {
+      this.playSfxTone({ wave: "sine", startFreq: 600, endFreq: 900, duration: 0.06, gain: 0.03, curve: "linear" });
+      return;
     }
   }
 
@@ -3651,6 +3878,7 @@ export class GameScene extends Phaser.Scene {
     enemy.setData("lastDashHitId", -1);
     enemy.setData("archetype", type);
     enemy.setData("spawnLane", lane);
+    enemy.serverId = `e_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     const eliteChance = this.director.getEliteChance();
     const isElite = type !== "swarm" && Math.random() < eliteChance;
@@ -3700,7 +3928,7 @@ export class GameScene extends Phaser.Scene {
     boss.setData("spawnLane", lane);
     this.enemies.add(boss);
 
-    this.cameras.main.shake(210, 0.0048);
+    this.shakeScreen(210, 0.0048);
     this.playSfx("boss_warning");
     this.showWarningBanner("BOSS INCOMING", {
       tone: "boss",
@@ -3721,7 +3949,7 @@ export class GameScene extends Phaser.Scene {
     miniBoss.setData("spawnLane", lane);
     this.enemies.add(miniBoss);
 
-    this.cameras.main.shake(160, 0.0036);
+    this.shakeScreen(160, 0.0036);
     this.playSfx("boss_warning");
     this.showWarningBanner("MINI BOSS", {
       tone: "mini",
@@ -3918,6 +4146,61 @@ export class GameScene extends Phaser.Scene {
     text.setData("alertHideEvent", hideEvent);
   }
 
+  checkStageAnnouncements() {
+    const sec = Math.floor(this.runTimeMs / 1000);
+    if (sec === this.lastStageAnnouncementSec) return;
+
+    const STAGE_EVENTS = [
+      { time: 30, text: "敌人开始涌入...", color: "#ffcc44" },
+      { time: 60, text: "精英敌人出现!", color: "#ff8844" },
+      { time: 90, text: "危险等级提升!", color: "#ff4444" },
+      { time: 150, text: "更多敌人来袭!", color: "#ff6644" },
+      { time: 210, text: "生存考验!", color: "#ff4466" },
+    ];
+
+    const event = STAGE_EVENTS.find(e => e.time === sec);
+    if (event) {
+      this.showStageAnnouncement(event.text, event.color);
+      this.lastStageAnnouncementSec = sec;
+    }
+
+    // Boss announcements
+    const bossInterval = DIRECTOR_BOSS_SPAWN?.intervalMs;
+    if (Number.isFinite(bossInterval) && bossInterval > 0) {
+      const bossSec = Math.floor(bossInterval / 1000);
+      if (sec > 0 && sec % bossSec === 0 && sec !== this.lastStageAnnouncementSec) {
+        this.showStageAnnouncement("BOSS 来袭!", "#ff2222");
+        this.lastStageAnnouncementSec = sec;
+      }
+    }
+  }
+
+  showStageAnnouncement(text, color = "#ffcc44") {
+    const cx = 640;
+    const cy = 300;
+    const depth = RENDER_DEPTH.HUD + 10;
+
+    const overlay = this.add.rectangle(cx, cy, 500, 60, 0x000000, 0.6)
+      .setStrokeStyle(2, Phaser.Display.Color.HexStringToColor(color).color, 0.8)
+      .setScrollFactor(0).setDepth(depth).setAlpha(0);
+
+    const label = this.add.text(cx, cy, text, {
+      fontFamily: "Arial", fontSize: "28px", color,
+      stroke: "#000000", strokeThickness: 5
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
+
+    // Fade in
+    this.tweens.add({ targets: [overlay, label], alpha: 1, duration: 300, ease: "Quad.easeOut" });
+
+    // Fade out after 2s
+    this.time.delayedCall(2000, () => {
+      this.tweens.add({
+        targets: [overlay, label], alpha: 0, duration: 500, ease: "Quad.easeIn",
+        onComplete: () => { overlay.destroy(); label.destroy(); }
+      });
+    });
+  }
+
   updateBossApproachWarning() {
     const intervalMs = DIRECTOR_BOSS_SPAWN.intervalMs;
     if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
@@ -3997,6 +4280,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   spawnDamageNumber(x, y, amount, enemy = null) {
+    if (this.settingsShowDmgNum === false) return;
     const safeAmount = Math.max(0, Math.round(amount ?? 0));
     if (safeAmount <= 0) {
       return;
@@ -4130,7 +4414,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     const equippedWeapons = this.player?.weapons ?? [];
-    this.hudWeaponSlotIcons.forEach(({ frame, icon }, index) => {
+    const now = this.time?.now ?? 0;
+    this.hudWeaponSlotIcons.forEach(({ frame, icon, cdBarBg, cdBarFill }, index) => {
       const weapon = equippedWeapons[index];
       if (!frame || !icon) {
         return;
@@ -4139,12 +4424,31 @@ export class GameScene extends Phaser.Scene {
         frame.setAlpha(0.28);
         icon.setTexture("proj_dagger");
         icon.setAlpha(0.18);
+        cdBarBg?.setVisible(false);
+        cdBarFill?.setVisible(false);
         return;
       }
       frame.setAlpha(0.9);
       const weaponType = weapon.baseType ?? weapon.type;
       icon.setTexture(this.getWeaponIconKey(weaponType));
       icon.setAlpha(0.95);
+
+      // Update cooldown bar
+      if (cdBarBg && cdBarFill) {
+        cdBarBg.setVisible(true);
+        cdBarFill.setVisible(true);
+        const cdMs = this.weaponSystem?.getEffectiveCooldownMs?.(weapon) ?? weapon.cooldownMs;
+        const nextFire = weapon.nextFireAt ?? 0;
+        const elapsed = Math.max(0, now - (nextFire - cdMs));
+        const progress = Phaser.Math.Clamp(elapsed / cdMs, 0, 1);
+        cdBarFill.displayWidth = 28 * progress;
+        // Color: blue when cooling, white when ready
+        if (progress >= 1) {
+          cdBarFill.setFillStyle(0xffffff, 0.9);
+        } else {
+          cdBarFill.setFillStyle(0x4488ff, 0.85);
+        }
+      }
     });
   }
 
@@ -4475,6 +4779,9 @@ export class GameScene extends Phaser.Scene {
       if (entry.type === "hunter" && elapsedSeconds < HUNTER_UNLOCK_TIME_SEC) {
         return false;
       }
+      if (entry.type === "ranger" && elapsedSeconds < RANGER_UNLOCK_TIME_SEC) {
+        return false;
+      }
       return true;
     });
 
@@ -4507,13 +4814,17 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.gameMode === "coop" && !this.isHost) {
+      return;
+    }
+
     if (player.isDashing()) {
       const lastDashHitId = enemy.getData("lastDashHitId") ?? -1;
       if (lastDashHitId !== player.currentDashId) {
         enemy.setData("lastDashHitId", player.currentDashId);
         enemy.takeDamage(player.dashDamage);
         enemy.applyKnockbackFrom(player.x, player.y, 360);
-        this.cameras.main.shake(80, 0.003);
+        this.shakeScreen(80, 0.003);
 
         if (enemy.isDead()) {
           this.handleEnemyDefeat(enemy);
@@ -4571,7 +4882,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.lastPlayerHurtFeedbackAt = now;
 
-    this.cameras.main.shake(PLAYER_HURT_SHAKE_DURATION_MS, PLAYER_HURT_SHAKE_INTENSITY);
+    this.shakeScreen(PLAYER_HURT_SHAKE_DURATION_MS, PLAYER_HURT_SHAKE_INTENSITY);
 
     const pulse = this.add
       .circle(player.x, player.y, PLAYER_HURT_PULSE_RADIUS, 0xff7a7a, PLAYER_HURT_PULSE_ALPHA)
@@ -4749,16 +5060,24 @@ export class GameScene extends Phaser.Scene {
   }
 
   spawnXpOrb(x, y, value, config = {}) {
-    const texture = config.texture ?? "xp_orb";
+    // Select texture based on XP value
+    let texture = config.texture;
+    if (!texture) {
+      if (value >= 50) texture = "xp_orb_gold";
+      else if (value >= 25) texture = "xp_orb_purple";
+      else if (value >= 10) texture = "xp_orb_blue";
+      else texture = "xp_orb";
+    }
     const orb = this.xpOrbs.create(x, y, texture);
     if (!orb) {
       return;
     }
     const isSpecialPickup = config.pickupType === "elite_upgrade" || config.pickupType === "mini_boss_gold";
     const isHighValue = value >= 20;
+    const isUltraValue = value >= 50;
     const baseScale =
       config.scale ??
-      (isSpecialPickup ? XP_ORB_SPECIAL_SCALE : isHighValue ? XP_ORB_HIGH_VALUE_SCALE : XP_ORB_BASE_SCALE);
+      (isSpecialPickup ? XP_ORB_SPECIAL_SCALE : isUltraValue ? 1.4 : isHighValue ? XP_ORB_HIGH_VALUE_SCALE : XP_ORB_BASE_SCALE);
     const baseAlpha = isSpecialPickup ? XP_ORB_SPECIAL_ALPHA : isHighValue ? XP_ORB_HIGH_VALUE_ALPHA : XP_ORB_BASE_ALPHA;
     const radius = config.radius ?? (config.pickupType === "elite_upgrade" ? 8 : 6);
     orb.setCircle?.(radius, 0, 0);
@@ -4889,6 +5208,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     enemy.setData("isDying", true);
+    this.statusEffectSystem?.removeAllForEnemy(enemy);
     if (enemy.body) {
       enemy.body.setVelocity(0, 0);
       enemy.body.enable = false;
@@ -4921,6 +5241,24 @@ export class GameScene extends Phaser.Scene {
 
     // Item drops from regular enemies
     this.trySpawnItemDrop(enemy.x, enemy.y);
+
+    // Treasure chest drops
+    const isBoss = archetype === "boss" || enemy.getData("bossVariant") === "full";
+    if (isBoss) {
+      this.spawnChest(enemy.x, enemy.y);
+    } else if (enemy.isElite && Math.random() < 0.15) {
+      this.spawnChest(enemy.x, enemy.y);
+    } else if (!enemy.isElite && Math.random() < 0.015) {
+      this.spawnChest(enemy.x, enemy.y);
+    }
+
+    if (this.gameMode === "coop" && this.isHost && this.networkManager) {
+      this.networkManager.sendEnemyKilled(enemy.serverId || "unknown", {
+        x: Math.round(enemy.x),
+        y: Math.round(enemy.y),
+        xpValue: enemy.xpValue
+      });
+    }
 
     this.tweens.add({
       targets: enemy,
@@ -4977,6 +5315,116 @@ export class GameScene extends Phaser.Scene {
           this.activeItems.push(item);
         }
         break; // Only one item drop per enemy
+      }
+    }
+  }
+
+  spawnChest(x, y) {
+    const chest = new TreasureChest(this, x, y);
+    this.chests.push(chest);
+    this.playSfx("item_spawn");
+  }
+
+  updateChests() {
+    if (!this.chests || this.chests.length === 0) return;
+    const nowMs = this.time.now;
+    const player = this.player;
+    for (let i = this.chests.length - 1; i >= 0; i--) {
+      const chest = this.chests[i];
+      if (!chest.active || chest.collected) {
+        this.chests.splice(i, 1);
+        continue;
+      }
+      if (chest.isExpired(nowMs)) {
+        chest.destroy();
+        this.chests.splice(i, 1);
+        continue;
+      }
+      if (chest.isNearPlayer(player.x, player.y)) {
+        const reward = chest.collect();
+        if (reward) {
+          this.openTreasureChest(reward);
+        }
+        this.chests.splice(i, 1);
+      }
+    }
+  }
+
+  openTreasureChest(reward) {
+    this.playSfx("chest_open");
+
+    // Gold reward
+    if (reward.gold > 0) {
+      this.runMetaCurrency += reward.gold;
+      this.showHudAlert(`+${reward.gold} GOLD`, 1200);
+    }
+
+    // Weapon upgrade
+    if (reward.weaponUpgrade && this.weaponSystem) {
+      const weapons = this.player.weapons ?? [];
+      if (weapons.length > 0) {
+        const weapon = weapons[Math.floor(Math.random() * weapons.length)];
+        this.weaponSystem.levelUpWeapon(weapon);
+        this.weaponSystem.checkEvolution(weapon);
+        this.showHudAlert("WEAPON UPGRADE", 1000);
+      }
+    }
+
+    // New weapon (if slots available)
+    if (reward.newWeapon && this.weaponSystem) {
+      const weapons = this.player.weapons ?? [];
+      if (weapons.length < this.player.maxWeaponSlots) {
+        const baseTypes = ["dagger", "fireball", "lightning", "scatter_shot", "homing_missile", "laser"];
+        const owned = new Set(weapons.map(w => w.baseType || w.type));
+        const available = baseTypes.filter(t => !owned.has(t));
+        if (available.length > 0) {
+          const type = available[Math.floor(Math.random() * available.length)];
+          this.weaponSystem.addWeapon(type);
+          this.showHudAlert("NEW WEAPON", 1200);
+        }
+      }
+    }
+  }
+
+  updateDestructibles(time) {
+    if (!this.destructibles || this.destructibles.length === 0) return;
+    const nowMs = this.time.now;
+    const player = this.player;
+
+    // Check projectile hits on destructibles
+    const projectiles = this.weaponSystem?.projectiles;
+    if (projectiles) {
+      projectiles.getChildren().forEach(proj => {
+        if (!proj?.active) return;
+        for (const d of this.destructibles) {
+          if (d.destroyed || !d.active) continue;
+          if (d.isNearWeapon(proj.x, proj.y, 8)) {
+            d.takeDamage(proj.damage || 10);
+            proj.setActive(false);
+            proj.setVisible(false);
+            if (proj.body) proj.body.enable = false;
+            break;
+          }
+        }
+      });
+    }
+
+    // Check player proximity hit (dash or contact)
+    if (player?.active) {
+      for (const d of this.destructibles) {
+        if (d.destroyed || !d.active) continue;
+        if (d.isNearWeapon(player.x, player.y, 20)) {
+          if (player.isDashing) {
+            d.takeDamage(2);
+          }
+        }
+      }
+    }
+
+    // Respawn destroyed destructibles
+    for (const d of this.destructibles) {
+      if (d.destroyed) {
+        d.tryRespawn(nowMs);
       }
     }
   }
@@ -5197,33 +5645,25 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const centerX = cam.width * 0.5;
     const centerY = cam.height * 0.5;
-    const panelWidth = 320;
-    const panelHeight = 180;
-    const overlay = this.add
-      .rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.6)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS);
-    const panel = this.add
-      .rectangle(centerX, centerY, panelWidth, panelHeight, 0x22150d, 0.96)
-      .setStrokeStyle(2, 0xb48855, 0.96)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 1);
-    const panelInset = this.add
-      .rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x352215, 0.94)
-      .setStrokeStyle(1, 0x6d4a31, 0.88)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 2);
-    const title = this.add
-      .text(centerX, centerY - 66, "升级!", {
-        fontFamily: "Arial",
-        fontSize: "30px",
-        color: "#f3dfb9",
-        stroke: "#2a1a10",
-        strokeThickness: 4
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 3);
+    const panelWidth = 480;
+    const panelHeight = 420;
+    const depth = RENDER_DEPTH.MENUS;
+
+    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.6)
+      .setScrollFactor(0).setDepth(depth);
+    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x0e1a2e, 0.97)
+      .setStrokeStyle(3, 0x5ca7ff, 0.95).setScrollFactor(0).setDepth(depth + 1);
+    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 14, panelHeight - 14, 0x132240, 0.95)
+      .setStrokeStyle(1, 0x3a7abf, 0.85).setScrollFactor(0).setDepth(depth + 1);
+
+    const title = this.add.text(centerX, centerY - panelHeight / 2 + 30, "升级!", {
+      fontFamily: "Arial", fontSize: "32px", color: "#f8fbff",
+      stroke: "#0e1a2e", strokeThickness: 5
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
+
+    const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 56, `Lv.${this.level}`, {
+      fontFamily: "Arial", fontSize: "14px", color: "#7ab8e0"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     // Filter out passives the player already has
     const availableUpgrades = LEVEL_UP_UPGRADES.filter((upgrade) => {
@@ -5235,39 +5675,161 @@ export class GameScene extends Phaser.Scene {
     const choices = Phaser.Utils.Array.Shuffle([...availableUpgrades]).slice(0, 3);
     const optionObjects = [];
 
-    choices.forEach((upgrade, index) => {
-      const y = centerY - 18 + index * 42;
-      const box = this.add
-        .rectangle(centerX, y, 280, 34, 0x4a2f1d, 0.98)
-        .setStrokeStyle(1, 0xb48855, 0.92)
-        .setInteractive({ useHandCursor: true })
-        .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 3);
+    const UPGRADE_COLORS = {
+      weapon_damage: 0xff6644,
+      attack_speed: 0x44ccff,
+      projectile_count: 0xffcc44,
+      movement_speed: 0x44ff88,
+      pickup_radius: 0xcc66ff,
+      passive_ember_core: 0xff4422,
+      passive_blade_sigil: 0x88ccff,
+      passive_iron_shell: 0xaaaaaa,
+      passive_swift_feet: 0x66ff66,
+      passive_wings: 0x88eeff,
+      passive_armor: 0xcccccc,
+      passive_hollow_heart: 0xff8888,
+      passive_attractorb: 0xaa66ff,
+      passive_frost_shard: 0x88ddff
+    };
 
-      const label = this.add
-        .text(centerX, y, `[${index + 1}] ${upgrade.label}`, {
-          fontFamily: "Arial",
-          fontSize: "16px",
-          color: "#f7e8cc",
-          stroke: "#2a170f",
-          strokeThickness: 3
-        })
-        .setOrigin(0.5)
-        .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 3);
+    const UPGRADE_ICONS = {
+      weapon_damage: "⚔",
+      attack_speed: "⚡",
+      projectile_count: "◎",
+      movement_speed: "➣",
+      pickup_radius: "⊕",
+      passive_ember_core: "🔥",
+      passive_blade_sigil: "🗡",
+      passive_iron_shell: "🛡",
+      passive_swift_feet: "👟",
+      passive_wings: "🪶",
+      passive_armor: "🔰",
+      passive_hollow_heart: "❤",
+      passive_attractorb: "🧲",
+      passive_frost_shard: "❄"
+    };
+
+    const optStartY = centerY - 60;
+    const optHeight = 72;
+    const optGap = 10;
+    const optWidth = panelWidth - 60;
+
+    choices.forEach((upgrade, index) => {
+      const y = optStartY + index * (optHeight + optGap);
+      const color = UPGRADE_COLORS[upgrade.id] || 0x5ca7ff;
+      const icon = UPGRADE_ICONS[upgrade.id] || "?";
+
+      // Check if this is an evolution option
+      let isEvolution = false;
+      let evoName = "";
+      if (upgrade.passiveKey) {
+        const matchingRule = WEAPON_EVOLUTION_RULES.find(r => r.requiredPassive === upgrade.passiveKey);
+        if (matchingRule) {
+          const ownedWeapon = this.player.weapons?.find(w => (w.baseType || w.type) === matchingRule.weapon);
+          if (ownedWeapon && ownedWeapon.level >= matchingRule.level) {
+            isEvolution = true;
+            evoName = matchingRule.evolution;
+          }
+        }
+      }
+
+      // Option background
+      const bgColor = isEvolution ? 0x1a3050 : 0x1a2640;
+      const strokeColor = isEvolution ? 0xffdd44 : 0x3a6aaf;
+      const box = this.add.rectangle(centerX, y, optWidth, optHeight, bgColor, 0.96)
+        .setStrokeStyle(isEvolution ? 2 : 1, strokeColor, 0.9)
+        .setInteractive({ useHandCursor: true })
+        .setScrollFactor(0).setDepth(depth + 2);
+
+      // Color accent bar (left)
+      const accent = this.add.rectangle(centerX - optWidth / 2 + 4, y, 6, optHeight - 8, color, 1)
+        .setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
+
+      // Icon
+      const iconText = this.add.text(centerX - optWidth / 2 + 22, y - 12, icon, {
+        fontFamily: "Arial", fontSize: "22px"
+      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
+
+      // Name + key hint
+      let nameStr = `[${index + 1}] ${upgrade.label}`;
+      if (upgrade.isPassive && this.player.hasPassive(upgrade.passiveKey)) {
+        nameStr += " [已拥有]";
+      }
+      const nameText = this.add.text(centerX - optWidth / 2 + 50, y - 18, nameStr, {
+        fontFamily: "Arial", fontSize: "17px", color: "#f0f4ff",
+        stroke: "#0e1a2e", strokeThickness: 3
+      }).setScrollFactor(0).setDepth(depth + 3);
+
+      // Description
+      let descStr = upgrade.description || "";
+      if (isEvolution) {
+        descStr = `✨ 进化! → ${evoName}`;
+      }
+      const descText = this.add.text(centerX - optWidth / 2 + 50, y + 4, descStr, {
+        fontFamily: "Arial", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
+      }).setScrollFactor(0).setDepth(depth + 3);
+
+      // Weapon level info for weapon-related upgrades
+      let levelStr = "";
+      if (upgrade.id === "weapon_damage" || upgrade.id === "attack_speed" || upgrade.id === "projectile_count") {
+        const weapons = this.player.weapons || [];
+        if (weapons.length > 0) {
+          levelStr = weapons.map(w => `${w.type} Lv.${w.level}`).join("  ");
+        }
+      }
+      if (upgrade.passiveKey && !isEvolution) {
+        const matchingRule2 = WEAPON_EVOLUTION_RULES.find(r => r.requiredPassive === upgrade.passiveKey);
+        if (matchingRule2) {
+          const ownedW = this.player.weapons?.find(w => (w.baseType || w.type) === matchingRule2.weapon);
+          if (ownedW) {
+            levelStr = `${matchingRule2.weapon} Lv.${ownedW.level}/${matchingRule2.level} → ${matchingRule2.evolution}`;
+          }
+        }
+      }
+      if (levelStr) {
+        this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
+          fontFamily: "Arial", fontSize: "11px", color: "#6688aa"
+        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
+      }
+
+      // Evolution badge
+      if (isEvolution) {
+        const badge = this.add.text(centerX + optWidth / 2 - 16, y + 10, "进化!", {
+          fontFamily: "Arial", fontSize: "12px", color: "#ffdd44",
+          stroke: "#2a1a10", strokeThickness: 2
+        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
+        optionObjects.push(badge);
+      }
 
       const chooseUpgrade = () => {
         this.applyLevelUpUpgrade(upgrade);
         this.closeLevelUpChoices();
       };
       box.on("pointerdown", chooseUpgrade);
-      label.setInteractive({ useHandCursor: true }).on("pointerdown", chooseUpgrade);
+      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x224060 : 0x223454, 1));
+      box.on("pointerout", () => box.setFillStyle(bgColor, 0.96));
       this.levelUpOptionActions.push(chooseUpgrade);
 
-      optionObjects.push(box, label);
+      optionObjects.push(box, accent, iconText, nameText, descText);
     });
 
-    this.levelUpUi = [overlay, panel, panelInset, title, ...optionObjects];
+    // Bottom bar: current weapons
+    const weapons = this.player.weapons || [];
+    if (weapons.length > 0) {
+      const barY = centerY + panelHeight / 2 - 30;
+      const barBg = this.add.rectangle(centerX, barY, panelWidth - 40, 28, 0x0a1520, 0.8)
+        .setStrokeStyle(1, 0x2a4a6f, 0.6).setScrollFactor(0).setDepth(depth + 2);
+      const weaponStr = weapons.map(w => {
+        const name = (w.baseType || w.type).replace(/_/g, " ");
+        return `${name} Lv.${w.level}`;
+      }).join("  |  ");
+      const weaponBar = this.add.text(centerX, barY, weaponStr, {
+        fontFamily: "Arial", fontSize: "12px", color: "#8ab8dd"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+      optionObjects.push(barBg, weaponBar);
+    }
+
+    this.levelUpUi = [overlay, panel, panelInner, title, subtitle, ...optionObjects];
   }
 
   handleLevelUpInput() {
@@ -5294,27 +5856,143 @@ export class GameScene extends Phaser.Scene {
 
     const cx = 640;
     const cy = 360;
-    const backdrop = this.add.rectangle(cx, cy, 1280, 720, 0x000000, 0.55).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 10);
-    const panel = this.add.rectangle(cx, cy, 360, 280, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 11);
-    const panelInner = this.add.rectangle(cx, cy, 340, 260, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 12);
+    const pw = 520;
+    const ph = 440;
+    const d = RENDER_DEPTH.MENUS + 10;
+    const uiObjs = [];
 
-    const title = this.add.text(cx, cy - 90, "游戏暂停", {
-      fontFamily: "Arial", fontSize: "32px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 13);
+    const backdrop = this.add.rectangle(cx, cy, 1280, 720, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
+    const panel = this.add.rectangle(cx, cy, pw, ph, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96).setScrollFactor(0).setDepth(d + 1);
+    const panelInner = this.add.rectangle(cx, cy, pw - 14, ph - 14, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(d + 1);
 
-    const resumeBtn = this.add.rectangle(cx, cy - 10, 240, 50, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 13).setInteractive({ useHandCursor: true });
-    const resumeLabel = this.add.text(cx, cy - 10, "继续游戏", {
-      fontFamily: "Arial", fontSize: "22px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 14).setInteractive({ useHandCursor: true });
+    const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
+      fontFamily: "Arial", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-    const quitBtn = this.add.rectangle(cx, cy + 55, 240, 50, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 13).setInteractive({ useHandCursor: true });
-    const quitLabel = this.add.text(cx, cy + 55, "返回主菜单", {
-      fontFamily: "Arial", fontSize: "22px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 14).setInteractive({ useHandCursor: true });
+    // Stats section (left side)
+    const statsX = cx - pw / 2 + 20;
+    const statsW = pw / 2 - 30;
+    let sy = cy - ph / 2 + 58;
 
-    const escHint = this.add.text(cx, cy + 105, "按 ESC / P 继续", {
-      fontFamily: "Arial", fontSize: "14px", color: "#7a9abf", stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(RENDER_DEPTH.MENUS + 13);
+    const addStatLine = (label, value, color = "#c8ddef") => {
+      uiObjs.push(
+        this.add.text(statsX, sy, label, { fontFamily: "Arial", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "Arial", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+      );
+      sy += 18;
+    };
+
+    const addSectionHeader = (text) => {
+      uiObjs.push(
+        this.add.text(statsX, sy, text, { fontFamily: "Arial", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+      );
+      sy += 18;
+    };
+
+    // Run stats
+    addSectionHeader("— 运行数据 —");
+    const totalSec = Math.floor(this.runTimeMs / 1000);
+    const min = Math.floor(totalSec / 60);
+    const sec = totalSec % 60;
+    addStatLine("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
+    addStatLine("击杀数", this.totalKills);
+    addStatLine("当前等级", this.level);
+    addStatLine("最大连击", `x${this.maxKillCombo}`);
+    sy += 6;
+
+    // Player stats
+    addSectionHeader("— 玩家属性 —");
+    addStatLine("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
+    addStatLine("移动速度", this.player.speed, "#66ff88");
+    addStatLine("拾取范围", Math.round(this.player.pickupRadius + (this.level - 1) * 2), "#cc88ff");
+    if (this.player.damageReduction > 0) addStatLine("伤害减免", `${Math.round(this.player.damageReduction * 100)}%`, "#aaaaff");
+    if (this.player.armorFlat > 0) addStatLine("护甲", `-${this.player.armorFlat}`, "#ccccff");
+    sy += 6;
+
+    // Passives
+    const passives = Object.keys(this.player.passives || {});
+    if (passives.length > 0) {
+      addSectionHeader("— 被动道具 —");
+      passives.forEach(p => {
+        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === p);
+        addStatLine(info?.label || p, "✓", "#88ff88");
+      });
+    }
+
+    // Weapons section (right side)
+    const wx = cx + 10;
+    const ww = pw / 2 - 30;
+    let wy = cy - ph / 2 + 58;
+
+    const weapons = this.player.weapons || [];
+    const addWeaponHeader = (text) => {
+      uiObjs.push(
+        this.add.text(wx, wy, text, { fontFamily: "Arial", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+      );
+      wy += 18;
+    };
+
+    addWeaponHeader("— 武器 —");
+    weapons.forEach(w => {
+      const name = (w.baseType || w.type).replace(/_/g, " ");
+      const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
+      const cd = this.weaponSystem?.getEffectiveCooldownMs?.(w) ?? w.cooldownMs;
+      const evoTag = w.evolved ? " ✦" : "";
+      uiObjs.push(
+        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "Arial", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "Arial", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+      );
+      wy += 18;
+    });
+
+    // Evolution hints
+    const evoRules = WEAPON_EVOLUTION_RULES.filter(r => {
+      const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
+      return owned && !owned.evolved;
+    });
+    if (evoRules.length > 0) {
+      wy += 6;
+      addWeaponHeader("— 进化 —");
+      evoRules.forEach(r => {
+        const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
+        const hasPassive = this.player.hasPassive(r.requiredPassive);
+        const levelOk = owned.level >= r.level;
+        const status = hasPassive && levelOk ? "✓ 就绪" : `Lv.${owned.level}/${r.level} ${hasPassive ? "✓被动" : "✗被动"}`;
+        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === r.requiredPassive);
+        uiObjs.push(
+          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "Arial", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
+          this.add.text(wx + ww, wy, status, { fontFamily: "Arial", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        );
+        wy += 16;
+      });
+    }
+
+    // Buttons (bottom)
+    const btnY = cy + ph / 2 - 70;
+    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 44, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
+      fontFamily: "Arial", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
+
+    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 44, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
+      fontFamily: "Arial", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
+
+    const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
+    const bgmBtn = this.add.rectangle(cx - 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0x5ca7ff, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const bgmText = this.add.text(cx - 80, btnY + 50, bgmLabel, {
+      fontFamily: "Arial", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
+
+    const settingsBtn = this.add.rectangle(cx + 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0xffd866, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const settingsLabel = this.add.text(cx + 80, btnY + 50, "设置", {
+      fontFamily: "Arial", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
+
+    const escHint = this.add.text(cx, cy + ph / 2 - 12, "按 ESC / P 继续", {
+      fontFamily: "Arial", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
     const onResume = () => this.closePauseMenu();
     resumeBtn.on("pointerdown", onResume);
@@ -5327,7 +6005,24 @@ export class GameScene extends Phaser.Scene {
     quitBtn.on("pointerdown", onQuit);
     quitLabel.on("pointerdown", onQuit);
 
-    this.pauseUi = [backdrop, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, escHint];
+    const onBgmToggle = () => {
+      this.bgmEnabled = !this.bgmEnabled;
+      bgmText.setText(this.bgmEnabled ? "BGM: ON" : "BGM: OFF");
+      if (this.bgmEnabled) { this.startBgm(); } else { this.stopBgm(); }
+    };
+    bgmBtn.on("pointerdown", onBgmToggle);
+    bgmText.on("pointerdown", onBgmToggle);
+
+    const onSettings = () => {
+      this.closePauseMenu();
+      if (typeof window !== "undefined" && window.__forgeduelOpenSettings) {
+        window.__forgeduelOpenSettings();
+      }
+    };
+    settingsBtn.on("pointerdown", onSettings);
+    settingsLabel.on("pointerdown", onSettings);
+
+    this.pauseUi = [backdrop, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, settingsBtn, settingsLabel, escHint, ...uiObjs];
   }
 
   closePauseMenu() {
@@ -5348,6 +6043,90 @@ export class GameScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.keys.pause) || Phaser.Input.Keyboard.JustDown(this.keys.pauseAlt)) {
       this.closePauseMenu();
     }
+  }
+
+  startBgm() {
+    if (!this.bgmEnabled || !this.sound || !this.sound.context) {
+      return;
+    }
+    if (this.bgmNodes) {
+      return;
+    }
+
+    try {
+      const ctx = this.sound.context;
+      if (ctx.state === "suspended") {
+        ctx.resume().catch(() => {});
+      }
+
+      // Create a low ambient drone with subtle movement
+      const osc1 = ctx.createOscillator();
+      const osc2 = ctx.createOscillator();
+      const osc3 = ctx.createOscillator();
+      const gainNode = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+
+      osc1.type = "sine";
+      osc1.frequency.setValueAtTime(55, ctx.currentTime); // Low A
+      osc2.type = "sine";
+      osc2.frequency.setValueAtTime(82.4, ctx.currentTime); // Low E
+      osc3.type = "triangle";
+      osc3.frequency.setValueAtTime(110, ctx.currentTime); // A octave up
+
+      // Subtle LFO for movement
+      const lfo = ctx.createOscillator();
+      const lfoGain = ctx.createGain();
+      lfo.type = "sine";
+      lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
+      lfoGain.gain.setValueAtTime(3, ctx.currentTime);
+      lfo.connect(lfoGain);
+      lfoGain.connect(osc1.frequency);
+      lfoGain.connect(osc2.frequency);
+
+      filter.type = "lowpass";
+      filter.frequency.setValueAtTime(200, ctx.currentTime);
+      filter.Q.setValueAtTime(1, ctx.currentTime);
+
+      gainNode.gain.setValueAtTime(0, ctx.currentTime);
+      gainNode.gain.linearRampToValueAtTime(0.035 * (this.settingsBgmVol ?? 0.6), ctx.currentTime + 2);
+
+      osc1.connect(filter);
+      osc2.connect(filter);
+      osc3.connect(filter);
+      filter.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      osc1.start();
+      osc2.start();
+      osc3.start();
+      lfo.start();
+
+      this.bgmNodes = { osc1, osc2, osc3, lfo, gainNode, filter };
+    } catch (_) {
+      // Audio not available
+    }
+  }
+
+  stopBgm() {
+    if (!this.bgmNodes) {
+      return;
+    }
+    try {
+      const ctx = this.sound?.context;
+      if (ctx) {
+        this.bgmNodes.gainNode.gain.linearRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+        const nodes = this.bgmNodes;
+        setTimeout(() => {
+          try {
+            nodes.osc1.stop();
+            nodes.osc2.stop();
+            nodes.osc3.stop();
+            nodes.lfo.stop();
+          } catch (_) {}
+        }, 600);
+      }
+    } catch (_) {}
+    this.bgmNodes = null;
   }
 
   openWeaponSelection() {
@@ -5590,6 +6369,22 @@ export class GameScene extends Phaser.Scene {
       } else if (upgrade.passiveKey === "swift_feet") {
         this.player.speed = Math.round(this.player.speed * (1 + upgrade.value));
         this.showHudAlert("SWIFT FEET", 1200);
+      } else if (upgrade.passiveKey === "wings") {
+        this.weaponSystem.addGlobalRangePercent(upgrade.value);
+        this.showHudAlert("WINGS", 1200);
+      } else if (upgrade.passiveKey === "armor") {
+        this.player.armorFlat += upgrade.value;
+        this.showHudAlert("ARMOR", 1200);
+      } else if (upgrade.passiveKey === "hollow_heart") {
+        this.player.maxHp = Math.round(this.player.maxHp * (1 + upgrade.value));
+        this.player.hp = this.player.maxHp;
+        this.showHudAlert("HOLLOW HEART", 1200);
+      } else if (upgrade.passiveKey === "attractorb") {
+        this.player.pickupRadius = Math.round(this.player.pickupRadius * (1 + upgrade.value));
+        this.showHudAlert("ATTRACTORB", 1200);
+      } else if (upgrade.passiveKey === "frost_shard") {
+        this.weaponSystem.addGlobalDamagePercent(upgrade.value, "frost");
+        this.showHudAlert("FROST SHARD", 1200);
       }
       return;
     }
@@ -5756,7 +6551,7 @@ export class GameScene extends Phaser.Scene {
 
     // Camera flash + shake
     this.cameras.main.flash(200, 255, 255, 200);
-    this.cameras.main.shake(200, 0.008);
+    this.shakeScreen(200, 0.008);
 
     // Particle burst
     if (this.evolutionEmitter) {
@@ -5809,32 +6604,165 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.gameMode === "coop" && this.networkManager) {
+      this.networkManager.sendPlayerDied();
+      const allDead = this.player.isDead() &&
+        (!this.playerSync || this.playerSync.isAllDead());
+      if (!allDead) {
+        this.player.body?.setVelocity(0, 0);
+        this.showHudAlert("等待队友救援...", 3000);
+        return;
+      }
+      this.networkManager.sendGameOver({
+        timeSurvivedMs: this.runTimeMs,
+        enemiesKilled: this.totalKills
+      });
+    }
+
     this.isGameOver = true;
+    this.stopBgm();
     this.physics.pause();
     this.input.enabled = false;
     this.player.body?.setVelocity(0, 0);
     this.updateBestTimeRecord(this.runTimeMs);
     this.finalizeMetaRun();
-    this.refreshGameOverText();
-    this.gameOverText.setVisible(false);
-    if (this.gameOverRestartButton && this.gameOverRestartLabel) {
-      this.gameOverRestartButton.setVisible(false);
-      this.gameOverRestartLabel.setVisible(false);
+
+    // Dramatic death sequence
+    this.playDeathSequence(() => {
+      this.refreshGameOverText();
+      this.gameOverText.setVisible(false);
+      if (this.gameOverRestartButton && this.gameOverRestartLabel) {
+        this.gameOverRestartButton.setVisible(false);
+        this.gameOverRestartLabel.setVisible(false);
+      }
+
+      const summaryPayload = {
+        timeSurvivedMs: this.runTimeMs,
+        enemiesKilled: this.totalKills,
+        maxCombo: this.maxKillCombo,
+        levelReached: this.level,
+        coinsEarned: this.lastRunMetaCurrency,
+        totalCoins: this.metaData.currency
+      };
+      if (this.scene.isActive("RunSummaryScene")) {
+        this.scene.stop("RunSummaryScene");
+      }
+      this.scene.launch("RunSummaryScene", summaryPayload);
+      this.scene.bringToTop("RunSummaryScene");
+    });
+  }
+
+  playDeathSequence(onComplete) {
+    const cx = 640;
+    const cy = 360;
+    const depth = RENDER_DEPTH.HUD + 20;
+
+    // Red flash overlay
+    const redFlash = this.add.rectangle(cx, cy, 1280, 720, 0xff0000, 0)
+      .setScrollFactor(0).setDepth(depth);
+
+    // "YOU DIED" text
+    const deathText = this.add.text(cx, cy - 30, "YOU DIED", {
+      fontFamily: "Arial", fontSize: "64px", color: "#ff2222",
+      stroke: "#000000", strokeThickness: 8,
+      shadow: { offsetX: 0, offsetY: 0, color: "#ff0000", blur: 20, fill: true }
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0).setScale(0.3);
+
+    // Subtitle
+    const subText = this.add.text(cx, cy + 30, `击杀: ${this.totalKills}  等级: ${this.level}  存活: ${this.formatRunTime(this.runTimeMs)}`, {
+      fontFamily: "Arial", fontSize: "18px", color: "#cc8888",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
+
+    // Kill particles burst
+    for (let i = 0; i < 20; i++) {
+      const angle = (Math.PI * 2 * i) / 20;
+      const speed = 100 + Math.random() * 200;
+      const particle = this.add.circle(cx, cy, 3 + Math.random() * 4, 0xff2222)
+        .setScrollFactor(0).setDepth(depth + 1).setAlpha(0.9);
+      this.tweens.add({
+        targets: particle,
+        x: cx + Math.cos(angle) * speed,
+        y: cy + Math.sin(angle) * speed,
+        alpha: 0,
+        scaleX: 0.2,
+        scaleY: 0.2,
+        duration: 800 + Math.random() * 400,
+        ease: "Quad.easeOut",
+        onComplete: () => particle.destroy()
+      });
     }
 
-    const summaryPayload = {
-      timeSurvivedMs: this.runTimeMs,
-      enemiesKilled: this.totalKills,
-      maxCombo: this.maxKillCombo,
-      levelReached: this.level,
-      coinsEarned: this.lastRunMetaCurrency,
-      totalCoins: this.metaData.currency
-    };
-    if (this.scene.isActive("RunSummaryScene")) {
-      this.scene.stop("RunSummaryScene");
-    }
-    this.scene.launch("RunSummaryScene", summaryPayload);
-    this.scene.bringToTop("RunSummaryScene");
+    // Screen shake
+    this.shakeScreen(400, 0.012);
+
+    // Sequence: red flash in → text pop → hold → fade out → callback
+    this.tweens.add({
+      targets: redFlash,
+      alpha: 0.4,
+      duration: 200,
+      ease: "Quad.easeIn",
+      onComplete: () => {
+        // Flash white briefly
+        this.tweens.add({
+          targets: redFlash,
+          alpha: 0.15,
+          duration: 100,
+          yoyo: true,
+          onComplete: () => {
+            // Settle to dark red
+            this.tweens.add({
+              targets: redFlash,
+              alpha: 0.3,
+              duration: 300
+            });
+          }
+        });
+      }
+    });
+
+    // Text pop in with overshoot
+    this.time.delayedCall(200, () => {
+      this.tweens.add({
+        targets: deathText,
+        alpha: 1,
+        scaleX: 1,
+        scaleY: 1,
+        duration: 400,
+        ease: "Back.easeOut"
+      });
+    });
+
+    // Subtitle fade in
+    this.time.delayedCall(600, () => {
+      this.tweens.add({
+        targets: subText,
+        alpha: 0.8,
+        duration: 400
+      });
+    });
+
+    // Play death sound
+    this.playSfxTone({ wave: "sawtooth", startFreq: 200, endFreq: 80, duration: 0.3, gain: 0.06 });
+    this.time.delayedCall(150, () => {
+      this.playSfxTone({ wave: "sine", startFreq: 150, endFreq: 60, duration: 0.4, gain: 0.04 });
+    });
+
+    // Fade everything out and call callback
+    this.time.delayedCall(2200, () => {
+      this.tweens.add({
+        targets: [redFlash, deathText, subText],
+        alpha: 0,
+        duration: 600,
+        ease: "Quad.easeIn",
+        onComplete: () => {
+          redFlash.destroy();
+          deathText.destroy();
+          subText.destroy();
+          if (onComplete) onComplete();
+        }
+      });
+    });
   }
 
   handleGameOverInput() {
@@ -5856,6 +6784,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   restartRun() {
+    this.stopBgm();
     if (this.scene.isActive("RunSummaryScene")) {
       this.scene.stop("RunSummaryScene");
     }
@@ -6181,10 +7110,15 @@ export class GameScene extends Phaser.Scene {
         .setDisplaySize(18, 18)
         .setAlpha(0.28)
         .setDepth(RENDER_DEPTH.HUD);
-      this.hudWeaponSlotIcons.push({ frame, icon });
+      // Cooldown bar background and fill
+      const cdBarBg = this.add.rectangle(slotX - 14, slotY + 17, 28, 4, 0x1a1208, 0.85)
+        .setOrigin(0, 0.5).setDepth(RENDER_DEPTH.HUD);
+      const cdBarFill = this.add.rectangle(slotX - 14, slotY + 17, 28, 4, 0x44aaff, 0.9)
+        .setOrigin(0, 0.5).setDepth(RENDER_DEPTH.HUD);
+      this.hudWeaponSlotIcons.push({ frame, icon, cdBarBg, cdBarFill });
     }
     this.hudObjects = [this.hpText, this.expText, this.expBarBg, this.expBarFill, this.timeText, this.killText, this.hudWeaponLabel];
-    this.hudWeaponSlotIcons.forEach(({ frame, icon }) => this.hudObjects.push(frame, icon));
+    this.hudWeaponSlotIcons.forEach(({ frame, icon, cdBarBg, cdBarFill }) => this.hudObjects.push(frame, icon, cdBarBg, cdBarFill));
     this.layoutHUDToCamera();
 
     // Hide legacy HUD decorations to keep minimal gameplay panel.
@@ -6261,11 +7195,13 @@ export class GameScene extends Phaser.Scene {
     this.timeText.setPosition(anchorX + 0, anchorY + 52);
     this.killText.setPosition(anchorX + 0, anchorY + 70);
     this.hudWeaponLabel?.setPosition(anchorX + 134, anchorY + 36);
-    this.hudWeaponSlotIcons.forEach(({ frame, icon }, index) => {
+    this.hudWeaponSlotIcons.forEach(({ frame, icon, cdBarBg, cdBarFill }, index) => {
       const slotX = anchorX + 170 + index * 36;
       const slotY = anchorY + 38;
       frame?.setPosition(slotX, slotY);
       icon?.setPosition(slotX, slotY);
+      cdBarBg?.setPosition(slotX - 14, slotY + 17);
+      cdBarFill?.setPosition(slotX - 14, slotY + 17);
     });
   }
 
