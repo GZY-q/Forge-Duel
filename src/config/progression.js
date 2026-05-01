@@ -85,12 +85,12 @@ export const SPAWN_BURST_CONFIG = {
 
 export const XP_REQUIREMENTS = {
   byLevel: {
-    1: 50,
-    2: 80,
-    3: 120
+    1: 1000,
+    2: 1600,
+    3: 2400
   },
-  postL3Base: 120,
-  postL3Step: 50
+  postL3Base: 2400,
+  postL3Step: 1000
 };
 
 export const ITEM_DROP_CONFIGS = Object.freeze({

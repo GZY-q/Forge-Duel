@@ -205,11 +205,11 @@ export class DirectorSystem {
   }
 
   getEnemyHpDifficultyMultiplier() {
-    return DIRECTOR_ENEMY_HP_SCALING.base + this.getElapsedMinutes() * DIRECTOR_ENEMY_HP_SCALING.perMinute;
+    return DIRECTOR_ENEMY_HP_SCALING.base * Math.pow(1 + DIRECTOR_ENEMY_HP_SCALING.perMinute, this.getElapsedMinutes());
   }
 
   getEnemyDamageDifficultyMultiplier() {
-    return DIRECTOR_ENEMY_DAMAGE_SCALING.base + this.getElapsedMinutes() * DIRECTOR_ENEMY_DAMAGE_SCALING.perMinute;
+    return DIRECTOR_ENEMY_DAMAGE_SCALING.base * Math.pow(1 + DIRECTOR_ENEMY_DAMAGE_SCALING.perMinute, this.getElapsedMinutes());
   }
 
   getSpawnRateMultiplier() {

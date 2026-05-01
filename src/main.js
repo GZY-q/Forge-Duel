@@ -48,4 +48,6 @@ const config = {
   scene: [MainMenuScene, ShipSelectionScene, GameScene, RunSummaryScene, UpgradeScene, AuthScene, LobbyScene, LeaderboardScene]
 };
 
-new Phaser.Game(config);
+document.fonts.load('16px Zpix').then(function() {
+  new Phaser.Game(config);
+});

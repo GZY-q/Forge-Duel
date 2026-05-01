@@ -118,9 +118,9 @@ const EDGE_FOG_OUTER_RADIUS_TILES = 14;
 const PARTICLE_LOAD_SOFT_CAP_ENEMIES = 50;
 const PARTICLE_LOAD_HARD_CAP_ENEMIES = PERFORMANCE_MAX_ACTIVE_ENEMIES;
 const MIN_PARTICLE_LOAD_SCALE = 0.38;
-const TOUCH_JOYSTICK_RADIUS = 68;
-const TOUCH_JOYSTICK_TOUCH_RADIUS = 110;
-const TOUCH_DASH_BUTTON_RADIUS = 58;
+const TOUCH_JOYSTICK_RADIUS = 34;
+const TOUCH_JOYSTICK_TOUCH_RADIUS = 80;
+const TOUCH_DASH_BUTTON_RADIUS = 29;
 const PARTICLE_TEXTURE_KEY = "hit_particle";
 const PARTICLE_FALLBACK_TEXTURE_KEY = "__WHITE";
 const PARTICLE_GENERATED_FALLBACK_TEXTURE_KEY = "particle_fallback";
@@ -148,7 +148,7 @@ const OFFSCREEN_INDICATOR_MAX = 12;
 const OFFSCREEN_PRIORITY_BONUS_ELITE = 10000;
 const OFFSCREEN_PRIORITY_BONUS_BOSS = 20000;
 const COMBO_RESET_WINDOW_MS = 2000;
-const COMBO_TEXT_SCALE = 1.3;
+const COMBO_TEXT_SCALE = 1.0;
 const COMBO_TEXT_FADE_TIME_MS = 800;
 const HUD_PANEL_PADDING = 12;
 const HUD_PANEL_X = 16;
@@ -163,21 +163,21 @@ const HUD_EXP_PULSE_SCALE = 1.3;
 const HUD_EXP_PULSE_DURATION_MS = 120;
 const HUD_ALERT_POOL_SIZE = 3;
 const HUD_ALERT_STYLE = Object.freeze({
-  fontFamily: "Arial",
+  fontFamily: "Zpix",
   fontSize: "34px",
   color: "#ffd76c",
   stroke: "#2e1b08",
   strokeThickness: 6
 });
 const HUD_COMBO_STYLE = Object.freeze({
-  fontFamily: "Arial",
-  fontSize: "34px",
+  fontFamily: "Zpix",
+  fontSize: "18px",
   color: "#fff0b6",
   stroke: "#2d1f08",
-  strokeThickness: 6
+  strokeThickness: 4
 });
 const WARNING_BANNER_STYLE = Object.freeze({
-  fontFamily: "Arial",
+  fontFamily: "Zpix",
   fontSize: "28px",
   color: "#fff0c6",
   stroke: "#281206",
@@ -1028,7 +1028,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hudLevelText = this.add
       .text(20, 24, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "21px",
         color: "#fff0cf",
         stroke: "#28170f",
@@ -1038,7 +1038,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudStatsText = this.add
       .text(20, 58, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "14px",
         color: "#cdb28a",
         stroke: "#28170f",
@@ -1048,7 +1048,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudTimerText = this.add
       .text(20, 74, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "14px",
         color: "#f0dfbe",
         stroke: "#28170f",
@@ -1058,7 +1058,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudGoldText = this.add
       .text(20, 90, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "14px",
         color: "#e6cc86",
         stroke: "#28170f",
@@ -1068,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudXpLabelText = this.add
       .text(20, 44, "EXP", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "9px",
         color: "#e7d6b4",
         stroke: "#28170f",
@@ -1078,7 +1078,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryText = this.add
       .text(1032, 22, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "14px",
         color: "#ddc69e",
         stroke: "#28170f",
@@ -1133,7 +1133,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.hudCoreLabelText = this.add
       .text(76, 18, "SURVIVAL LOG", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1142,7 +1142,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryLabelText = this.add
       .text(1104, 18, "CREW KIT", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1166,7 +1166,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(10);
       const label = this.add
         .text(slotX, slotY, "", {
-          fontFamily: "Arial",
+          fontFamily: "Zpix",
           fontSize: "15px",
           color: "#f4e5c8",
           stroke: "#2a170f",
@@ -1188,6 +1188,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS - 1)
       .setVisible(false);
+
     this.damageNumberPool = [];
     this.offscreenIndicatorPool = [];
     this.debugOverlayPanel = this.add
@@ -1199,7 +1200,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.debugDirectorText = this.add
       .text(1024, 108, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "13px",
         color: "#baa27d",
         stroke: "#22150d",
@@ -1215,7 +1216,7 @@ export class GameScene extends Phaser.Scene {
 
     this.gameOverText = this.add
       .text(640, 360, "GAME OVER", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "28px",
         color: "#ffdad7",
         align: "center",
@@ -1236,7 +1237,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.gameOverRestartLabel = this.add
       .text(640, 540, "Restart Run", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "26px",
         color: "#eaf6ff",
         stroke: "#0d1628",
@@ -1394,14 +1395,17 @@ export class GameScene extends Phaser.Scene {
 
   update(time, delta) {
     const isRunSummaryOpen = this.scene.isActive("RunSummaryScene");
-    if (isRunSummaryOpen) {
+    if (isRunSummaryOpen || this.isPaused) {
       this.setDomHudVisible(false);
-      if (this.input?.enabled) {
+      this.setDomTouchControlsVisible(false);
+      if (this.input?.enabled && !this.isPaused) {
         this.input.enabled = false;
       }
-      return;
+      if (isRunSummaryOpen) return;
+    } else {
+      this.setDomHudVisible(true);
+      if (this.touchControlsEnabled) this.setDomTouchControlsVisible(true);
     }
-    this.setDomHudVisible(true);
     if (this.input && !this.input.enabled) {
       this.input.enabled = true;
     }
@@ -2615,83 +2619,175 @@ export class GameScene extends Phaser.Scene {
   }
 
   createTouchControls() {
+    if (typeof document === "undefined") return;
     const hasTouch = Boolean(this.sys.game.device?.input?.touch)
       || ("ontouchstart" in window)
       || (navigator.maxTouchPoints > 0);
     this.touchControlsEnabled = hasTouch;
     this.updateHelpOverlayText();
-    if (!hasTouch) {
-      return;
-    }
+    if (!hasTouch) return;
 
-    const hudDepth = 26;
-    this.touchJoystickCenter.set(96, this.scale.height - 96);
-    this.touchJoystickBase = this.add
-      .circle(this.touchJoystickCenter.x, this.touchJoystickCenter.y, TOUCH_JOYSTICK_RADIUS, 0x16304f, 0.38)
-      .setStrokeStyle(2, 0x7fb8ff, 0.72)
-      .setScrollFactor(0)
-      .setDepth(hudDepth)
-      .setVisible(true);
-    this.touchJoystickThumb = this.add
-      .circle(this.touchJoystickCenter.x, this.touchJoystickCenter.y, 28, 0x8ed8ff, 0.45)
-      .setStrokeStyle(2, 0xc6ecff, 0.8)
-      .setScrollFactor(0)
-      .setDepth(hudDepth + 1)
-      .setVisible(true);
+    const appRoot = document.getElementById("game-root") ?? document.getElementById("app") ?? document.body;
+    const zIdx = "100";
 
-    const dashX = this.scale.width - 98;
-    const dashY = this.scale.height - 96;
-    this.touchDashButton = this.add
-      .circle(dashX, dashY, TOUCH_DASH_BUTTON_RADIUS, 0x72591a, 0.45)
-      .setStrokeStyle(2, 0xffd166, 0.86)
-      .setScrollFactor(0)
-      .setDepth(hudDepth)
-      .setInteractive();
-    this.touchDashLabel = this.add
-      .text(dashX, dashY, "闪避", {
-        fontFamily: "Arial",
-        fontSize: "22px",
-        color: "#ffe8a8",
-        stroke: "#3b2a08",
-        strokeThickness: 5
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(hudDepth + 1);
+    // --- DOM Joystick ---
+    const joystickSize = TOUCH_JOYSTICK_RADIUS * 2;
+    const thumbSize = 28;
+    this._domJoystickBase = document.createElement("div");
+    Object.assign(this._domJoystickBase.style, {
+      position: "fixed", bottom: "64px", left: "64px",
+      width: joystickSize + "px", height: joystickSize + "px",
+      borderRadius: "50%",
+      background: "rgba(17,48,83,0.62)",
+      border: "2px solid rgba(127,184,255,0.85)",
+      zIndex: zIdx,
+      touchAction: "none"
+    });
+    this._domJoystickThumb = document.createElement("div");
+    Object.assign(this._domJoystickThumb.style, {
+      position: "absolute", top: "50%", left: "50%",
+      width: thumbSize + "px", height: thumbSize + "px",
+      marginTop: -(thumbSize / 2) + "px", marginLeft: -(thumbSize / 2) + "px",
+      borderRadius: "50%",
+      background: "rgba(142,216,255,0.6)",
+      border: "2px solid rgba(198,236,255,0.9)",
+      pointerEvents: "none"
+    });
+    this._domJoystickBase.appendChild(this._domJoystickThumb);
+    appRoot.appendChild(this._domJoystickBase);
 
-    this.touchDashButton.on("pointerdown", () => {
+    // --- DOM Dash Button ---
+    const dashSize = TOUCH_DASH_BUTTON_RADIUS * 2;
+    this._domDashBtn = document.createElement("div");
+    Object.assign(this._domDashBtn.style, {
+      position: "fixed", bottom: "64px", right: "64px",
+      width: dashSize + "px", height: dashSize + "px",
+      borderRadius: "50%",
+      background: "rgba(92,61,14,0.62)",
+      border: "2px solid rgba(255,209,102,0.9)",
+      zIndex: zIdx,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      touchAction: "none"
+    });
+    const dashText = document.createElement("span");
+    dashText.textContent = "闪";
+    Object.assign(dashText.style, {
+      fontFamily: "'Zpix', sans-serif",
+      fontSize: "14px", color: "#ffe8a8",
+      textShadow: "0 0 0 3px #2a1a04"
+    });
+    this._domDashBtn.appendChild(dashText);
+    appRoot.appendChild(this._domDashBtn);
+    this._domDashBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      this.touchDashQueued = true;
+    });
+    this._domDashBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
       this.touchDashQueued = true;
     });
 
-    this.onTouchPointerDown = (pointer) => {
-      if (!this.touchControlsEnabled || this.touchMovePointerId !== null) {
-        return;
-      }
-      if (!this.isPointerInTouchJoystick(pointer)) {
-        return;
-      }
-      this.touchMovePointerId = pointer.id;
-      this.updateTouchJoystick(pointer);
+    // --- DOM Pause Button ---
+    this._domPauseBtn = document.createElement("div");
+    Object.assign(this._domPauseBtn.style, {
+      position: "fixed", top: "98px", right: "8px",
+      width: "52px", height: "28px",
+      background: "rgba(59,89,152,0.9)",
+      border: "2px solid rgba(212,175,55,1)",
+      zIndex: zIdx,
+      display: "flex", alignItems: "center", justifyContent: "center",
+      borderRadius: "4px",
+      touchAction: "none"
+    });
+    const pauseText = document.createElement("span");
+    pauseText.textContent = "菜单";
+    Object.assign(pauseText.style, {
+      fontFamily: "'Zpix', sans-serif",
+      fontSize: "11px", color: "#ffffff",
+      textShadow: "0 0 0 2px #0a0a0a",
+      fontWeight: "bold"
+    });
+    this._domPauseBtn.appendChild(pauseText);
+    appRoot.appendChild(this._domPauseBtn);
+    this._domPauseBtn.addEventListener("touchstart", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openPauseMenu();
+    });
+    this._domPauseBtn.addEventListener("mousedown", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      this.openPauseMenu();
+    });
+
+    // --- Joystick touch handling ---
+    const joystickRect = () => this._domJoystickBase.getBoundingClientRect();
+    const joystickCenter = () => {
+      const r = joystickRect();
+      return { cx: r.left + r.width / 2, cy: r.top + r.height / 2 };
+    };
+    this._domJoystickTouchId = null;
+
+    const onJoystickStart = (e) => {
+      e.preventDefault();
+      if (this._domJoystickTouchId !== null) return;
+      const touch = e.changedTouches[0];
+      this._domJoystickTouchId = touch.identifier;
+      const { cx, cy } = joystickCenter();
+      this.touchJoystickCenter.set(cx, cy);
+      const dx = touch.clientX - cx;
+      const dy = touch.clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      const clamped = Math.min(dist, TOUCH_JOYSTICK_RADIUS);
+      const nx = dist > 0.001 ? dx / dist : 0;
+      const ny = dist > 0.001 ? dy / dist : 0;
+      this.touchMoveVector.set(nx * (clamped / TOUCH_JOYSTICK_RADIUS), ny * (clamped / TOUCH_JOYSTICK_RADIUS));
+      this._setJoystickThumbPos(nx * clamped, ny * clamped);
     };
 
-    this.onTouchPointerMove = (pointer) => {
-      if (!this.touchControlsEnabled || pointer.id !== this.touchMovePointerId) {
-        return;
+    const onJoystickMove = (e) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === this._domJoystickTouchId) {
+          const touch = e.changedTouches[i];
+          const { cx, cy } = joystickCenter();
+          const dx = touch.clientX - cx;
+          const dy = touch.clientY - cy;
+          const dist = Math.hypot(dx, dy);
+          const clamped = Math.min(dist, TOUCH_JOYSTICK_RADIUS);
+          const nx = dist > 0.001 ? dx / dist : 0;
+          const ny = dist > 0.001 ? dy / dist : 0;
+          this.touchMoveVector.set(nx * (clamped / TOUCH_JOYSTICK_RADIUS), ny * (clamped / TOUCH_JOYSTICK_RADIUS));
+          this._setJoystickThumbPos(nx * clamped, ny * clamped);
+          break;
+        }
       }
-      this.updateTouchJoystick(pointer);
     };
 
-    this.onTouchPointerUp = (pointer) => {
-      if (!this.touchControlsEnabled || pointer.id !== this.touchMovePointerId) {
-        return;
+    const onJoystickEnd = (e) => {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        if (e.changedTouches[i].identifier === this._domJoystickTouchId) {
+          this._domJoystickTouchId = null;
+          this.touchMoveVector.set(0, 0);
+          this._setJoystickThumbPos(0, 0);
+          break;
+        }
       }
-      this.releaseTouchJoystick();
     };
 
-    this.input.on("pointerdown", this.onTouchPointerDown);
-    this.input.on("pointermove", this.onTouchPointerMove);
-    this.input.on("pointerup", this.onTouchPointerUp);
-    this.input.on("pointerupoutside", this.onTouchPointerUp);
+    this._domJoystickBase.addEventListener("touchstart", onJoystickStart, { passive: false });
+    this._domJoystickBase.addEventListener("touchmove", onJoystickMove, { passive: false });
+    this._domJoystickBase.addEventListener("touchend", onJoystickEnd);
+    this._domJoystickBase.addEventListener("touchcancel", onJoystickEnd);
+
+    // Save for teardown
+    this._domJoystickHandlers = { onJoystickStart, onJoystickMove, onJoystickEnd };
+  }
+
+  _setJoystickThumbPos(offsetX, offsetY) {
+    if (!this._domJoystickThumb) return;
+    const half = TOUCH_JOYSTICK_RADIUS;
+    this._domJoystickThumb.style.transform = `translate(${offsetX}px, ${offsetY}px)`;
   }
 
   registerSceneShutdownCleanup() {
@@ -2749,40 +2845,35 @@ export class GameScene extends Phaser.Scene {
   }
 
   teardownTouchControls() {
-    if (this.onTouchPointerDown) {
-      this.input.off("pointerdown", this.onTouchPointerDown);
-      this.onTouchPointerDown = null;
+    // Remove DOM joystick
+    if (this._domJoystickBase) {
+      if (this._domJoystickHandlers) {
+        const h = this._domJoystickHandlers;
+        this._domJoystickBase.removeEventListener("touchstart", h.onJoystickStart);
+        this._domJoystickBase.removeEventListener("touchmove", h.onJoystickMove);
+        this._domJoystickBase.removeEventListener("touchend", h.onJoystickEnd);
+        this._domJoystickBase.removeEventListener("touchcancel", h.onJoystickEnd);
+        this._domJoystickHandlers = null;
+      }
+      if (this._domJoystickBase.parentNode) this._domJoystickBase.parentNode.removeChild(this._domJoystickBase);
+      this._domJoystickBase = null;
+      this._domJoystickThumb = null;
     }
-    if (this.onTouchPointerMove) {
-      this.input.off("pointermove", this.onTouchPointerMove);
-      this.onTouchPointerMove = null;
+    // Remove DOM dash button
+    if (this._domDashBtn) {
+      if (this._domDashBtn.parentNode) this._domDashBtn.parentNode.removeChild(this._domDashBtn);
+      this._domDashBtn = null;
     }
-    if (this.onTouchPointerUp) {
-      this.input.off("pointerup", this.onTouchPointerUp);
-      this.input.off("pointerupoutside", this.onTouchPointerUp);
-      this.onTouchPointerUp = null;
-    }
-
-    if (this.touchDashButton) {
-      this.touchDashButton.destroy();
-      this.touchDashButton = null;
-    }
-    if (this.touchDashLabel) {
-      this.touchDashLabel.destroy();
-      this.touchDashLabel = null;
-    }
-    if (this.touchJoystickThumb) {
-      this.touchJoystickThumb.destroy();
-      this.touchJoystickThumb = null;
-    }
-    if (this.touchJoystickBase) {
-      this.touchJoystickBase.destroy();
-      this.touchJoystickBase = null;
+    // Remove DOM pause button
+    if (this._domPauseBtn) {
+      if (this._domPauseBtn.parentNode) this._domPauseBtn.parentNode.removeChild(this._domPauseBtn);
+      this._domPauseBtn = null;
     }
 
-    this.touchMovePointerId = null;
+    this._domJoystickTouchId = null;
     this.touchDashQueued = false;
     this.touchMoveVector.set(0, 0);
+    this.touchMovePointerId = null;
   }
 
   updateHelpOverlayText() {
@@ -2852,39 +2943,26 @@ export class GameScene extends Phaser.Scene {
           <span class="hud-run-strip-fill" data-key="run-strip-fill"></span>
           <span class="hud-run-strip-marker">BOSS</span>
         </div>
-        <div class="hud-chip hud-chip--time">
-          <span class="hud-chip-label">TIME</span>
-          <span class="hud-chip-value" data-key="time">00:00</span>
+        <div class="hud-exp-track" data-key="exp-track">
+          <div class="hud-exp-fill" data-key="exp-bar"></div>
+          <span class="hud-exp-label"><span data-key="exp-level">LVL 1</span></span>
+        </div>
+        <div class="hud-stats-row">
+          <div class="hud-stats-kills"><span>&#x1F480;</span><span data-key="kills">0</span></div>
+          <div class="hud-stats-timer" data-key="time">00:00</div>
         </div>
       </div>
+      <div class="hud-coins" data-key="coins-container">
+        <span>&#x1FA99;</span><span data-key="coins">0</span>
+      </div>
       <div class="hud-bottom">
-        <div class="hud-dock" data-key="hud-dock">
-          <div class="hud-dock-side hud-dock-side--left">
-            <span class="hud-dock-label">COINS</span>
-            <span class="hud-dock-value" data-key="coins">0</span>
-          </div>
-          <div class="hud-center">
-            <div class="hud-level-badge">
-              <span class="hud-level-label">LV</span>
-              <span class="hud-level-value" data-key="level">1</span>
-            </div>
-            <div class="hud-center-bars">
-              <div class="hud-bar-row hud-bar-row--hp">
-                <span class="hud-bar-label">HP</span>
-                <span class="hud-bar-track"><span class="hud-bar-fill hud-bar-fill--hp" data-key="hp-bar"></span></span>
-                <span class="hud-bar-value" data-key="hp">0/0</span>
-              </div>
-              <div class="hud-bar-row hud-bar-row--exp">
-                <span class="hud-bar-label">EXP</span>
-                <span class="hud-bar-track"><span class="hud-bar-fill hud-bar-fill--exp" data-key="exp-bar"></span></span>
-                <span class="hud-bar-value" data-key="exp">0%</span>
-              </div>
-            </div>
-          </div>
-          <div class="hud-dock-side hud-dock-side--right">
-            <span class="hud-dock-label">KILLS</span>
-            <span class="hud-dock-value" data-key="kills">0</span>
-          </div>
+        <div class="hud-hp-header">
+          <span class="hud-hp-header-icon">&#x2764;</span>
+          <span>VITALITY</span>
+        </div>
+        <div class="hud-hp-track">
+          <div class="hud-hp-fill" data-key="hp-bar"></div>
+          <span class="hud-hp-text" data-key="hp">100/100</span>
         </div>
       </div>
     `;
@@ -2892,61 +2970,40 @@ export class GameScene extends Phaser.Scene {
     this.domHudElement = hud;
     this.domHudRefs = {
       hpText: hud.querySelector('[data-key="hp"]'),
-      expText: hud.querySelector('[data-key="exp"]'),
       timeText: hud.querySelector('[data-key="time"]'),
       loadout: hud.querySelector('[data-key="hud-loadout"]'),
       weaponRow: hud.querySelector('[data-key="hud-weapon-row"]'),
-      dock: hud.querySelector('[data-key="hud-dock"]'),
       runStripTrack: hud.querySelector('[data-key="run-strip-track"]'),
       runStripFill: hud.querySelector('[data-key="run-strip-fill"]'),
       killsText: hud.querySelector('[data-key="kills"]'),
       coinsText: hud.querySelector('[data-key="coins"]'),
-      levelText: hud.querySelector('[data-key="level"]'),
+      coinsContainer: hud.querySelector('[data-key="coins-container"]'),
+      expLevel: hud.querySelector('[data-key="exp-level"]'),
       hpBar: hud.querySelector('[data-key="hp-bar"]'),
       expBar: hud.querySelector('[data-key="exp-bar"]'),
       bossBar: hud.querySelector('[data-key="boss-bar"]'),
       bossHpBar: hud.querySelector('[data-key="boss-hp-bar"]'),
-      bossHpText: hud.querySelector('[data-key="boss-hp-text"]')
+      bossHpText: hud.querySelector('[data-key="boss-hp-text"]'),
+      hudTop: hud.querySelector('.hud-top'),
+      hudBottom: hud.querySelector('.hud-bottom'),
+      hudCoins: hud.querySelector('.hud-coins')
     };
     const loadout = this.domHudRefs.loadout;
     const weaponRow = this.domHudRefs.weaponRow;
-    const dock = this.domHudRefs.dock;
-    const hudTop = hud.querySelector(".hud-top");
-    const runStripTrack = this.domHudRefs.runStripTrack;
-    const runStripFill = this.domHudRefs.runStripFill;
-    const runStripMarker = hud.querySelector(".hud-run-strip-marker");
     const weaponSlotCount = Math.max(1, this.player?.maxWeaponSlots ?? 3);
     this.domHudWeaponSlots = [];
-    if (loadout) {
-      Object.assign(loadout.style, {
-        position: "absolute",
-        left: "18px",
-        top: "18px",
-        display: "flex",
-        alignItems: "center",
-        pointerEvents: "none",
-        zIndex: "3"
-      });
-    }
     if (weaponRow) {
-      Object.assign(weaponRow.style, {
-        display: "flex",
-        alignItems: "center",
-        gap: "8px"
-      });
       for (let i = 0; i < weaponSlotCount; i += 1) {
         const slot = document.createElement("div");
         slot.className = "hud-weapon-slot";
         Object.assign(slot.style, {
-          width: "42px",
-          height: "42px",
-          borderRadius: "12px",
+          width: "48px",
+          height: "48px",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "linear-gradient(180deg, rgba(41, 20, 10, 0.92) 0%, rgba(25, 12, 5, 0.95) 100%)",
-          border: "1px solid rgba(184, 131, 77, 0.52)",
-          boxShadow: "0 2px 10px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 220, 173, 0.1)"
+          background: "#111111",
+          border: "4px solid #374151"
         });
         const icon = document.createElement("img");
         icon.alt = "";
@@ -2957,231 +3014,29 @@ export class GameScene extends Phaser.Scene {
           height: "24px",
           imageRendering: "pixelated",
           opacity: "0.16",
-          filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.45)) grayscale(0.7)"
+          filter: "grayscale(0.7)"
         });
-        slot.appendChild(icon);
-        weaponRow.appendChild(slot);
-        this.domHudWeaponSlots.push({ slot, icon });
-      }
-    }
-    if (dock) {
-      Object.assign(dock.style, {
-        position: "relative",
-        width: "min(74vw, 760px)",
-        display: "grid",
-        gridTemplateColumns: "112px minmax(260px, 1fr) 112px",
-        alignItems: "center",
-        gap: "14px",
-        padding: "12px 16px",
-        borderRadius: "22px",
-        background: "linear-gradient(180deg, rgba(45, 22, 10, 0.95) 0%, rgba(26, 12, 5, 0.96) 100%)",
-        border: "1px solid rgba(191, 136, 79, 0.62)",
-        boxShadow: "0 10px 30px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 223, 179, 0.12)"
-      });
-      dock.querySelectorAll(".hud-dock-side").forEach((side) => {
-        Object.assign(side.style, {
-          minHeight: "64px",
-          padding: "8px 12px",
-          borderRadius: "16px",
-          display: "flex",
-          flexDirection: "column",
-          justifyContent: "center",
-          background: "linear-gradient(180deg, rgba(58, 29, 14, 0.88) 0%, rgba(35, 16, 7, 0.9) 100%)",
-          border: "1px solid rgba(170, 120, 69, 0.48)",
-          boxShadow: "inset 0 1px 0 rgba(255, 223, 179, 0.08)"
-        });
-      });
-      dock.querySelectorAll(".hud-dock-side--left").forEach((side) => {
-        side.style.alignItems = "flex-start";
-      });
-      dock.querySelectorAll(".hud-dock-side--right").forEach((side) => {
-        side.style.alignItems = "flex-end";
-      });
-      dock.querySelectorAll(".hud-dock-label").forEach((label) => {
-        Object.assign(label.style, {
-          fontSize: "8px",
-          fontWeight: "700",
-          letterSpacing: "0.16em",
-          color: "rgba(226, 198, 161, 0.54)",
-          textShadow: "0 1px 0 rgba(25, 11, 5, 0.82)"
-        });
-      });
-      dock.querySelectorAll(".hud-dock-value").forEach((value) => {
-        Object.assign(value.style, {
-          marginTop: "3px",
-          fontSize: "34px",
-          fontWeight: "700",
-          lineHeight: "0.92",
-          color: "#fff3d7",
-          textShadow: "0 1px 0 rgba(31, 12, 5, 0.96), 0 0 12px rgba(255, 207, 148, 0.18)"
-        });
-      });
-      const dockCenter = dock.querySelector(".hud-center");
-      if (dockCenter) {
-        Object.assign(dockCenter.style, {
-          minHeight: "64px",
-          padding: "0 6px",
-          display: "grid",
-          gridTemplateColumns: "70px minmax(0, 1fr)",
-          alignItems: "center",
-          gap: "12px"
-        });
-      }
-      const levelBadge = dock.querySelector(".hud-level-badge");
-      if (levelBadge) {
+        const levelBadge = document.createElement("span");
+        levelBadge.textContent = "";
         Object.assign(levelBadge.style, {
-          width: "62px",
-          height: "62px",
-          borderRadius: "999px",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "linear-gradient(180deg, rgba(79, 47, 20, 0.96) 0%, rgba(52, 27, 11, 0.98) 100%)",
-          border: "1px solid rgba(207, 152, 88, 0.78)",
-          boxShadow: "0 4px 14px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 223, 179, 0.12)"
-        });
-      }
-      const levelLabel = dock.querySelector(".hud-level-label");
-      if (levelLabel) {
-        Object.assign(levelLabel.style, {
+          position: "absolute",
+          bottom: "-2px",
+          right: "-2px",
+          background: "#2563eb",
+          color: "#ffffff",
           fontSize: "8px",
           fontWeight: "700",
-          letterSpacing: "0.16em",
-          color: "rgba(234, 209, 175, 0.54)"
+          padding: "0 3px",
+          border: "1px solid #ffffff",
+          lineHeight: "14px",
+          display: "none"
         });
+        slot.style.position = "relative";
+        slot.appendChild(icon);
+        slot.appendChild(levelBadge);
+        weaponRow.appendChild(slot);
+        this.domHudWeaponSlots.push({ slot, icon, levelBadge });
       }
-      const levelValue = dock.querySelector(".hud-level-value");
-      if (levelValue) {
-        Object.assign(levelValue.style, {
-          marginTop: "1px",
-          fontSize: "34px",
-          fontWeight: "700",
-          lineHeight: "0.92",
-          color: "#fff3d7",
-          textShadow: "0 1px 0 rgba(31, 12, 5, 0.96), 0 0 10px rgba(255, 207, 148, 0.18)"
-        });
-      }
-      const centerBars = dock.querySelector(".hud-center-bars");
-      if (centerBars) {
-        Object.assign(centerBars.style, {
-          display: "flex",
-          flexDirection: "column",
-          gap: "10px"
-        });
-      }
-      dock.querySelectorAll(".hud-bar-row").forEach((row) => {
-        Object.assign(row.style, {
-          display: "grid",
-          gridTemplateColumns: "40px minmax(0, 1fr) 82px",
-          alignItems: "center",
-          gap: "12px"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-label").forEach((label) => {
-        Object.assign(label.style, {
-          fontSize: "11px",
-          fontWeight: "700",
-          letterSpacing: "0.08em",
-          color: "rgba(232, 206, 168, 0.74)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-track").forEach((track) => {
-        Object.assign(track.style, {
-          position: "relative",
-          height: "15px",
-          borderRadius: "999px",
-          overflow: "hidden",
-          background: "linear-gradient(180deg, rgba(18, 8, 3, 0.94) 0%, rgba(36, 17, 8, 0.9) 100%)",
-          border: "1px solid rgba(189, 139, 85, 0.48)",
-          boxShadow: "inset 0 1px 0 rgba(255, 231, 194, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(24, 11, 5, 0.3)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-row--hp .hud-bar-track").forEach((track) => {
-        Object.assign(track.style, {
-          borderColor: "rgba(195, 108, 88, 0.52)",
-          boxShadow:
-            "inset 0 1px 0 rgba(255, 226, 208, 0.1), inset 0 -1px 0 rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(55, 18, 11, 0.28)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-row--exp .hud-bar-track").forEach((track) => {
-        Object.assign(track.style, {
-          borderColor: "rgba(76, 170, 197, 0.5)",
-          boxShadow:
-            "inset 0 1px 0 rgba(215, 245, 255, 0.08), inset 0 -1px 0 rgba(0, 0, 0, 0.34), 0 0 0 1px rgba(10, 33, 42, 0.26)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-fill--hp").forEach((fill) => {
-        Object.assign(fill.style, {
-          display: "block",
-          height: "100%",
-          borderRadius: "999px",
-          background: "linear-gradient(90deg, rgba(182, 63, 58, 0.98) 0%, rgba(229, 103, 86, 1) 58%, rgba(255, 150, 118, 1) 100%)",
-          boxShadow: "0 0 10px rgba(244, 113, 95, 0.34), inset 0 1px 0 rgba(255, 228, 218, 0.18)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-fill--exp").forEach((fill) => {
-        Object.assign(fill.style, {
-          display: "block",
-          height: "100%",
-          borderRadius: "999px",
-          background: "linear-gradient(90deg, rgba(18, 120, 170, 0.98) 0%, rgba(53, 186, 226, 1) 56%, rgba(131, 237, 255, 1) 100%)",
-          boxShadow: "0 0 10px rgba(83, 213, 255, 0.3), inset 0 1px 0 rgba(219, 249, 255, 0.16)"
-        });
-      });
-      dock.querySelectorAll(".hud-bar-value").forEach((value) => {
-        Object.assign(value.style, {
-          fontSize: "17px",
-          fontWeight: "700",
-          textAlign: "right",
-          color: "#fff3d7",
-          textShadow: "0 1px 0 rgba(28, 12, 5, 0.92)"
-        });
-      });
-    }
-    if (hudTop) {
-      Object.assign(hudTop.style, {
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        gap: "6px"
-      });
-    }
-    if (runStripTrack) {
-      Object.assign(runStripTrack.style, {
-        position: "relative",
-        width: "min(46vw, 420px)",
-        minWidth: "180px",
-        height: "8px",
-        borderRadius: "999px",
-        overflow: "hidden",
-        background: "rgba(29, 14, 7, 0.88)",
-        border: "1px solid rgba(198, 141, 82, 0.55)",
-        boxShadow: "0 0 0 1px rgba(38, 20, 9, 0.4), inset 0 1px 0 rgba(255, 220, 173, 0.14)"
-      });
-    }
-    if (runStripFill) {
-      Object.assign(runStripFill.style, {
-        display: "block",
-        width: "0%",
-        height: "100%",
-        borderRadius: "999px",
-        background: "linear-gradient(90deg, rgba(210, 141, 73, 0.78) 0%, rgba(234, 181, 89, 0.96) 100%)",
-        boxShadow: "0 0 10px rgba(255, 178, 84, 0.22)",
-        transition: "width 180ms ease-out, background 180ms ease-out, box-shadow 180ms ease-out"
-      });
-    }
-    if (runStripMarker) {
-      Object.assign(runStripMarker.style, {
-        position: "absolute",
-        right: "8px",
-        top: "-14px",
-        fontSize: "9px",
-        fontWeight: "700",
-        letterSpacing: "0.12em",
-        color: "rgba(255, 223, 177, 0.72)",
-        textShadow: "0 1px 0 rgba(26, 12, 5, 0.9)"
-      });
     }
   }
 
@@ -3190,51 +3045,21 @@ export class GameScene extends Phaser.Scene {
     const hud = this.domHudElement;
     const bottom = hud.querySelector(".hud-bottom");
     if (bottom) {
-      bottom.style.bottom = "110px";
-      bottom.style.width = "min(88vw, 520px)";
+      bottom.style.bottom = "8px";
     }
-    const dock = this.domHudRefs?.dock;
-    if (dock) {
-      dock.style.width = "min(88vw, 520px)";
-      dock.style.gridTemplateColumns = "80px minmax(0, 1fr) 80px";
-      dock.style.gap = "8px";
-      dock.style.padding = "8px 10px";
-      dock.style.borderRadius = "16px";
+    const hpTrack = hud.querySelector(".hud-hp-track");
+    if (hpTrack) {
+      hpTrack.style.width = "200px";
+      hpTrack.style.height = "14px";
     }
-    dock?.querySelectorAll(".hud-dock-side").forEach((side) => {
-      side.style.minHeight = "48px";
-      side.style.padding = "5px 8px";
-    });
-    dock?.querySelectorAll(".hud-dock-value").forEach((v) => {
-      v.style.fontSize = "24px";
-    });
-    const levelBadge = dock?.querySelector(".hud-level-badge");
-    if (levelBadge) {
-      levelBadge.style.width = "46px";
-      levelBadge.style.height = "46px";
-    }
-    const levelValue = dock?.querySelector(".hud-level-value");
-    if (levelValue) {
-      levelValue.style.fontSize = "24px";
-    }
-    dock?.querySelectorAll(".hud-bar-row").forEach((row) => {
-      row.style.gridTemplateColumns = "30px minmax(0, 1fr) 56px";
-      row.style.gap = "6px";
-    });
-    dock?.querySelectorAll(".hud-bar-track").forEach((t) => {
-      t.style.height = "10px";
-    });
-    dock?.querySelectorAll(".hud-bar-value").forEach((v) => {
-      v.style.fontSize = "13px";
-    });
     const loadout = this.domHudRefs?.loadout;
     if (loadout) {
       loadout.style.left = "10px";
       loadout.style.top = "10px";
     }
     this.domHudWeaponSlots?.forEach(({ slot }) => {
-      slot.style.width = "34px";
-      slot.style.height = "34px";
+      slot.style.width = "38px";
+      slot.style.height = "38px";
     });
   }
 
@@ -3243,6 +3068,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.domHudElement.style.display = isVisible ? "block" : "none";
+  }
+
+  setDomTouchControlsVisible(isVisible) {
+    const v = isVisible ? "" : "none";
+    if (this._domJoystickBase) this._domJoystickBase.style.display = v;
+    if (this._domDashBtn) this._domDashBtn.style.display = v;
+    if (this._domPauseBtn) this._domPauseBtn.style.display = v;
   }
 
   teardownDomHudOverlay() {
@@ -3258,16 +3090,14 @@ export class GameScene extends Phaser.Scene {
     if (!this.domHudElement || !this.player || !this.domHudRefs) {
       return;
     }
-    const hpLine = this.domHudRefs.hpText;
-    const expLine = this.domHudRefs.expText;
-    const timeLine = this.domHudRefs.timeText;
-    const killsLine = this.domHudRefs.killsText;
-    const coinsLine = this.domHudRefs.coinsText;
-    const levelLine = this.domHudRefs.levelText;
+    const hpText = this.domHudRefs.hpText;
+    const timeText = this.domHudRefs.timeText;
+    const killsText = this.domHudRefs.killsText;
+    const coinsText = this.domHudRefs.coinsText;
+    const expLevel = this.domHudRefs.expLevel;
     const hpBar = this.domHudRefs.hpBar;
     const expBar = this.domHudRefs.expBar;
     const loadout = this.domHudRefs.loadout;
-    const dock = this.domHudRefs.dock;
     const runStripTrack = this.domHudRefs.runStripTrack;
     const runStripFill = this.domHudRefs.runStripFill;
     const formatInt = (value) => Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
@@ -3275,23 +3105,20 @@ export class GameScene extends Phaser.Scene {
     const bossCycleMs = Math.max(1, DIRECTOR_BOSS_SPAWN.intervalMs || 180000);
     const bossCycleProgress = Phaser.Math.Clamp((elapsedMs % bossCycleMs) / bossCycleMs, 0, 1);
     const directorState = this.director?.getState?.() ?? DIRECTOR_STATE.BUILD;
-    if (hpLine) {
-      hpLine.textContent = `${this.player.hp}/${this.player.maxHp}`;
+    if (hpText) {
+      hpText.textContent = `${Math.floor(this.player.hp)}/${this.player.maxHp}`;
     }
-    if (expLine) {
-      expLine.textContent = `${xpPercent}%`;
+    if (expLevel) {
+      expLevel.textContent = `LVL ${levelValue}`;
     }
-    if (timeLine) {
-      timeLine.textContent = this.formatRunTime(elapsedMs);
+    if (timeText) {
+      timeText.textContent = this.formatRunTime(elapsedMs);
     }
-    if (killsLine) {
-      killsLine.textContent = formatInt(this.totalKills);
+    if (killsText) {
+      killsText.textContent = formatInt(this.totalKills);
     }
-    if (coinsLine) {
-      coinsLine.textContent = formatInt(this.runMetaCurrency);
-    }
-    if (levelLine) {
-      levelLine.textContent = `${levelValue}`;
+    if (coinsText) {
+      coinsText.textContent = formatInt(this.runMetaCurrency);
     }
     if (hpBar) {
       hpBar.style.width = `${Math.round(hpRatio * 100)}%`;
@@ -3302,9 +3129,6 @@ export class GameScene extends Phaser.Scene {
     if (loadout) {
       loadout.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.42" : "1";
     }
-    if (dock) {
-      dock.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.42" : "1";
-    }
     if (runStripTrack) {
       runStripTrack.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.38" : "1";
     }
@@ -3312,38 +3136,43 @@ export class GameScene extends Phaser.Scene {
       runStripFill.style.width = `${Math.round(bossCycleProgress * 100)}%`;
       if (directorState === DIRECTOR_STATE.PEAK) {
         runStripFill.style.background = "linear-gradient(90deg, rgba(206, 82, 49, 0.92) 0%, rgba(255, 128, 82, 1) 100%)";
-        runStripFill.style.boxShadow = "0 0 12px rgba(255, 108, 72, 0.34)";
       } else if (directorState === DIRECTOR_STATE.RELIEF) {
         runStripFill.style.background = "linear-gradient(90deg, rgba(148, 124, 92, 0.72) 0%, rgba(198, 171, 132, 0.9) 100%)";
-        runStripFill.style.boxShadow = "0 0 8px rgba(198, 167, 129, 0.18)";
       } else {
         runStripFill.style.background = "linear-gradient(90deg, rgba(210, 141, 73, 0.78) 0%, rgba(234, 181, 89, 0.96) 100%)";
-        runStripFill.style.boxShadow = "0 0 10px rgba(255, 178, 84, 0.22)";
       }
     }
     const equippedWeapons = this.player?.weapons ?? [];
     if (Array.isArray(this.domHudWeaponSlots)) {
-      this.domHudWeaponSlots.forEach(({ slot, icon }, index) => {
+      this.domHudWeaponSlots.forEach(({ slot, icon, levelBadge }, index) => {
         const weapon = equippedWeapons[index];
-        if (!slot || !icon) {
-          return;
-        }
+        if (!slot || !icon) return;
         if (!weapon) {
-          slot.style.opacity = "0.72";
-          slot.style.borderColor = "rgba(184, 131, 77, 0.28)";
-          slot.style.background = "linear-gradient(180deg, rgba(32, 17, 9, 0.74) 0%, rgba(22, 11, 5, 0.78) 100%)";
+          slot.style.opacity = "0.5";
+          slot.style.borderColor = "#1f2937";
+          slot.style.background = "#0a0a0a";
           icon.src = this.getWeaponIconPath("dagger");
           icon.style.opacity = "0.16";
-          icon.style.filter = "drop-shadow(0 1px 1px rgba(0,0,0,0.45)) grayscale(0.7)";
+          icon.style.filter = "grayscale(0.7)";
+          if (levelBadge) levelBadge.style.display = "none";
           return;
         }
         const weaponType = weapon.type ?? weapon.baseType ?? "dagger";
         slot.style.opacity = "1";
-        slot.style.borderColor = "rgba(216, 168, 104, 0.72)";
-        slot.style.background = "linear-gradient(180deg, rgba(58, 29, 14, 0.94) 0%, rgba(33, 15, 7, 0.96) 100%)";
+        slot.style.borderColor = "#6b7280";
+        slot.style.background = "#111111";
         icon.src = this.getWeaponIconPath(weaponType);
         icon.style.opacity = "1";
-        icon.style.filter = "drop-shadow(0 1px 1px rgba(0,0,0,0.52))";
+        icon.style.filter = "none";
+        if (levelBadge) {
+          const wLevel = weapon.level ?? 1;
+          if (wLevel > 1) {
+            levelBadge.textContent = `Lv${wLevel}`;
+            levelBadge.style.display = "block";
+          } else {
+            levelBadge.style.display = "none";
+          }
+        }
       });
     }
     this.domHudElement.classList.toggle("modal-open", this.isLeveling || this.isWeaponSelecting);
@@ -3397,34 +3226,6 @@ export class GameScene extends Phaser.Scene {
     this.playerReadabilityGraphics.fillEllipse(x, y + 8, 42, 18);
     this.playerReadabilityGraphics.lineStyle(2, 0xe7e1c4, 0.16);
     this.playerReadabilityGraphics.strokeCircle(x, y, 19);
-  }
-
-  isPointerInTouchJoystick(pointer) {
-    return Phaser.Math.Distance.Between(pointer.x, pointer.y, this.touchJoystickCenter.x, this.touchJoystickCenter.y) <= TOUCH_JOYSTICK_TOUCH_RADIUS;
-  }
-
-  updateTouchJoystick(pointer) {
-    const dx = pointer.x - this.touchJoystickCenter.x;
-    const dy = pointer.y - this.touchJoystickCenter.y;
-    const distance = Math.hypot(dx, dy);
-    const clampedDistance = Math.min(distance, TOUCH_JOYSTICK_RADIUS);
-    const nx = distance > 0.0001 ? dx / distance : 0;
-    const ny = distance > 0.0001 ? dy / distance : 0;
-    const thumbX = this.touchJoystickCenter.x + nx * clampedDistance;
-    const thumbY = this.touchJoystickCenter.y + ny * clampedDistance;
-
-    this.touchMoveVector.set(nx * (clampedDistance / TOUCH_JOYSTICK_RADIUS), ny * (clampedDistance / TOUCH_JOYSTICK_RADIUS));
-    if (this.touchJoystickThumb) {
-      this.touchJoystickThumb.setPosition(thumbX, thumbY);
-    }
-  }
-
-  releaseTouchJoystick() {
-    this.touchMovePointerId = null;
-    this.touchMoveVector.set(0, 0);
-    if (this.touchJoystickThumb) {
-      this.touchJoystickThumb.setPosition(this.touchJoystickCenter.x, this.touchJoystickCenter.y);
-    }
   }
 
   getTouchMoveInput() {
@@ -4266,7 +4067,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(depth).setAlpha(0);
 
     const label = this.add.text(cx, cy, text, {
-      fontFamily: "Arial", fontSize: "28px", color,
+      fontFamily: "Zpix", fontSize: "28px", color,
       stroke: "#000000", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -4396,7 +4197,7 @@ export class GameScene extends Phaser.Scene {
     if (!text) {
       text = this.add
         .text(x, y, "", {
-          fontFamily: "Arial",
+          fontFamily: "Zpix",
           fontSize: "14px",
           color: "#ff4444",
           stroke: "#000000",
@@ -4989,7 +4790,7 @@ export class GameScene extends Phaser.Scene {
     const indicatorY = boss.y - Math.max(42, boss.displayHeight * 0.45);
     const warningText = this.add
       .text(boss.x, indicatorY, "环形冲击", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "16px",
         color: "#ffd1d1",
         stroke: "#3f0f0f",
@@ -5261,7 +5062,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     comboText.setStyle(HUD_COMBO_STYLE);
-    comboText.setPosition(640, 198);
+    comboText.setPosition(1260, 28);
     comboText.setDepth(25);
     comboText.setText(label);
     comboText.setAlpha(1);
@@ -5269,8 +5070,8 @@ export class GameScene extends Phaser.Scene {
 
     const tween = this.tweens.add({
       targets: comboText,
-      y: 176,
-      scale: COMBO_TEXT_SCALE * 1.05,
+      y: 14,
+      scale: COMBO_TEXT_SCALE,
       alpha: 0,
       duration: COMBO_TEXT_FADE_TIME_MS,
       ease: "Cubic.easeOut",
@@ -5556,7 +5357,7 @@ export class GameScene extends Phaser.Scene {
     const color = colorMap[item.itemConfig.id] || "#ffffff";
     const text = this.add
       .text(item.x, item.y - 16, label, {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "14px",
         color,
         stroke: "#000000",
@@ -5682,7 +5483,7 @@ export class GameScene extends Phaser.Scene {
     const badgeDepth = Number(config.badgeDepth ?? 30.4);
     const textDepth = Number(config.textDepth ?? badgeDepth + 0.6);
     const textStyle = {
-      fontFamily: "Arial",
+      fontFamily: "Zpix",
       fontSize: `${fontSize}px`,
       color: config.color ?? "#3a1f11"
     };
@@ -5738,12 +5539,12 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x3a7abf, 0.85).setScrollFactor(0).setDepth(depth + 1);
 
     const title = this.add.text(centerX, centerY - panelHeight / 2 + 30, "升级!", {
-      fontFamily: "Arial", fontSize: "32px", color: "#f8fbff",
+      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
       stroke: "#0e1a2e", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 56, `Lv.${this.level}`, {
-      fontFamily: "Arial", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     // Filter out passives the player already has
@@ -5828,7 +5629,7 @@ export class GameScene extends Phaser.Scene {
 
       // Icon
       const iconText = this.add.text(centerX - optWidth / 2 + 22, y - 12, icon, {
-        fontFamily: "Arial", fontSize: "22px"
+        fontFamily: "Zpix", fontSize: "22px"
       }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
 
       // Name + key hint
@@ -5837,7 +5638,7 @@ export class GameScene extends Phaser.Scene {
         nameStr += " [已拥有]";
       }
       const nameText = this.add.text(centerX - optWidth / 2 + 50, y - 18, nameStr, {
-        fontFamily: "Arial", fontSize: "17px", color: "#f0f4ff",
+        fontFamily: "Zpix", fontSize: "17px", color: "#f0f4ff",
         stroke: "#0e1a2e", strokeThickness: 3
       }).setScrollFactor(0).setDepth(depth + 3);
 
@@ -5847,7 +5648,7 @@ export class GameScene extends Phaser.Scene {
         descStr = `✨ 进化! → ${evoName}`;
       }
       const descText = this.add.text(centerX - optWidth / 2 + 50, y + 4, descStr, {
-        fontFamily: "Arial", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
+        fontFamily: "Zpix", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
       }).setScrollFactor(0).setDepth(depth + 3);
 
       // Weapon level info for weapon-related upgrades
@@ -5869,7 +5670,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (levelStr) {
         const levelText = this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
-          fontFamily: "Arial", fontSize: "11px", color: "#6688aa"
+          fontFamily: "Zpix", fontSize: "11px", color: "#6688aa"
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(levelText);
       }
@@ -5877,7 +5678,7 @@ export class GameScene extends Phaser.Scene {
       // Evolution badge
       if (isEvolution) {
         const badge = this.add.text(centerX + optWidth / 2 - 16, y + 10, "进化!", {
-          fontFamily: "Arial", fontSize: "12px", color: "#ffdd44",
+          fontFamily: "Zpix", fontSize: "12px", color: "#ffdd44",
           stroke: "#2a1a10", strokeThickness: 2
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(badge);
@@ -5906,7 +5707,7 @@ export class GameScene extends Phaser.Scene {
         return `${name} Lv.${w.level}`;
       }).join("  |  ");
       const weaponBar = this.add.text(centerX, barY, weaponStr, {
-        fontFamily: "Arial", fontSize: "12px", color: "#8ab8dd"
+        fontFamily: "Zpix", fontSize: "12px", color: "#8ab8dd"
       }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
       optionObjects.push(barBg, weaponBar);
     }
@@ -5931,6 +5732,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     this.isPaused = true;
+    this.setDomHudVisible(false);
+    this.setDomTouchControlsVisible(false);
     this.physics.pause();
     this.weaponSystem?.pause?.();
     this.director?.pause?.();
@@ -5948,7 +5751,7 @@ export class GameScene extends Phaser.Scene {
     const panelInner = this.add.rectangle(cx, cy, pw - 14, ph - 14, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(d + 1);
 
     const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
-      fontFamily: "Arial", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
+      fontFamily: "Zpix", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
     // Stats section (left side)
@@ -5958,15 +5761,15 @@ export class GameScene extends Phaser.Scene {
 
     const addStatLine = (label, value, color = "#c8ddef") => {
       uiObjs.push(
-        this.add.text(statsX, sy, label, { fontFamily: "Arial", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "Arial", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(statsX, sy, label, { fontFamily: "Zpix", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "Zpix", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
       sy += 18;
     };
 
     const addSectionHeader = (text) => {
       uiObjs.push(
-        this.add.text(statsX, sy, text, { fontFamily: "Arial", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(statsX, sy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
       );
       sy += 18;
     };
@@ -6009,7 +5812,7 @@ export class GameScene extends Phaser.Scene {
     const weapons = this.player.weapons || [];
     const addWeaponHeader = (text) => {
       uiObjs.push(
-        this.add.text(wx, wy, text, { fontFamily: "Arial", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(wx, wy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
       );
       wy += 18;
     };
@@ -6021,8 +5824,8 @@ export class GameScene extends Phaser.Scene {
       const cd = this.weaponSystem?.getEffectiveCooldownMs?.(w) ?? w.cooldownMs;
       const evoTag = w.evolved ? " ✦" : "";
       uiObjs.push(
-        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "Arial", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "Arial", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "Zpix", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "Zpix", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
       wy += 18;
     });
@@ -6042,8 +5845,8 @@ export class GameScene extends Phaser.Scene {
         const status = hasPassive && levelOk ? "✓ 就绪" : `Lv.${owned.level}/${r.level} ${hasPassive ? "✓被动" : "✗被动"}`;
         const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === r.requiredPassive);
         uiObjs.push(
-          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "Arial", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
-          this.add.text(wx + ww, wy, status, { fontFamily: "Arial", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "Zpix", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
+          this.add.text(wx + ww, wy, status, { fontFamily: "Zpix", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
         );
         wy += 16;
       });
@@ -6053,27 +5856,27 @@ export class GameScene extends Phaser.Scene {
     const btnY = cy + ph / 2 - 70;
     const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 44, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
-      fontFamily: "Arial", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 44, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
-      fontFamily: "Arial", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "Zpix", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
     const bgmBtn = this.add.rectangle(cx - 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0x5ca7ff, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const bgmText = this.add.text(cx - 80, btnY + 50, bgmLabel, {
-      fontFamily: "Arial", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "Zpix", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
     const settingsBtn = this.add.rectangle(cx + 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0xffd866, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const settingsLabel = this.add.text(cx + 80, btnY + 50, "设置", {
-      fontFamily: "Arial", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "Zpix", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
     const escHint = this.add.text(cx, cy + ph / 2 - 12, "按 ESC / P 继续", {
-      fontFamily: "Arial", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "Zpix", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
     const onResume = () => this.closePauseMenu();
@@ -6082,6 +5885,8 @@ export class GameScene extends Phaser.Scene {
 
     const onQuit = () => {
       this.closePauseMenu();
+      this.finalizeMetaRun();
+      this.scene.stop();
       this.scene.start("MainMenuScene");
     };
     quitBtn.on("pointerdown", onQuit);
@@ -6114,6 +5919,8 @@ export class GameScene extends Phaser.Scene {
     this.isPaused = false;
     this.pauseUi.forEach((obj) => obj?.destroy?.());
     this.pauseUi = [];
+    this.setDomHudVisible(true);
+    this.setDomTouchControlsVisible(true);
     if (!this.isGameOver && !this.isLeveling && !this.isWeaponSelecting) {
       this.physics.resume();
       this.weaponSystem?.resume?.();
@@ -6255,7 +6062,7 @@ export class GameScene extends Phaser.Scene {
 
       const coinText = this.add
       .text(centerX, panelTop + 85, `金币: ${this.metaData.currency}`, {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "20px",
         color: "#e2c388",
         stroke: "#2e170d",
@@ -6267,7 +6074,7 @@ export class GameScene extends Phaser.Scene {
 
       const subtitle = this.add
       .text(centerX, headerBottom, "选择一把武器开始游戏", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "17px",
         color: "#d8bf95",
         stroke: "#2a1a10",
@@ -6280,7 +6087,7 @@ export class GameScene extends Phaser.Scene {
       const statusTextY = centerY + panelHeight / 2 - 22;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "18px",
         color: "#ebd7b7",
         stroke: "#2e170d",
@@ -6317,7 +6124,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const heading = this.add
         .text(centerX - 268, y - 13, `[${index + 1}] ${option.label}`, {
-          fontFamily: "Arial",
+          fontFamily: "Zpix",
           fontSize: "24px",
           color: "#2e170d",
           stroke: "#f7e8cc",
@@ -6328,7 +6135,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const detail = this.add
         .text(centerX - 268, y + 15, "", {
-          fontFamily: "Arial",
+          fontFamily: "Zpix",
           fontSize: "13px",
           color: "#6a4d36",
           stroke: "#f7e8cc",
@@ -6771,14 +6578,14 @@ export class GameScene extends Phaser.Scene {
 
     // "YOU DIED" text
     const deathText = this.add.text(cx, cy - 30, "YOU DIED", {
-      fontFamily: "Arial", fontSize: "64px", color: "#ff2222",
+      fontFamily: "Zpix", fontSize: "64px", color: "#ff2222",
       stroke: "#000000", strokeThickness: 8,
       shadow: { offsetX: 0, offsetY: 0, color: "#ff0000", blur: 20, fill: true }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0).setScale(0.3);
 
     // Subtitle
     const subText = this.add.text(cx, cy + 30, `击杀: ${this.totalKills}  等级: ${this.level}  存活: ${this.formatRunTime(this.runTimeMs)}`, {
-      fontFamily: "Arial", fontSize: "18px", color: "#cc8888",
+      fontFamily: "Zpix", fontSize: "18px", color: "#cc8888",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -7167,14 +6974,14 @@ export class GameScene extends Phaser.Scene {
     const lineSpacing = 16 * scale;
     const fontSize = Math.floor(14 * scale);
     const style = {
-      fontFamily: "Arial",
+      fontFamily: "Zpix",
       fontSize: `${fontSize}px`,
       color: "#f7f3de",
       stroke: "#1c130e",
       strokeThickness: Math.max(1, Math.floor(2 * scale))
     };
     const labelStyle = {
-      fontFamily: "Arial",
+      fontFamily: "Zpix",
       fontSize: `${Math.floor(10 * scale)}px`,
       color: "#d6c6a2",
       stroke: "#1c130e",

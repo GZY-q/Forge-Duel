@@ -12,6 +12,12 @@ export class RunSummaryScene extends Phaser.Scene {
   }
 
   create(data = {}) {
+    // Disable GameScene input while summary is active
+    const gameScene = this.scene.get("GameScene");
+    if (gameScene) {
+      gameScene.input.enabled = false;
+    }
+
     const camera = this.cameras.main;
     const centerX = camera.width * 0.5;
     const centerY = camera.height * 0.5;
@@ -61,7 +67,7 @@ export class RunSummaryScene extends Phaser.Scene {
 
     const titleText = this.add
       .text(0, panelTop + panelPadding, "战斗总结", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "34px",
         color: "#ffffff",
         stroke: "#0b1220",
@@ -85,7 +91,7 @@ export class RunSummaryScene extends Phaser.Scene {
     statsBg.setStrokeStyle(2, 0x7bc3ff, 1);
     const statsText = this.add
       .text(0, statsCenterY, lines.join("\n"), {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "21px",
         color: "#f3f7ff",
         align: "center",
@@ -105,16 +111,10 @@ export class RunSummaryScene extends Phaser.Scene {
       this.scene.start("GameScene", selectedShip ? { selectedShip } : undefined);
     }, { variant: "primary", width: primaryButtonWidth, height: primaryButtonHeight });
 
-    this.createActionButton(centerX, centerY + menuY, "返回主菜单", () => {
+    this.createActionButton(centerX, centerY + menuY, "返回主页", () => {
       this.scene.stop("RunSummaryScene");
-      const hasMainMenuScene = Boolean(this.scene.manager?.keys?.MainMenuScene);
-      if (hasMainMenuScene) {
-        this.scene.stop("GameScene");
-        this.scene.start("MainMenuScene");
-        return;
-      }
       this.scene.stop("GameScene");
-      this.scene.start("GameScene");
+      this.scene.start("MainMenuScene");
     }, { variant: "secondary", width: secondaryButtonWidth, height: secondaryButtonHeight });
   }
 
@@ -141,7 +141,7 @@ export class RunSummaryScene extends Phaser.Scene {
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 2);
     const text = this.add
       .text(x, y, label, {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: variant === "primary" ? "26px" : "22px",
         color: "#ffffff",
         stroke: "#0e1a2a",

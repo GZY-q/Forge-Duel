@@ -1,3 +1,5 @@
+import { createBackButton } from "../ui/createBackButton.js";
+
 const COIN_STORAGE_KEY = "forgeduel_coins";
 const META_STORAGE_KEY = "forgeduel_meta_v1";
 const UPGRADE_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
@@ -68,7 +70,7 @@ export class UpgradeScene extends Phaser.Scene {
     this.add.rectangle(centerX, camera.height * 0.5, camera.width - 86, camera.height - 94, 0, 0).setStrokeStyle(2, 0xb8e0ff, 0.92);
     this.add
       .text(centerX, 72, "升级商店", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "38px",
         color: "#ffffff",
         stroke: "#0b1220",
@@ -78,7 +80,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     this.coinsText = this.add
       .text(centerX, 118, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "24px",
         color: "#ffe08a",
         stroke: "#2a1a06",
@@ -88,10 +90,10 @@ export class UpgradeScene extends Phaser.Scene {
 
     const headerY = 176;
     this.add.rectangle(centerX, headerY + 6, 930, 44, 0x152947, 0.95).setStrokeStyle(2, 0x7bc3ff, 1);
-    this.add.text(220, headerY, "升级", { fontFamily: "Arial", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(530, headerY, "等级", { fontFamily: "Arial", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(650, headerY, "花费", { fontFamily: "Arial", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(850, headerY, "效果", { fontFamily: "Arial", fontSize: "22px", color: "#cfe9ff" });
+    this.add.text(220, headerY, "升级", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
+    this.add.text(530, headerY, "等级", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
+    this.add.text(650, headerY, "花费", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
+    this.add.text(850, headerY, "效果", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
 
     UPGRADE_DEFINITIONS.forEach((definition, index) => {
       this.createUpgradeRow(definition, index);
@@ -99,7 +101,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     this.statusText = this.add
       .text(centerX, 552, "", {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "20px",
         color: "#cde5ff",
         stroke: "#0e1a2a",
@@ -107,14 +109,12 @@ export class UpgradeScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.createButton(centerX - 140, 628, "开始游戏", () => {
+    this.createButton(centerX, 628, "开始游戏", () => {
       const selectedShip = this.resolveSelectedShip();
       this.scene.start("GameScene", selectedShip ? { selectedShip } : undefined);
     }, 200, 50);
 
-    this.createButton(centerX + 140, 628, "返回主菜单", () => {
-      this.scene.start("MainMenuScene");
-    }, 200, 50);
+    createBackButton(this, () => this.scene.start("MainMenuScene"));
 
     this.refreshCoinsText();
   }
@@ -122,11 +122,11 @@ export class UpgradeScene extends Phaser.Scene {
   createUpgradeRow(definition, index) {
     const y = 230 + index * 92;
     this.add.rectangle(652, y + 14, 930, 58, 0x13233d, 0.9).setStrokeStyle(2, 0x345c87, 0.95);
-    const levelText = this.add.text(530, y, "", { fontFamily: "Arial", fontSize: "24px", color: "#f2f8ff" });
-    const costText = this.add.text(650, y, "", { fontFamily: "Arial", fontSize: "24px", color: "#ffe08a" });
-    const effectText = this.add.text(850, y, definition.effectLabel, { fontFamily: "Arial", fontSize: "24px", color: "#9ff0b6" });
+    const levelText = this.add.text(530, y, "", { fontFamily: "Zpix", fontSize: "24px", color: "#f2f8ff" });
+    const costText = this.add.text(650, y, "", { fontFamily: "Zpix", fontSize: "24px", color: "#ffe08a" });
+    const effectText = this.add.text(850, y, definition.effectLabel, { fontFamily: "Zpix", fontSize: "24px", color: "#9ff0b6" });
 
-    this.add.text(220, y, definition.label, { fontFamily: "Arial", fontSize: "24px", color: "#f2f8ff" });
+    this.add.text(220, y, definition.label, { fontFamily: "Zpix", fontSize: "24px", color: "#f2f8ff" });
 
     const buyButton = this.createButton(1080, y + 14, "购买", () => {
       this.purchaseUpgrade(definition, levelText, costText);
@@ -192,7 +192,7 @@ export class UpgradeScene extends Phaser.Scene {
     this.add.rectangle(x, y, width - 12, height - 12, 0, 0).setStrokeStyle(1, 0xb8e0ff, 0.9).setOrigin(0.5);
     const text = this.add
       .text(x, y, label, {
-        fontFamily: "Arial",
+        fontFamily: "Zpix",
         fontSize: "24px",
         color: "#ffffff",
         stroke: "#0e1a2a",

@@ -14,7 +14,6 @@
   </head>
   <body>
     <div id="app">
-      <button id="settings-btn" title="设置">⚙</button>
       <div id="loading-screen" aria-live="polite">
         <div id="loading-card">
           <div id="loading-title">ForgeDuel</div>
@@ -77,7 +76,6 @@
       (function() {
         var overlay = document.getElementById('orientation-overlay');
         var fsBtn = document.getElementById('fullscreen-btn');
-        var settingsBtn = document.getElementById('settings-btn');
         var settingsPanel = document.getElementById('settings-panel');
 
         function checkOrientation() {
@@ -197,7 +195,6 @@
           }
         }
 
-        settingsBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openSettings(); });
         closeBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); closeSettings(); });
         settingsPanel.addEventListener('click', function(e) {
           if (e.target === settingsPanel) { e.preventDefault(); e.stopPropagation(); closeSettings(); }

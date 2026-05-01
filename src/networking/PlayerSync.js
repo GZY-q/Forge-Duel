@@ -20,7 +20,7 @@ export class RemotePlayer {
     this.sprite.body?.setAllowGravity(false);
 
     this.nameLabel = scene.add.text(0, 0, username || "Player", {
-      fontFamily: "Arial",
+      fontFamily: "Zpix",
       fontSize: "11px",
       color: "#ffffff",
       stroke: "#000000",

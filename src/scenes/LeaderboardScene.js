@@ -1,3 +1,5 @@
+import { createBackButton } from "../ui/createBackButton.js";
+
 const API_BASE = window.location.origin;
 
 export class LeaderboardScene extends Phaser.Scene {
@@ -20,7 +22,7 @@ export class LeaderboardScene extends Phaser.Scene {
     this.add.rectangle(cx, cy, 580, 480, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88);
 
     this.add.text(cx, cy - 215, "排行榜", {
-      fontFamily: "Arial", fontSize: "32px", color: "#f8fbff",
+      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
       stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5);
 
@@ -39,7 +41,7 @@ export class LeaderboardScene extends Phaser.Scene {
         .setStrokeStyle(1, i === 0 ? 0x6ab8ff : 0x3a5a7f, 1)
         .setInteractive({ useHandCursor: true });
       const text = this.add.text(tx, ty, tab.label, {
-        fontFamily: "Arial", fontSize: "14px", color: i === 0 ? "#ffffff" : "#7a9abf"
+        fontFamily: "Zpix", fontSize: "14px", color: i === 0 ? "#ffffff" : "#7a9abf"
       }).setOrigin(0.5);
 
       bg.on("pointerdown", () => {
@@ -54,12 +56,10 @@ export class LeaderboardScene extends Phaser.Scene {
     this.entriesContainer = this.add.container(cx, cy);
 
     this.statusText = this.add.text(cx, cy, "加载中...", {
-      fontFamily: "Arial", fontSize: "16px", color: "#8ab8e0"
+      fontFamily: "Zpix", fontSize: "16px", color: "#8ab8e0"
     }).setOrigin(0.5);
 
-    this._createLink(cx, cy + 230, "返回主菜单", () => {
-      this.scene.start("MainMenuScene");
-    });
+    createBackButton(this, () => this.scene.start("MainMenuScene"));
 
     this._loadLeaderboard();
   }
@@ -95,13 +95,13 @@ export class LeaderboardScene extends Phaser.Scene {
       this.entriesContainer.add(headerBg);
 
       const rankHeader = this.add.text(-200, startY - 10, "排名", {
-        fontFamily: "Arial", fontSize: "13px", color: "#ffd866"
+        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const nameHeader = this.add.text(-80, startY - 10, "玩家", {
-        fontFamily: "Arial", fontSize: "13px", color: "#ffd866"
+        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const valueHeader = this.add.text(160, startY - 10, "数据", {
-        fontFamily: "Arial", fontSize: "13px", color: "#ffd866"
+        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
       }).setOrigin(1, 0.5);
       this.entriesContainer.add([rankHeader, nameHeader, valueHeader]);
 
@@ -114,12 +114,12 @@ export class LeaderboardScene extends Phaser.Scene {
         const medalColors = { 1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32" };
         const rankColor = medalColors[entry.rank] || "#ffffff";
         const rankText = this.add.text(-200, y, `#${entry.rank}`, {
-          fontFamily: "Arial", fontSize: "15px", color: rankColor
+          fontFamily: "Zpix", fontSize: "15px", color: rankColor
         }).setOrigin(0, 0.5);
         this.entriesContainer.add(rankText);
 
         const nameText = this.add.text(-80, y, entry.username, {
-          fontFamily: "Arial", fontSize: "15px", color: "#ffffff"
+          fontFamily: "Zpix", fontSize: "15px", color: "#ffffff"
         }).setOrigin(0, 0.5);
         this.entriesContainer.add(nameText);
 
@@ -132,7 +132,7 @@ export class LeaderboardScene extends Phaser.Scene {
         }
 
         const valueText = this.add.text(160, y, displayValue, {
-          fontFamily: "Arial", fontSize: "15px", color: "#cfe9ff"
+          fontFamily: "Zpix", fontSize: "15px", color: "#cfe9ff"
         }).setOrigin(1, 0.5);
         this.entriesContainer.add(valueText);
       });
@@ -143,7 +143,7 @@ export class LeaderboardScene extends Phaser.Scene {
 
   _createLink(x, y, label, onClick) {
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     text.on("pointerdown", onClick);
     text.on("pointerover", () => text.setColor("#ffffff"));

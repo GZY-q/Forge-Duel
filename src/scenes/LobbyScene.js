@@ -3,6 +3,7 @@ import { SHIP_CONFIGS, SHIP_STORAGE_KEY } from "../config/ships.js";
 import { SocketClient } from "../networking/SocketClient.js";
 import { NetworkManager } from "../networking/NetworkManager.js";
 import { VoiceManager } from "../networking/VoiceManager.js";
+import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
 const MAX_PLAYERS = 4;
@@ -35,16 +36,16 @@ export class LobbyScene extends Phaser.Scene {
     this.add.rectangle(cx, cy, 680, 500, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88);
 
     this.add.text(cx, cy - 225, "联机大厅", {
-      fontFamily: "Arial", fontSize: "32px", color: "#f8fbff",
+      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
       stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5);
 
     this.statusText = this.add.text(cx, cy - 190, "正在连接...", {
-      fontFamily: "Arial", fontSize: "14px", color: "#8ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#8ab8e0"
     }).setOrigin(0.5);
 
     this.roomCodeText = this.add.text(cx, cy - 155, "", {
-      fontFamily: "Arial", fontSize: "28px", color: "#ffd866",
+      fontFamily: "Zpix", fontSize: "28px", color: "#ffd866",
       stroke: "#1a1a00", strokeThickness: 4
     }).setOrigin(0.5);
 
@@ -54,13 +55,13 @@ export class LobbyScene extends Phaser.Scene {
       const bg = this.add.rectangle(cx, slotY, 500, 44, 0x1a324f, 0.9)
         .setStrokeStyle(1, 0x3a5a7f, 0.8);
       const nameText = this.add.text(cx - 220, slotY, "等待玩家...", {
-        fontFamily: "Arial", fontSize: "16px", color: "#5a7a9f"
+        fontFamily: "Zpix", fontSize: "16px", color: "#5a7a9f"
       }).setOrigin(0, 0.5);
       const readyText = this.add.text(cx + 200, slotY, "", {
-        fontFamily: "Arial", fontSize: "14px", color: "#44ff44"
+        fontFamily: "Zpix", fontSize: "14px", color: "#44ff44"
       }).setOrigin(1, 0.5);
       const hostText = this.add.text(cx + 230, slotY, "", {
-        fontFamily: "Arial", fontSize: "12px", color: "#ffd866"
+        fontFamily: "Zpix", fontSize: "12px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const speakingDot = this.add.circle(cx - 235, slotY, 5, 0x333333);
       this.playerSlots.push({ bg, nameText, readyText, hostText, speakingDot });
@@ -72,7 +73,7 @@ export class LobbyScene extends Phaser.Scene {
     this.startBtn.bg.setAlpha(0.4);
     this.startBtn.bg.disableInteractive();
 
-    this._createLink(cx, cy + 248, "返回主菜单", () => this._leaveAndReturn());
+    createBackButton(this, () => this._leaveAndReturn());
 
     if (this.mode === "join") {
       this._showJoinInput(cx, cy);
@@ -107,13 +108,13 @@ export class LobbyScene extends Phaser.Scene {
     const micBg = this.add.rectangle(x - 60, y, 44, 44, 0x1a324f, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const micIcon = this.add.text(x - 60, y, "MIC", {
-      fontFamily: "Arial", fontSize: "12px", color: "#44ff44"
+      fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
     }).setOrigin(0.5);
 
     const spkBg = this.add.rectangle(x + 60, y, 44, 44, 0x1a324f, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const spkIcon = this.add.text(x + 60, y, "SPK", {
-      fontFamily: "Arial", fontSize: "12px", color: "#44ff44"
+      fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
     }).setOrigin(0.5);
 
     this.micEnabled = true;
@@ -140,7 +141,7 @@ export class LobbyScene extends Phaser.Scene {
     const bg = this.add.rectangle(x, y, 140, 40, 0x1a324f, 1)
       .setStrokeStyle(2, 0x6ab8ff, 1).setInteractive({ useHandCursor: true });
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "18px", color: "#ffffff",
+      fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
       stroke: "#0f1c2f", strokeThickness: 3
     }).setOrigin(0.5);
     bg.on("pointerdown", onClick);
@@ -152,7 +153,7 @@ export class LobbyScene extends Phaser.Scene {
 
   _createLink(x, y, label, onClick) {
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     text.on("pointerdown", onClick);
     text.on("pointerover", () => text.setColor("#ffffff"));

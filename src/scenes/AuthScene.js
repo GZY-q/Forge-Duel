@@ -1,3 +1,5 @@
+import { createBackButton } from "../ui/createBackButton.js";
+
 const API_BASE = window.location.origin;
 
 export class AuthScene extends Phaser.Scene {
@@ -20,13 +22,13 @@ export class AuthScene extends Phaser.Scene {
     this.add.rectangle(cx, cy, 400, 380, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88);
 
     this.add.text(cx, cy - 155, "ForgeDuel", {
-      fontFamily: "Arial", fontSize: "36px", color: "#f8fbff",
+      fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
       stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5);
 
     this.isLogin = true;
     this.errorText = this.add.text(cx, cy - 105, "", {
-      fontFamily: "Arial", fontSize: "14px", color: "#ff6666"
+      fontFamily: "Zpix", fontSize: "14px", color: "#ff6666"
     }).setOrigin(0.5);
 
     this.tabLogin = this._createTab(cx - 60, cy - 78, "登录", true);
@@ -47,7 +49,7 @@ export class AuthScene extends Phaser.Scene {
       this.scene.start("MainMenuScene");
     });
 
-    this._createLink(cx, cy + 160, "返回主菜单", () => {
+    createBackButton(this, () => {
       this._cleanupDom();
       this.scene.start("MainMenuScene");
     });
@@ -58,7 +60,7 @@ export class AuthScene extends Phaser.Scene {
       .setStrokeStyle(1, isActive ? 0x6ab8ff : 0x3a5a7f, 1)
       .setInteractive({ useHandCursor: true });
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "16px", color: isActive ? "#ffffff" : "#7a9abf"
+      fontFamily: "Zpix", fontSize: "16px", color: isActive ? "#ffffff" : "#7a9abf"
     }).setOrigin(0.5);
 
     bg.on("pointerdown", () => {
@@ -88,7 +90,7 @@ export class AuthScene extends Phaser.Scene {
       width: "240px",
       padding: "8px 10px",
       fontSize: "14px",
-      fontFamily: "Arial",
+      fontFamily: "Zpix",
       background: "#0b1830",
       color: "#ffffff",
       border: "2px solid #3a7abf",
@@ -134,7 +136,7 @@ export class AuthScene extends Phaser.Scene {
       .setStrokeStyle(2, 0x6ab8ff, 1)
       .setInteractive({ useHandCursor: true });
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "20px", color: "#ffffff",
+      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff",
       stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5);
 
@@ -148,7 +150,7 @@ export class AuthScene extends Phaser.Scene {
 
   _createLink(x, y, label, onClick) {
     const text = this.add.text(x, y, label, {
-      fontFamily: "Arial", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     text.on("pointerdown", onClick);
     text.on("pointerover", () => text.setColor("#ffffff"));

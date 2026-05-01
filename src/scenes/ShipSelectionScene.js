@@ -6,6 +6,7 @@ import {
   isShipUnlocked,
   getUnlockConditionText
 } from "../config/ships.js";
+import { createBackButton } from "../ui/createBackButton.js";
 
 export class ShipSelectionScene extends Phaser.Scene {
   constructor() {
@@ -38,13 +39,13 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // Title
     this.add.text(centerX, centerY - panelH / 2 + 40, "选择你的战机", {
-      fontFamily: "Arial", fontSize: "36px", color: "#f8fbff",
+      fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
       stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5);
 
     // Subtitle
     this.add.text(centerX, centerY - panelH / 2 + 72, "每种战机拥有不同属性和特殊能力", {
-      fontFamily: "Arial", fontSize: "16px", color: "#8ab8e0",
+      fontFamily: "Zpix", fontSize: "16px", color: "#8ab8e0",
       stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5);
 
@@ -77,21 +78,15 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // Status text
     this.statusText = this.add.text(centerX, centerY + panelH / 2 - 80, "", {
-      fontFamily: "Arial", fontSize: "16px", color: "#ff8888",
+      fontFamily: "Zpix", fontSize: "16px", color: "#ff8888",
       stroke: "#0d1a2d", strokeThickness: 3
     }).setOrigin(0.5);
 
     // Confirm button
     this.createConfirmButton(centerX, centerY + panelH / 2 - 45);
 
-    // Back button
-    const backBtn = this.add.text(centerX - panelW / 2 + 30, centerY - panelH / 2 + 20, "< 返回", {
-      fontFamily: "Arial", fontSize: "18px", color: "#8ab8e0",
-      stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0, 0).setInteractive({ useHandCursor: true });
-    backBtn.on("pointerdown", () => this.scene.start("MainMenuScene"));
-    backBtn.on("pointerover", () => backBtn.setColor("#ffffff"));
-    backBtn.on("pointerout", () => backBtn.setColor("#8ab8e0"));
+    // Back button (unified, top-left)
+    createBackButton(this, () => this.scene.start("MainMenuScene"));
   }
 
   createShipCard(x, y, w, h, config) {
@@ -114,20 +109,20 @@ export class ShipSelectionScene extends Phaser.Scene {
     // Ship name
     const nameColor = unlocked ? "#ffffff" : "#667788";
     const nameText = this.add.text(x, y - 14, config.name, {
-      fontFamily: "Arial", fontSize: "20px", color: nameColor,
+      fontFamily: "Zpix", fontSize: "20px", color: nameColor,
       stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5);
 
     // Difficulty stars
     const stars = "★".repeat(config.difficulty) + "☆".repeat(5 - config.difficulty);
     const starsText = this.add.text(x, y + 8, stars, {
-      fontFamily: "Arial", fontSize: "14px", color: unlocked ? "#ffd866" : "#556666"
+      fontFamily: "Zpix", fontSize: "14px", color: unlocked ? "#ffd866" : "#556666"
     }).setOrigin(0.5);
 
     // Stats
     const statsStr = `HP:${config.stats.maxHp} SPD:${config.stats.speed}`;
     const statsText = this.add.text(x, y + 28, statsStr, {
-      fontFamily: "Arial", fontSize: "12px", color: unlocked ? "#cfe9ff" : "#556666"
+      fontFamily: "Zpix", fontSize: "12px", color: unlocked ? "#cfe9ff" : "#556666"
     }).setOrigin(0.5);
 
     // Weapon
@@ -136,7 +131,7 @@ export class ShipSelectionScene extends Phaser.Scene {
       ? config.initialWeapons.map(w => weaponLabels[w] || w).join("+")
       : (weaponLabels[config.initialWeapon] || config.initialWeapon);
     const wepText = this.add.text(x, y + 44, `武器: ${wepName}`, {
-      fontFamily: "Arial", fontSize: "11px", color: unlocked ? "#8ab8dd" : "#556666"
+      fontFamily: "Zpix", fontSize: "11px", color: unlocked ? "#8ab8dd" : "#556666"
     }).setOrigin(0.5);
 
     // Lock overlay / unlock condition
@@ -146,7 +141,7 @@ export class ShipSelectionScene extends Phaser.Scene {
       lockOverlay = this.add.rectangle(x, y, w, h, 0x000000, 0.55);
       const condText = getUnlockConditionText(config.id);
       lockText = this.add.text(x, y + 64, `🔒 ${condText}`, {
-        fontFamily: "Arial", fontSize: "11px", color: "#ffaa66",
+        fontFamily: "Zpix", fontSize: "11px", color: "#ffaa66",
         stroke: "#0d1a2d", strokeThickness: 2,
         wordWrap: { width: w - 20 },
         align: "center"
@@ -212,7 +207,7 @@ export class ShipSelectionScene extends Phaser.Scene {
       .setStrokeStyle(3, 0x6ab8ff, 1)
       .setInteractive({ useHandCursor: true });
     const label = this.add.text(x, y, "开始游戏", {
-      fontFamily: "Arial", fontSize: "24px", color: "#ffffff",
+      fontFamily: "Zpix", fontSize: "24px", color: "#ffffff",
       stroke: "#0f1c2f", strokeThickness: 5
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 

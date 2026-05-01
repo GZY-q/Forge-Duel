@@ -63,17 +63,17 @@ export const DIRECTOR_ELITE_TIME_SCALING = {
 
 export const DIRECTOR_DIFFICULTY_SCALING = {
   base: 1,
-  perMinute: 0.1
+  perMinute: 0.12
 };
 
 export const DIRECTOR_ENEMY_HP_SCALING = {
   base: 1,
-  perMinute: 0.08
+  perMinute: 0.10
 };
 
 export const DIRECTOR_ENEMY_DAMAGE_SCALING = {
   base: 1,
-  perMinute: 0.06
+  perMinute: 0.08
 };
 
 export const DIRECTOR_DENSITY_REWORK = {
