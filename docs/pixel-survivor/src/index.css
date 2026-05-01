@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-pixel: "Press Start 2P", system-ui, sans-serif;
+}
+
+@layer base {
+  body {
+    @apply bg-black text-white font-pixel overflow-hidden;
+  }
+}
+
+@layer components {
+  .pixel-border {
+    @apply border-4 border-white;
+    box-shadow: 
+      inset -4px -4px 0px 0px rgba(0,0,0,0.5),
+      inset 4px 4px 0px 0px rgba(255,255,255,0.5);
+  }
+
+  .pixel-button {
+    @apply px-6 py-3 bg-red-800 border-4 border-red-950 active:translate-y-1 transition-transform cursor-pointer hover:bg-red-700;
+  }
+
+  .pixel-text-shadow {
+    text-shadow: 2px 2px 0px #000;
+  }
+
+  /* Pixelated rendering for images */
+  .pixelated {
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+  }
+}

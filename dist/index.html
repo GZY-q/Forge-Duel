@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="ForgeDuel" />
+    <meta name="screen-orientation" content="landscape" />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <title>ForgeDuel</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="loading-screen" aria-live="polite">
+        <div id="loading-card">
+          <div id="loading-title">ForgeDuel</div>
+          <div id="loading-subtitle">Preparing build...</div>
+          <div id="loading-bar-track">
+            <div id="loading-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+      <div id="orientation-overlay">
+        <div id="orientation-card">
+          <div id="orientation-icon">📱</div>
+          <div id="orientation-text">请横屏游玩</div>
+          <div id="orientation-subtext">Rotate your device to landscape</div>
+        </div>
+      </div>
+      <div id="game-root"></div>
+      <button id="fullscreen-btn" title="全屏">⛶</button>
+      <div id="settings-panel">
+        <div id="settings-panel-inner">
+          <div id="settings-title">设置</div>
+          <div class="settings-row">
+            <span class="settings-label">音乐音量</span>
+            <input type="range" id="settings-bgm-vol" min="0" max="100" value="60" />
+            <span class="settings-val" id="settings-bgm-val">60%</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">音效音量</span>
+            <input type="range" id="settings-sfx-vol" min="0" max="100" value="80" />
+            <span class="settings-val" id="settings-sfx-val">80%</span>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">伤害数字</span>
+            <button class="settings-toggle" id="settings-dmg-num" data-on="true">开</button>
+          </div>
+          <div class="settings-row">
+            <span class="settings-label">屏幕震动</span>
+            <button class="settings-toggle" id="settings-shake" data-on="true">开</button>
+          </div>
+          <div id="settings-auth-section" style="display:none;">
+            <div class="settings-divider"></div>
+            <div class="settings-row settings-user-row">
+              <span class="settings-label">账号</span>
+              <span id="settings-username" class="settings-val" style="color:#88ff88;min-width:auto;flex:1;text-align:left;"></span>
+            </div>
+            <button id="settings-logout-btn" class="settings-logout-btn">退出登录</button>
+          </div>
+          <button id="settings-close">确定</button>
+        </div>
+      </div>
+    </div>
+
+    <script
+      src="https://cdn.jsdelivr.net/npm/phaser@3.90.0/dist/phaser.min.js"
+      integrity="sha384-AvQiDMZAVLda3VtAoU5MCfBz8pzXhteb2CiUJeKBmPlWzpXj1uJ96Km11+YuFNu/"
+      crossorigin="anonymous"
+    ></script>
+    <script type="module" src="./assets/main.min.js"></script>
+    <script>
+      (function() {
+        var overlay = document.getElementById('orientation-overlay');
+        var fsBtn = document.getElementById('fullscreen-btn');
+        var settingsPanel = document.getElementById('settings-panel');
+
+        function checkOrientation() {
+          var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+          if (!isMobile) {
+            overlay.style.display = 'none';
+            return;
+          }
+          var isLandscape = window.innerWidth > window.innerHeight;
+          overlay.style.display = isLandscape ? 'none' : 'flex';
+        }
+
+        window.addEventListener('orientationchange', function() {
+          setTimeout(checkOrientation, 150);
+        });
+        window.addEventListener('resize', checkOrientation);
+        checkOrientation();
+
+        if (fsBtn) {
+          fsBtn.addEventListener('click', function() {
+            var el = document.documentElement;
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+              (el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen).call(el);
+              if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(function() {});
+              }
+            } else {
+              (document.exitFullscreen || document.webkitExitFullscreen || document.msExitFullscreen).call(document);
+            }
+          });
+          var isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+          if (!isMobile) fsBtn.style.display = 'none';
+        }
+
+        // Settings panel
+        var SETTINGS_KEY = 'forgeduel_settings';
+        var defaults = { bgmVol: 60, sfxVol: 80, showDmgNum: true, screenShake: true };
+        var settings = Object.assign({}, defaults);
+
+        try {
+          var saved = JSON.parse(localStorage.getItem(SETTINGS_KEY));
+          if (saved) Object.assign(settings, saved);
+        } catch(e) {}
+
+        function saveSettings() {
+          try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch(e) {}
+        }
+
+        function applySettings() {
+          if (window.__forgeduelGame && window.__forgeduelGame.scene) {
+            var gs = window.__forgeduelGame.scene.getScene('GameScene');
+            if (gs) {
+              gs.settingsBgmVol = settings.bgmVol / 100;
+              gs.settingsSfxVol = settings.sfxVol / 100;
+              gs.settingsShowDmgNum = settings.showDmgNum;
+              gs.settingsScreenShake = settings.screenShake;
+            }
+          }
+        }
+
+        var bgmSlider = document.getElementById('settings-bgm-vol');
+        var bgmVal = document.getElementById('settings-bgm-val');
+        var sfxSlider = document.getElementById('settings-sfx-vol');
+        var sfxVal = document.getElementById('settings-sfx-val');
+        var dmgBtn = document.getElementById('settings-dmg-num');
+        var shakeBtn = document.getElementById('settings-shake');
+        var closeBtn = document.getElementById('settings-close');
+
+        bgmSlider.value = settings.bgmVol;
+        bgmVal.textContent = settings.bgmVol + '%';
+        sfxSlider.value = settings.sfxVol;
+        sfxVal.textContent = settings.sfxVol + '%';
+        dmgBtn.textContent = settings.showDmgNum ? '开' : '关';
+        dmgBtn.dataset.on = String(settings.showDmgNum);
+        shakeBtn.textContent = settings.screenShake ? '开' : '关';
+        shakeBtn.dataset.on = String(settings.screenShake);
+
+        bgmSlider.addEventListener('input', function() {
+          settings.bgmVol = parseInt(this.value, 10);
+          bgmVal.textContent = settings.bgmVol + '%';
+          saveSettings();
+          applySettings();
+        });
+        sfxSlider.addEventListener('input', function() {
+          settings.sfxVol = parseInt(this.value, 10);
+          sfxVal.textContent = settings.sfxVol + '%';
+          saveSettings();
+          applySettings();
+        });
+        dmgBtn.addEventListener('click', function() {
+          settings.showDmgNum = !settings.showDmgNum;
+          this.textContent = settings.showDmgNum ? '开' : '关';
+          this.dataset.on = String(settings.showDmgNum);
+          saveSettings();
+          applySettings();
+        });
+        shakeBtn.addEventListener('click', function() {
+          settings.screenShake = !settings.screenShake;
+          this.textContent = settings.screenShake ? '开' : '关';
+          this.dataset.on = String(settings.screenShake);
+          saveSettings();
+          applySettings();
+        });
+
+        function openSettings() {
+          settingsPanel.classList.add('open');
+          applySettings();
+          refreshAuthSection();
+        }
+        function closeSettings() {
+          settingsPanel.classList.remove('open');
+          // Temporarily block pointer events from reaching Phaser canvas
+          var gameRoot = document.getElementById('game-root');
+          if (gameRoot) {
+            gameRoot.style.pointerEvents = 'none';
+            setTimeout(function() { gameRoot.style.pointerEvents = ''; }, 200);
+          }
+        }
+
+        closeBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); closeSettings(); });
+        settingsPanel.addEventListener('click', function(e) {
+          if (e.target === settingsPanel) { e.preventDefault(); e.stopPropagation(); closeSettings(); }
+        });
+
+        // Prevent all clicks inside settings panel from propagating
+        document.querySelectorAll('#settings-panel button, #settings-panel input, #settings-panel select').forEach(function(el) {
+          el.addEventListener('click', function(e) { e.stopPropagation(); });
+          el.addEventListener('mousedown', function(e) { e.stopPropagation(); });
+        });
+
+        window.__forgeduelSettings = settings;
+        window.__forgeduelOpenSettings = openSettings;
+        window.__forgeduelCloseSettings = closeSettings;
+
+        // --- Cookie auth helpers ---
+        function getCookie(name) {
+          var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+          return m ? decodeURIComponent(m[1]) : null;
+        }
+
+        function getStoredUser() {
+          try {
+            var raw = localStorage.getItem('forgeduel_user');
+            return raw ? JSON.parse(raw) : null;
+          } catch(e) { return null; }
+        }
+
+        function refreshAuthSection() {
+          var section = document.getElementById('settings-auth-section');
+          var nameEl = document.getElementById('settings-username');
+          var token = localStorage.getItem('forgeduel_token') || getCookie('forgeduel_token');
+          var user = getStoredUser();
+          if (token && user && user.username) {
+            section.style.display = '';
+            nameEl.textContent = user.username;
+          } else {
+            section.style.display = 'none';
+          }
+        }
+
+        // Auto-login from cookie if no token in localStorage
+        (function autoLogin() {
+          var hasLocalToken = !!localStorage.getItem('forgeduel_token');
+          if (hasLocalToken) return;
+          var cookieToken = getCookie('forgeduel_token');
+          if (!cookieToken) return;
+          // Validate cookie token with server
+          fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + cookieToken }
+          }).then(function(r) {
+            if (!r.ok) throw new Error('unauthorized');
+            return r.json();
+          }).then(function(data) {
+            if (data.user) {
+              localStorage.setItem('forgeduel_token', cookieToken);
+              localStorage.setItem('forgeduel_user', JSON.stringify(data.user));
+            }
+          }).catch(function() {
+            // Cookie expired or invalid — ignore
+          });
+        })();
+
+        // Logout handler
+        var logoutBtn = document.getElementById('settings-logout-btn');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Clear local state
+            localStorage.removeItem('forgeduel_token');
+            localStorage.removeItem('forgeduel_user');
+            // Clear server cookie
+            fetch('/api/auth/logout', { method: 'POST' }).catch(function(){});
+            // Also clear cookie client-side as fallback
+            document.cookie = 'forgeduel_token=; path=/; max-age=0';
+            closeSettings();
+            refreshAuthSection();
+            // Navigate Phaser to MainMenuScene
+            if (window.__forgeduelGame && window.__forgeduelGame.scene) {
+              var scenes = window.__forgeduelGame.scene.getScenes(true);
+              scenes.forEach(function(s) {
+                if (s.scene.key !== 'MainMenuScene') {
+                  s.scene.stop();
+                }
+              });
+              var menu = window.__forgeduelGame.scene.getScene('MainMenuScene');
+              if (menu) {
+                menu.scene.restart();
+              } else {
+                window.__forgeduelGame.scene.start('MainMenuScene');
+              }
+            }
+          });
+        }
+      })();
+    </script>
+  </body>
+</html>

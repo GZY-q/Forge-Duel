@@ -1,19 +1,22 @@
 # 依赖
 node_modules/
-pigfriends/
-gemini-co-drawing/
+
 # 数据库文件
-pigs.db
+*.db
+*.sqlite
+*.sqlite3
 
 # 日志
 logs
 *.log
 npm-debug.log*
-README.md
+yarn-debug.log*
+yarn-error.log*
+
 # 环境变量
 .env
 .env.local
-.env.production
+.env.*.local
 
 # 部署相关
 forge-duel-deploy.tar.gz
@@ -23,18 +26,36 @@ logs/
 # 系统文件
 .DS_Store
 Thumbs.db
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+
+# 文档（运行时生成）
 doc.md
+AUTH_README.md
+IMPLEMENTATION_SUMMARY.md
+SETUP_GUIDE.md
+
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
+.project
+.settings/
 
-# 临时文件
-public/assets/bullet0.png
-public/assets/ship0.pn
-AUTH_README.md
-IMPLEMENTATION_SUMMARY.md
-SETUP_GUIDE.md
+
+# 游戏资源（大型文件可选）
+# assets/sprites/*.psd
+# assets/sprites/*.xcf
+
+# 构建输出
+dist/*.map
+*.backup
+
+# 测试覆盖
+coverage/
+.nyc_output/
 
