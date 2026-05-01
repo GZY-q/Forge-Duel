@@ -1,12 +1,12 @@
-# Attribution
+# 归属说明
 
-These PNG files are derived from free Kenney assets.
+这些 PNG 文件源自免费的 Kenney 资源。
 
-Source:
-- Kenney Pirate Pack: https://kenney.nl/assets/pirate-pack
-- Kenney Monster Builder Pack: https://kenney.nl/assets/monster-builder-pack
+来源：
+- Kenney 海盗包: https://kenney.nl/assets/pirate-pack
+- Kenney 怪物构建包: https://kenney.nl/assets/monster-builder-pack
 
-Files used in this project:
+本项目使用的文件：
 - deck_cannon_loose.png
 - deck_cannonball.png
 - deck_hull_large.png

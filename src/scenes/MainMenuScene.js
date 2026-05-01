@@ -1,5 +1,3 @@
-import { FIGHTER_CONFIGS, FIGHTER_KEYS, FIGHTER_STORAGE_KEY } from "../config/fighters.js";
-
 const COIN_STORAGE_KEY = "forgeduel_coins";
 const BEST_TIME_STORAGE_KEY = "forgeduel_best_time_ms";
 const MENU_ATLAS_KEY = "ui_atlas";
@@ -72,12 +70,27 @@ export class MainMenuScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
+    // Show logged-in username
+    const authUser = this.loadAuthUser();
+    if (authUser) {
+      this.add.text(centerX + 280, 226, `👤 ${authUser.username}`, {
+        fontFamily: "Arial", fontSize: "16px", color: "#88ff88",
+        stroke: "#0d1a2d", strokeThickness: 3
+      }).setOrigin(0, 0.5);
+    }
+
     this.createButton(centerX, 312, "开始游戏", () => {
-      this.openFighterSelection("solo");
+      this.scene.start("ShipSelectionScene", { mode: "solo" });
     });
 
     this.createButton(centerX, 392, "联机模式", () => {
-      this.openMultiplayerMenu();
+      const token = typeof window !== "undefined" && window.localStorage
+        ? window.localStorage.getItem("forgeduel_token") : null;
+      if (!token) {
+        this.scene.start("AuthScene");
+      } else {
+        this.scene.start("ShipSelectionScene", { mode: "coop" });
+      }
     });
 
     this.createButton(centerX, 472, "升级商店", () => {
@@ -87,8 +100,6 @@ export class MainMenuScene extends Phaser.Scene {
     this.createButton(centerX, 552, "排行榜", () => {
       this.scene.start("LeaderboardScene");
     });
-
-    this.fighterSelectionUi = [];
 
     this.hideLoadingScreen();
   }
@@ -125,130 +136,12 @@ export class MainMenuScene extends Phaser.Scene {
     text.on("pointerdown", trigger);
   }
 
-  openMultiplayerMenu() {
-    const token = typeof window !== "undefined" && window.localStorage
-      ? window.localStorage.getItem("forgeduel_token") : null;
-
-    if (!token) {
-      this.scene.start("AuthScene");
-      return;
-    }
-
-    this.openFighterSelection("coop");
-  }
-
-  openFighterSelection(mode) {
-    if (this.fighterSelectionUi.length > 0) {
-      return;
-    }
-    this.pendingMode = mode || "solo";
-
-    const camera = this.cameras.main;
-    const centerX = camera.width * 0.5;
-    const centerY = camera.height * 0.5;
-
-    const backdrop = this.add.rectangle(centerX, centerY, camera.width, camera.height, 0x000000, 0.65).setDepth(100);
-    const panel = this.add.rectangle(centerX, centerY, 700, 520, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96).setDepth(101);
-    const panelInner = this.add.rectangle(centerX, centerY, 672, 490, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setDepth(102);
-
-    const title = this.add.text(centerX, centerY - 218, "选择战机", {
-      fontFamily: "Arial", fontSize: "36px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
-    }).setOrigin(0.5).setDepth(103);
-
-    const subtitle = this.add.text(centerX, centerY - 178, "每种战机拥有不同属性和特殊能力", {
-      fontFamily: "Arial", fontSize: "16px", color: "#8ab8e0", stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5).setDepth(103);
-
-    const uiElements = [backdrop, panel, panelInner, title, subtitle];
-
-    const cardWidth = 300;
-    const cardHeight = 180;
-    const gap = 20;
-    const cols = 2;
-    const startX = centerX - (cols * cardWidth + (cols - 1) * gap) / 2 + cardWidth / 2;
-    const startY = centerY - 40;
-
-    FIGHTER_KEYS.forEach((key, index) => {
-      const config = FIGHTER_CONFIGS[key];
-      const col = index % cols;
-      const row = Math.floor(index / cols);
-      const x = startX + col * (cardWidth + gap);
-      const y = startY + row * (cardHeight + gap);
-
-      const card = this.add.rectangle(x, y, cardWidth, cardHeight, 0x1a324f, 0.95).setStrokeStyle(2, 0x5ca7ff, 0.9).setDepth(103).setInteractive({ useHandCursor: true });
-      const cardInner = this.add.rectangle(x, y, cardWidth - 12, cardHeight - 12, 0x0f2440, 0.9).setStrokeStyle(1, 0x3a7abf, 0.6).setDepth(104).setInteractive({ useHandCursor: true });
-
-      const nameLabel = this.add.text(x, y - 62, config.label, {
-        fontFamily: "Arial", fontSize: "24px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
-      }).setOrigin(0.5).setDepth(105).setInteractive({ useHandCursor: true });
-
-      const descLabel = this.add.text(x, y - 34, config.description, {
-        fontFamily: "Arial", fontSize: "13px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
-      }).setOrigin(0.5).setDepth(105);
-
-      const stats = [
-        `HP: ${config.hp}`,
-        `速度: ${config.speed}`,
-        `武器: ${this.getWeaponLabel(config.startingWeapon)}`
-      ];
-      const statsLabel = this.add.text(x, y + 6, stats.join("  |  "), {
-        fontFamily: "Arial", fontSize: "13px", color: "#cfe9ff", stroke: "#0d1a2d", strokeThickness: 2
-      }).setOrigin(0.5).setDepth(105);
-
-      const evolutionLabel = this.add.text(x, y + 30, `Lv${config.evolutionLevel} 进化: ${config.evolution.label}`, {
-        fontFamily: "Arial", fontSize: "12px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
-      }).setOrigin(0.5).setDepth(105);
-
-      const selectFighter = () => {
-        this.selectFighter(key);
-      };
-      card.on("pointerdown", selectFighter);
-      cardInner.on("pointerdown", selectFighter);
-      nameLabel.on("pointerdown", selectFighter);
-
-      card.on("pointerover", () => { card.setStrokeStyle(3, 0x9bd3ff, 1); });
-      card.on("pointerout", () => { card.setStrokeStyle(2, 0x5ca7ff, 0.9); });
-
-      uiElements.push(card, cardInner, nameLabel, descLabel, statsLabel, evolutionLabel);
-    });
-
-    const closeBtn = this.add.text(centerX + 320, centerY - 240, "✕", {
-      fontFamily: "Arial", fontSize: "28px", color: "#ff8888", stroke: "#0d1a2d", strokeThickness: 3
-    }).setOrigin(0.5).setDepth(105).setInteractive({ useHandCursor: true });
-    closeBtn.on("pointerdown", () => this.closeFighterSelection());
-    uiElements.push(closeBtn);
-
-    this.fighterSelectionUi = uiElements;
-  }
-
-  getWeaponLabel(weaponType) {
-    const labels = { dagger: "匕首", fireball: "火焰弹", lightning: "闪电", orbit_blades: "轨道刃", scatter_shot: "散弹", homing_missile: "导弹", laser: "激光" };
-    return labels[weaponType] || weaponType;
-  }
-
-  selectFighter(fighterKey) {
-    if (typeof window !== "undefined" && window.localStorage) {
-      window.localStorage.setItem(FIGHTER_STORAGE_KEY, fighterKey);
-    }
-    this.closeFighterSelection();
-
-    if (this.pendingMode === "coop") {
-      const token = window.localStorage.getItem("forgeduel_token") || "";
-      const user = JSON.parse(window.localStorage.getItem("forgeduel_user") || "null");
-      this.scene.start("LobbyScene", {
-        mode: "create",
-        fighterType: fighterKey,
-        authToken: token,
-        authUser: user
-      });
-    } else {
-      this.scene.start("GameScene", { selectedFighter: fighterKey });
-    }
-  }
-
-  closeFighterSelection() {
-    this.fighterSelectionUi.forEach((obj) => obj?.destroy?.());
-    this.fighterSelectionUi = [];
+  loadAuthUser() {
+    if (typeof window === "undefined" || !window.localStorage) return null;
+    try {
+      const raw = window.localStorage.getItem("forgeduel_user");
+      return raw ? JSON.parse(raw) : null;
+    } catch { return null; }
   }
 
   loadCoins() {

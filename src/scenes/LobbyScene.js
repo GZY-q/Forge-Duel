@@ -1,4 +1,5 @@
 import { FIGHTER_CONFIGS, FIGHTER_KEYS } from "../config/fighters.js";
+import { SHIP_CONFIGS, SHIP_STORAGE_KEY } from "../config/ships.js";
 import { SocketClient } from "../networking/SocketClient.js";
 import { NetworkManager } from "../networking/NetworkManager.js";
 import { VoiceManager } from "../networking/VoiceManager.js";
@@ -15,7 +16,8 @@ export class LobbyScene extends Phaser.Scene {
     this.mode = data?.mode || "create";
     this.authToken = data?.authToken || localStorage.getItem("forgeduel_token") || "";
     this.authUser = data?.authUser || JSON.parse(localStorage.getItem("forgeduel_user") || "null");
-    this.selectedFighter = data?.fighterType || localStorage.getItem("forgeduel_selected_fighter") || "scout";
+    this.selectedShip = data?.selectedShip || localStorage.getItem(SHIP_STORAGE_KEY) || null;
+    this.selectedFighter = data?.fighterType || this.selectedShip || localStorage.getItem("forgeduel_selected_fighter") || "scout";
   }
 
   async create() {
@@ -218,8 +220,10 @@ export class LobbyScene extends Phaser.Scene {
       const slot = this.playerSlots[i];
       if (i < players.length) {
         const p = players[i];
-        const config = FIGHTER_CONFIGS[p.fighterType] || FIGHTER_CONFIGS.scout;
-        slot.nameText.setText(`${p.username || "Player"} (${config.label})`);
+        const shipCfg = SHIP_CONFIGS[p.fighterType];
+        const fighterCfg = FIGHTER_CONFIGS[p.fighterType];
+        const label = shipCfg?.name || fighterCfg?.label || p.fighterType;
+        slot.nameText.setText(`${p.username || "Player"} (${label})`);
         slot.nameText.setColor("#ffffff");
         slot.readyText.setText(p.ready ? "✓ 准备" : "等待中");
         slot.readyText.setColor(p.ready ? "#44ff44" : "#888888");
@@ -298,6 +302,7 @@ export class LobbyScene extends Phaser.Scene {
       hostId: data.hostId,
       players: data.players,
       seed: data.seed,
+      selectedShip: this.selectedShip,
       selectedFighter: this.selectedFighter
     });
   }

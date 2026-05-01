@@ -9,6 +9,7 @@ import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js"
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
 import { CHARACTER_ASSET_MANIFEST, CHARACTER_DIRECTIONS } from "../config/assets.manifest.js";
 import { FIGHTER_CONFIGS, FIGHTER_STORAGE_KEY } from "../config/fighters.js";
+import { SHIP_CONFIGS, SHIP_STORAGE_KEY, updateShipStats } from "../config/ships.js";
 import { ItemPool } from "../entities/ItemDrop.js";
 import { TreasureChest } from "../entities/TreasureChest.js";
 import { StatusEffectSystem } from "../systems/StatusEffectSystem.js";
@@ -839,6 +840,7 @@ export class GameScene extends Phaser.Scene {
 
   init(data) {
     this.selectedFighterKey = data?.selectedFighter || null;
+    this.selectedShipKey = data?.selectedShip || null;
     this.gameMode = data?.gameMode || "solo";
     this.networkManager = data?.networkManager || null;
     this.socketClient = data?.socketClient || null;
@@ -920,28 +922,43 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, WORLD_WIDTH / 2, WORLD_HEIGHT / 2);
     this.player.level = this.level;
 
-    // Apply fighter config
-    const fighterKey = this.selectedFighterKey || this.resolveFighterKey();
-    this.fighterConfig = FIGHTER_CONFIGS[fighterKey] || null;
-    if (this.fighterConfig) {
-      this.player.maxHp = this.fighterConfig.hp;
-      this.player.hp = this.fighterConfig.hp;
-      this.player.speed = this.fighterConfig.speed;
-      this.player.fighterType = fighterKey;
-      if (this.fighterConfig.tint) {
-        this.player.setTint(this.fighterConfig.tint);
+    // Apply ship config (new system) or fighter config (legacy fallback)
+    const shipKey = this.selectedShipKey || this.resolveShipKey();
+    this.shipConfig = SHIP_CONFIGS[shipKey] || null;
+    this.fighterConfig = null;
+    if (this.shipConfig) {
+      this.player.maxHp = this.shipConfig.stats.maxHp;
+      this.player.hp = this.shipConfig.stats.maxHp;
+      this.player.speed = this.shipConfig.stats.speed;
+      this.player.dashCooldownMs = this.shipConfig.stats.dashCooldown;
+      this.player.dashChargeRate = this.player.dashGaugeMax / (this.player.dashCooldownMs / 1000);
+      this.player.shipType = shipKey;
+      this.player.fighterType = shipKey;
+      if (this.shipConfig.tint) {
+        this.player.setTint(this.shipConfig.tint);
       }
-      // Apply fighter passive effects
-      const fx = this.fighterConfig.passiveEffect;
-      if (fx.dashCooldownMultiplier) {
-        this.player.dashCooldownMs = Math.round(this.player.dashCooldownMs * fx.dashCooldownMultiplier);
-        this.player.dashChargeRate = this.player.dashGaugeMax / (this.player.dashCooldownMs / 1000);
-      }
-      if (fx.damageCooldownBonusMs) {
-        this.player.damageCooldownMs += fx.damageCooldownBonusMs;
-      }
-      if (fx.pickupRadiusMultiplier) {
-        this.player.pickupRadius = Math.round(this.player.pickupRadius * fx.pickupRadiusMultiplier);
+    } else {
+      const fighterKey = this.selectedFighterKey || this.resolveFighterKey();
+      this.fighterConfig = FIGHTER_CONFIGS[fighterKey] || null;
+      if (this.fighterConfig) {
+        this.player.maxHp = this.fighterConfig.hp;
+        this.player.hp = this.fighterConfig.hp;
+        this.player.speed = this.fighterConfig.speed;
+        this.player.fighterType = fighterKey;
+        if (this.fighterConfig.tint) {
+          this.player.setTint(this.fighterConfig.tint);
+        }
+        const fx = this.fighterConfig.passiveEffect;
+        if (fx.dashCooldownMultiplier) {
+          this.player.dashCooldownMs = Math.round(this.player.dashCooldownMs * fx.dashCooldownMultiplier);
+          this.player.dashChargeRate = this.player.dashGaugeMax / (this.player.dashCooldownMs / 1000);
+        }
+        if (fx.damageCooldownBonusMs) {
+          this.player.damageCooldownMs += fx.damageCooldownBonusMs;
+        }
+        if (fx.pickupRadiusMultiplier) {
+          this.player.pickupRadius = Math.round(this.player.pickupRadius * fx.pickupRadiusMultiplier);
+        }
       }
     }
     this.enemies = this.add.group();
@@ -1237,13 +1254,22 @@ export class GameScene extends Phaser.Scene {
 
     this.createTouchControls();
     this.ensureDomHudOverlay();
+    this._applyMobileHudAdjustments();
     this.registerSceneShutdownCleanup();
-    // Auto-equip fighter's starting weapon, then show weapon selection for additional slot
-    if (this.fighterConfig) {
+    // Auto-equip starting weapon(s), then show weapon selection for additional slot
+    if (this.shipConfig) {
+      const weapons = this.shipConfig.initialWeapons || [this.shipConfig.initialWeapon];
+      weapons.forEach((w) => this.weaponSystem.addWeapon(w));
+      this.showHudAlert(`${this.shipConfig.name} READY`, 1200);
+      this.time.delayedCall(800, () => {
+        if (!this.isGameOver) {
+          this.openWeaponSelection();
+        }
+      });
+    } else if (this.fighterConfig) {
       const startWeapon = this.fighterConfig.startingWeapon;
       this.weaponSystem.addWeapon(startWeapon);
       this.showHudAlert(`${this.fighterConfig.label} READY`, 1200);
-      // Show weapon selection for a second weapon choice
       this.time.delayedCall(800, () => {
         if (!this.isGameOver) {
           this.openWeaponSelection();
@@ -2589,7 +2615,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   createTouchControls() {
-    const hasTouch = Boolean(this.sys.game.device?.input?.touch);
+    const hasTouch = Boolean(this.sys.game.device?.input?.touch)
+      || ("ontouchstart" in window)
+      || (navigator.maxTouchPoints > 0);
     this.touchControlsEnabled = hasTouch;
     this.updateHelpOverlayText();
     if (!hasTouch) {
@@ -2805,7 +2833,7 @@ export class GameScene extends Phaser.Scene {
     if (this.domHudElement && document.body.contains(this.domHudElement)) {
       return;
     }
-    const appRoot = document.getElementById("app") ?? document.body;
+    const appRoot = document.getElementById("game-root") ?? document.getElementById("app") ?? document.body;
     const hud = document.createElement("div");
     hud.id = "hud-core";
     hud.className = "hud-core";
@@ -3155,6 +3183,59 @@ export class GameScene extends Phaser.Scene {
         textShadow: "0 1px 0 rgba(26, 12, 5, 0.9)"
       });
     }
+  }
+
+  _applyMobileHudAdjustments() {
+    if (!this.touchControlsEnabled || !this.domHudElement) return;
+    const hud = this.domHudElement;
+    const bottom = hud.querySelector(".hud-bottom");
+    if (bottom) {
+      bottom.style.bottom = "110px";
+      bottom.style.width = "min(88vw, 520px)";
+    }
+    const dock = this.domHudRefs?.dock;
+    if (dock) {
+      dock.style.width = "min(88vw, 520px)";
+      dock.style.gridTemplateColumns = "80px minmax(0, 1fr) 80px";
+      dock.style.gap = "8px";
+      dock.style.padding = "8px 10px";
+      dock.style.borderRadius = "16px";
+    }
+    dock?.querySelectorAll(".hud-dock-side").forEach((side) => {
+      side.style.minHeight = "48px";
+      side.style.padding = "5px 8px";
+    });
+    dock?.querySelectorAll(".hud-dock-value").forEach((v) => {
+      v.style.fontSize = "24px";
+    });
+    const levelBadge = dock?.querySelector(".hud-level-badge");
+    if (levelBadge) {
+      levelBadge.style.width = "46px";
+      levelBadge.style.height = "46px";
+    }
+    const levelValue = dock?.querySelector(".hud-level-value");
+    if (levelValue) {
+      levelValue.style.fontSize = "24px";
+    }
+    dock?.querySelectorAll(".hud-bar-row").forEach((row) => {
+      row.style.gridTemplateColumns = "30px minmax(0, 1fr) 56px";
+      row.style.gap = "6px";
+    });
+    dock?.querySelectorAll(".hud-bar-track").forEach((t) => {
+      t.style.height = "10px";
+    });
+    dock?.querySelectorAll(".hud-bar-value").forEach((v) => {
+      v.style.fontSize = "13px";
+    });
+    const loadout = this.domHudRefs?.loadout;
+    if (loadout) {
+      loadout.style.left = "10px";
+      loadout.style.top = "10px";
+    }
+    this.domHudWeaponSlots?.forEach(({ slot }) => {
+      slot.style.width = "34px";
+      slot.style.height = "34px";
+    });
   }
 
   setDomHudVisible(isVisible) {
@@ -5787,9 +5868,10 @@ export class GameScene extends Phaser.Scene {
         }
       }
       if (levelStr) {
-        this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
+        const levelText = this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
           fontFamily: "Arial", fontSize: "11px", color: "#6688aa"
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
+        optionObjects.push(levelText);
       }
 
       // Evolution badge
@@ -6140,10 +6222,14 @@ export class GameScene extends Phaser.Scene {
     this.player.body?.setVelocity(0, 0);
     this.applyHudModalFocus(true);
     try {
-      const centerX = 640;
-      const centerY = 360;
+      const canvasW = 1280;
+      const canvasH = 720;
+      const centerX = canvasW / 2;
       const optionCount = START_WEAPON_OPTIONS.length;
-      const panelHeight = Math.max(500, 260 + optionCount * 72);
+      const maxPanelHeight = canvasH - 20;
+      const panelHeight = Math.min(maxPanelHeight, Math.max(500, 260 + optionCount * 72));
+      const panelTop = Math.max(10, (canvasH - panelHeight) / 2);
+      const centerY = panelTop + panelHeight / 2;
       const panel = this.add
       .rectangle(centerX, centerY, 700, panelHeight, 0x22150d, 0.96)
       .setStrokeStyle(3, 0xb48855, 0.96)
@@ -6154,9 +6240,10 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x6d4a31, 0.88)
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 2);
+      const headerBottom = panelTop + 130;
       const { titleChip, title } = this.createModalTitle(
       centerX,
-      centerY - 206,
+      panelTop + 50,
       "选择初始武器",
       {
         fontSize: 32,
@@ -6167,7 +6254,7 @@ export class GameScene extends Phaser.Scene {
     );
 
       const coinText = this.add
-      .text(centerX, centerY - 168, `金币: ${this.metaData.currency}`, {
+      .text(centerX, panelTop + 85, `金币: ${this.metaData.currency}`, {
         fontFamily: "Arial",
         fontSize: "20px",
         color: "#e2c388",
@@ -6179,7 +6266,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(RENDER_DEPTH.MENUS + 4);
 
       const subtitle = this.add
-      .text(centerX, centerY - 130, "选择一把武器开始游戏", {
+      .text(centerX, headerBottom, "选择一把武器开始游戏", {
         fontFamily: "Arial",
         fontSize: "17px",
         color: "#d8bf95",
@@ -6190,8 +6277,9 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 4);
 
+      const statusTextY = centerY + panelHeight / 2 - 22;
       const statusText = this.add
-      .text(centerX, centerY + panelHeight / 2 - 28, "", {
+      .text(centerX, statusTextY, "", {
         fontFamily: "Arial",
         fontSize: "18px",
         color: "#ebd7b7",
@@ -6203,8 +6291,11 @@ export class GameScene extends Phaser.Scene {
       .setDepth(RENDER_DEPTH.MENUS + 4);
 
       const optionRows = [];
-      const optionSpacing = Math.min(72, (panelHeight - 160) / optionCount);
-      const optionsStartY = centerY - (optionCount * optionSpacing) / 2 + optionSpacing / 2 - 20;
+      const optAreaTop = headerBottom + 28;
+      const optAreaBottom = statusTextY - 28;
+      const optAreaHeight = optAreaBottom - optAreaTop;
+      const optionSpacing = Math.min(72, (optAreaHeight - 74) / Math.max(1, optionCount - 1));
+      const optionsStartY = optAreaTop + 37;
       START_WEAPON_OPTIONS.forEach((option, index) => {
       const y = optionsStartY + index * optionSpacing;
       const box = this.add
@@ -6471,6 +6562,16 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  resolveShipKey() {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const stored = window.localStorage.getItem(SHIP_STORAGE_KEY);
+      if (stored && SHIP_CONFIGS[stored]) {
+        return stored;
+      }
+    }
+    return "striker";
+  }
+
   resolveFighterKey() {
     if (typeof window !== "undefined" && window.localStorage) {
       const stored = window.localStorage.getItem(FIGHTER_STORAGE_KEY);
@@ -6626,6 +6727,13 @@ export class GameScene extends Phaser.Scene {
     this.player.body?.setVelocity(0, 0);
     this.updateBestTimeRecord(this.runTimeMs);
     this.finalizeMetaRun();
+
+    // Update ship unlock stats
+    updateShipStats({
+      timeSurvivedMs: this.runTimeMs,
+      enemiesKilled: this.totalKills,
+      levelReached: this.level
+    });
 
     // Dramatic death sequence
     this.playDeathSequence(() => {
@@ -7053,14 +7161,24 @@ export class GameScene extends Phaser.Scene {
     this.hudObjects = [];
     this.hud = null;
 
-    const margin = 16;
-    const lineSpacing = 18;
+    const isMobile = this.sys.game.device.input.touch || window.innerWidth < 768;
+    const scale = isMobile ? 0.7 : 1;
+    const margin = 12 * scale;
+    const lineSpacing = 16 * scale;
+    const fontSize = Math.floor(14 * scale);
     const style = {
       fontFamily: "Arial",
-      fontSize: "16px",
+      fontSize: `${fontSize}px`,
       color: "#f7f3de",
       stroke: "#1c130e",
-      strokeThickness: 3
+      strokeThickness: Math.max(1, Math.floor(2 * scale))
+    };
+    const labelStyle = {
+      fontFamily: "Arial",
+      fontSize: `${Math.floor(10 * scale)}px`,
+      color: "#d6c6a2",
+      stroke: "#1c130e",
+      strokeThickness: 1
     };
 
     this.hpText = this.add
@@ -7071,13 +7189,15 @@ export class GameScene extends Phaser.Scene {
       .text(margin, margin + lineSpacing * 1, "等级 1 | 经验 0%", style)
       .setOrigin(0, 0)
       .setDepth(RENDER_DEPTH.HUD);
+    const barWidth = 100 * scale;
+    const barHeight = Math.max(4, 6 * scale);
     this.expBarBg = this.add
-      .rectangle(margin, margin + 36, 120, 6, 0x2b1f16, 0.9)
+      .rectangle(margin, margin + 32 * scale, barWidth, barHeight, 0x2b1f16, 0.9)
       .setOrigin(0, 0)
       .setDepth(RENDER_DEPTH.HUD)
       .setStrokeStyle(1, 0x7b6047, 0.8);
     this.expBarFill = this.add
-      .rectangle(margin, margin + 36, 120, 6, 0x6fd7ff, 0.95)
+      .rectangle(margin, margin + 32 * scale, barWidth, barHeight, 0x6fd7ff, 0.95)
       .setOrigin(0, 0)
       .setDepth(RENDER_DEPTH.HUD);
     this.timeText = this.add
@@ -7088,32 +7208,34 @@ export class GameScene extends Phaser.Scene {
       .text(margin, margin + lineSpacing * 3, "击杀: 0", style)
       .setOrigin(0, 0)
       .setDepth(RENDER_DEPTH.HUD);
+    const weaponLabelX = margin + 110 * scale;
+    const weaponLabelY = margin + 32 * scale;
     this.hudWeaponLabel = this.add
-      .text(margin + 134, margin + lineSpacing * 2, "武器", {
-        fontFamily: "Arial",
-        fontSize: "12px",
-        color: "#d6c6a2",
-        stroke: "#1c130e",
-        strokeThickness: 2
-      })
+      .text(weaponLabelX, weaponLabelY, "武器", labelStyle)
       .setOrigin(0, 0)
       .setDepth(RENDER_DEPTH.HUD);
     this.hudWeaponSlotIcons = [];
     const slotCount = Math.max(1, this.player?.maxWeaponSlots ?? 3);
+    const slotSize = Math.floor(22 * scale);
+    const slotSpacing = Math.floor(30 * scale);
+    const weaponAreaX = margin + 145 * scale;
+    const weaponAreaY = margin + 32 * scale + slotSize * 0.3;
     for (let i = 0; i < slotCount; i += 1) {
-      const slotX = margin + 170 + i * 36;
-      const slotY = margin + lineSpacing * 2 + 2;
-      const frame = this.add.rectangle(slotX, slotY, 28, 28, 0x1f1510, 0.86).setOrigin(0.5).setDepth(RENDER_DEPTH.HUD);
+      const slotX = weaponAreaX + i * slotSpacing;
+      const slotY = weaponAreaY;
+      const frame = this.add.rectangle(slotX, slotY, slotSize, slotSize, 0x1f1510, 0.86).setOrigin(0.5).setDepth(RENDER_DEPTH.HUD);
       frame.setStrokeStyle(1, 0x7b6047, 0.9);
+      const iconSize = Math.floor(slotSize * 0.65);
       const icon = this.add
         .image(slotX, slotY, "proj_dagger")
-        .setDisplaySize(18, 18)
+        .setDisplaySize(iconSize, iconSize)
         .setAlpha(0.28)
         .setDepth(RENDER_DEPTH.HUD);
-      // Cooldown bar background and fill
-      const cdBarBg = this.add.rectangle(slotX - 14, slotY + 17, 28, 4, 0x1a1208, 0.85)
+      const cdBarWidth = slotSize * 0.9;
+      const cdBarHeight = Math.max(2, 3 * scale);
+      const cdBarBg = this.add.rectangle(slotX - slotSize * 0.45, slotY + slotSize * 0.55, cdBarWidth, cdBarHeight, 0x1a1208, 0.85)
         .setOrigin(0, 0.5).setDepth(RENDER_DEPTH.HUD);
-      const cdBarFill = this.add.rectangle(slotX - 14, slotY + 17, 28, 4, 0x44aaff, 0.9)
+      const cdBarFill = this.add.rectangle(slotX - slotSize * 0.45, slotY + slotSize * 0.55, cdBarWidth, cdBarHeight, 0x44aaff, 0.9)
         .setOrigin(0, 0.5).setDepth(RENDER_DEPTH.HUD);
       this.hudWeaponSlotIcons.push({ frame, icon, cdBarBg, cdBarFill });
     }
@@ -7186,22 +7308,40 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     const cam = this.cameras?.main;
-    const anchorX = (cam?.scrollX ?? 0) + 16;
-    const anchorY = (cam?.scrollY ?? 0) + 16;
-    this.hpText.setPosition(anchorX + 0, anchorY + 0);
-    this.expText.setPosition(anchorX + 0, anchorY + 18);
-    this.expBarBg.setPosition(anchorX + 0, anchorY + 36);
-    this.expBarFill.setPosition(anchorX + 0, anchorY + 36);
-    this.timeText.setPosition(anchorX + 0, anchorY + 52);
-    this.killText.setPosition(anchorX + 0, anchorY + 70);
-    this.hudWeaponLabel?.setPosition(anchorX + 134, anchorY + 36);
+    if (!cam) return;
+    const isMobile = this.sys.game.device.input.touch || window.innerWidth < 768;
+    const scale = isMobile ? 0.7 : 1;
+    const margin = 12 * scale;
+    const lineSpacing = 16 * scale;
+    const anchorX = (cam.scrollX ?? 0) + margin;
+    const anchorY = (cam.scrollY ?? 0) + margin;
+    this.hpText.setPosition(anchorX, anchorY);
+    this.expText.setPosition(anchorX, anchorY + lineSpacing);
+    const barY = anchorY + 32 * scale;
+    const barWidth = 100 * scale;
+    this.expBarBg.setPosition(anchorX, barY);
+    this.expBarBg.setSize(barWidth, Math.max(4, 6 * scale));
+    this.expBarFill.setPosition(anchorX, barY);
+    this.expBarFill.setSize(barWidth, Math.max(4, 6 * scale));
+    this.timeText.setPosition(anchorX, anchorY + lineSpacing * 2);
+    this.killText.setPosition(anchorX, anchorY + lineSpacing * 3);
+    this.hudWeaponLabel?.setPosition(anchorX + 110 * scale, anchorY + 32 * scale);
+    const slotSize = Math.floor(22 * scale);
+    const slotSpacing = Math.floor(30 * scale);
+    const weaponAreaX = anchorX + 145 * scale;
+    const weaponAreaY = anchorY + 32 * scale + slotSize * 0.3;
     this.hudWeaponSlotIcons.forEach(({ frame, icon, cdBarBg, cdBarFill }, index) => {
-      const slotX = anchorX + 170 + index * 36;
-      const slotY = anchorY + 38;
+      const slotX = weaponAreaX + index * slotSpacing;
+      const slotY = weaponAreaY;
+      const iconSize = Math.floor(slotSize * 0.65);
       frame?.setPosition(slotX, slotY);
+      frame?.setSize(slotSize, slotSize);
       icon?.setPosition(slotX, slotY);
-      cdBarBg?.setPosition(slotX - 14, slotY + 17);
-      cdBarFill?.setPosition(slotX - 14, slotY + 17);
+      icon?.setDisplaySize(iconSize, iconSize);
+      cdBarBg?.setPosition(slotX - slotSize * 0.45, slotY + slotSize * 0.55);
+      cdBarBg?.setSize(slotSize * 0.9, Math.max(2, 3 * scale));
+      cdBarFill?.setPosition(slotX - slotSize * 0.45, slotY + slotSize * 0.55);
+      cdBarFill?.setSize(slotSize * 0.9, Math.max(2, 3 * scale));
     });
   }
 
@@ -7348,11 +7488,15 @@ export class GameScene extends Phaser.Scene {
     const width = Math.max(1, this.scale?.width ?? 1280);
     const height = Math.max(1, this.scale?.height ?? 720);
     if (this.edgeFogOverlay) {
-      if (this.textures && this.textures.exists(EDGE_FOG_TEXTURE_KEY)) {
-        this.edgeFogOverlay.setTexture(EDGE_FOG_TEXTURE_KEY);
+      if (!this.edgeFogOverlay.active || !this.edgeFogOverlay.scene) {
+        this.edgeFogOverlay = null;
+      } else {
+        if (this.textures && this.textures.exists(EDGE_FOG_TEXTURE_KEY)) {
+          this.edgeFogOverlay.setTexture(EDGE_FOG_TEXTURE_KEY);
+        }
+        this.edgeFogOverlay.setPosition(width * 0.5, height * 0.5);
+        return;
       }
-      this.edgeFogOverlay.setPosition(width * 0.5, height * 0.5);
-      return;
     }
 
     if (!this.textures || !this.textures.exists(EDGE_FOG_TEXTURE_KEY)) {

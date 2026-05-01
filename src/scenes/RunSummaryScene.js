@@ -101,7 +101,8 @@ export class RunSummaryScene extends Phaser.Scene {
     this.createActionButton(centerX, centerY + retryY, "重新开始", () => {
       this.scene.stop("RunSummaryScene");
       this.scene.stop("GameScene");
-      this.scene.start("GameScene");
+      const selectedShip = this.resolveSelectedShip();
+      this.scene.start("GameScene", selectedShip ? { selectedShip } : undefined);
     }, { variant: "primary", width: primaryButtonWidth, height: primaryButtonHeight });
 
     this.createActionButton(centerX, centerY + menuY, "返回主菜单", () => {
@@ -200,5 +201,12 @@ export class RunSummaryScene extends Phaser.Scene {
       return 0;
     }
     return Math.floor(parsed);
+  }
+
+  resolveSelectedShip() {
+    if (typeof window === "undefined" || !window.localStorage) {
+      return null;
+    }
+    return window.localStorage.getItem("forgeduel_selected_ship") || null;
   }
 }

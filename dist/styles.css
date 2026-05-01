@@ -33,6 +33,10 @@ body {
   position: relative;
 }
 
+#game-root {
+  position: relative;
+}
+
 #loading-screen {
   position: absolute;
   inset: 0;
@@ -549,7 +553,7 @@ canvas {
 #settings-btn {
   position: fixed;
   top: 8px;
-  left: 8px;
+  left: 820px;
   z-index: 60;
   width: 36px;
   height: 36px;
@@ -582,10 +586,12 @@ canvas {
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.6);
+  pointer-events: none;
 }
 
 #settings-panel.open {
   display: flex;
+  pointer-events: auto;
 }
 
 #settings-panel-inner {
@@ -679,6 +685,38 @@ input[type="range"]::-moz-range-thumb {
   background: rgba(60, 30, 30, 0.8);
   border-color: rgba(255, 100, 100, 0.4);
   color: #ff8888;
+}
+
+.settings-divider {
+  height: 1px;
+  background: rgba(58, 122, 191, 0.3);
+  margin: 8px 0;
+}
+
+.settings-user-row {
+  border-bottom: none;
+  padding-bottom: 4px;
+}
+
+.settings-logout-btn {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 100, 100, 0.5);
+  background: rgba(80, 20, 20, 0.6);
+  color: #ff8888;
+  font-size: 14px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 120ms ease;
+}
+
+.settings-logout-btn:hover {
+  background: rgba(120, 30, 30, 0.8);
+  color: #ffaaaa;
 }
 
 #settings-close {

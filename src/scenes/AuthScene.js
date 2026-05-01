@@ -32,8 +32,13 @@ export class AuthScene extends Phaser.Scene {
     this.tabLogin = this._createTab(cx - 60, cy - 78, "登录", true);
     this.tabRegister = this._createTab(cx + 60, cy - 78, "注册", false);
 
-    this.usernameInput = this._createInput(cx, cy - 30, "用户名 (3-20字符)");
+    this.usernameInput = this._createInput(cx, cy - 30, "用户名 (3-20字符)", false);
     this.passwordInput = this._createInput(cx, cy + 20, "密码 (6位以上)", true);
+
+    this._onResize = () => this._positionAllDomInputs();
+    window.addEventListener("resize", this._onResize);
+    this.scale.on("resize", this._onResize);
+    this._positionAllDomInputs();
 
     this.submitBtn = this._createButton(cx, cy + 80, "登录", () => this._handleSubmit());
 
@@ -76,14 +81,13 @@ export class AuthScene extends Phaser.Scene {
     input.type = isPassword ? "password" : "text";
     input.placeholder = placeholder;
     input.maxLength = 20;
+    input._gameY = y;
     Object.assign(input.style, {
       position: "absolute",
-      left: "50%",
-      top: `${(y / 720) * 100}%`,
       transform: "translate(-50%, -50%)",
-      width: "280px",
-      padding: "10px 14px",
-      fontSize: "16px",
+      width: "240px",
+      padding: "8px 10px",
+      fontSize: "14px",
       fontFamily: "Arial",
       background: "#0b1830",
       color: "#ffffff",
@@ -96,7 +100,33 @@ export class AuthScene extends Phaser.Scene {
     input.addEventListener("focus", () => { input.style.borderColor = "#6ab8ff"; });
     input.addEventListener("blur", () => { input.style.borderColor = "#3a7abf"; });
     document.body.appendChild(input);
+    this._positionDomInput(input);
     return input;
+  }
+
+  _positionDomInput(input) {
+    if (!input || typeof document === "undefined") return;
+    const canvas = this.game.canvas;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const gameY = input._gameY ?? 0;
+    const screenY = rect.top + (gameY / 720) * rect.height;
+    const centerX = rect.left + rect.width * 0.5;
+    const canvasW = rect.width;
+    const isMobile = canvasW < 600;
+    const inputWidth = isMobile
+      ? Math.min(240, canvasW * 0.7)
+      : Math.min(260, canvasW * 0.4);
+    input.style.top = `${screenY}px`;
+    input.style.left = `${centerX}px`;
+    input.style.width = `${inputWidth}px`;
+    input.style.fontSize = isMobile ? "14px" : "16px";
+    input.style.padding = isMobile ? "8px 10px" : "10px 14px";
+  }
+
+  _positionAllDomInputs() {
+    this._positionDomInput(this.usernameInput);
+    this._positionDomInput(this.passwordInput);
   }
 
   _createButton(x, y, label, onClick) {
@@ -172,6 +202,11 @@ export class AuthScene extends Phaser.Scene {
   }
 
   _cleanupDom() {
+    if (this._onResize) {
+      window.removeEventListener("resize", this._onResize);
+      this.scale.off("resize", this._onResize);
+      this._onResize = null;
+    }
     this.usernameInput?.remove();
     this.passwordInput?.remove();
   }

@@ -14,6 +14,7 @@
   </head>
   <body>
     <div id="app">
+      <button id="settings-btn" title="设置">⚙</button>
       <div id="loading-screen" aria-live="polite">
         <div id="loading-card">
           <div id="loading-title">ForgeDuel</div>
@@ -31,10 +32,8 @@
         </div>
       </div>
       <div id="game-root"></div>
-      <div id="help">WASD Move · SPACE Dash · R Restart</div>
       <button id="fullscreen-btn" title="全屏">⛶</button>
-      <button id="settings-btn" title="设置">⚙</button>
-      <div id="settings-panel" style="display:none;">
+      <div id="settings-panel">
         <div id="settings-panel-inner">
           <div id="settings-title">设置</div>
           <div class="settings-row">
@@ -54,6 +53,14 @@
           <div class="settings-row">
             <span class="settings-label">屏幕震动</span>
             <button class="settings-toggle" id="settings-shake" data-on="true">开</button>
+          </div>
+          <div id="settings-auth-section" style="display:none;">
+            <div class="settings-divider"></div>
+            <div class="settings-row settings-user-row">
+              <span class="settings-label">账号</span>
+              <span id="settings-username" class="settings-val" style="color:#88ff88;min-width:auto;flex:1;text-align:left;"></span>
+            </div>
+            <button id="settings-logout-btn" class="settings-logout-btn">退出登录</button>
           </div>
           <button id="settings-close">确定</button>
         </div>
@@ -178,20 +185,113 @@
         function openSettings() {
           settingsPanel.classList.add('open');
           applySettings();
+          refreshAuthSection();
         }
         function closeSettings() {
           settingsPanel.classList.remove('open');
+          // Temporarily block pointer events from reaching Phaser canvas
+          var gameRoot = document.getElementById('game-root');
+          if (gameRoot) {
+            gameRoot.style.pointerEvents = 'none';
+            setTimeout(function() { gameRoot.style.pointerEvents = ''; }, 200);
+          }
         }
 
-        settingsBtn.addEventListener('click', openSettings);
-        closeBtn.addEventListener('click', closeSettings);
+        settingsBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); openSettings(); });
+        closeBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); closeSettings(); });
         settingsPanel.addEventListener('click', function(e) {
-          if (e.target === settingsPanel) closeSettings();
+          if (e.target === settingsPanel) { e.preventDefault(); e.stopPropagation(); closeSettings(); }
+        });
+
+        // Prevent all clicks inside settings panel from propagating
+        document.querySelectorAll('#settings-panel button, #settings-panel input, #settings-panel select').forEach(function(el) {
+          el.addEventListener('click', function(e) { e.stopPropagation(); });
+          el.addEventListener('mousedown', function(e) { e.stopPropagation(); });
         });
 
         window.__forgeduelSettings = settings;
         window.__forgeduelOpenSettings = openSettings;
         window.__forgeduelCloseSettings = closeSettings;
+
+        // --- Cookie auth helpers ---
+        function getCookie(name) {
+          var m = document.cookie.match(new RegExp('(?:^|; )' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '=([^;]*)'));
+          return m ? decodeURIComponent(m[1]) : null;
+        }
+
+        function getStoredUser() {
+          try {
+            var raw = localStorage.getItem('forgeduel_user');
+            return raw ? JSON.parse(raw) : null;
+          } catch(e) { return null; }
+        }
+
+        function refreshAuthSection() {
+          var section = document.getElementById('settings-auth-section');
+          var nameEl = document.getElementById('settings-username');
+          var token = localStorage.getItem('forgeduel_token') || getCookie('forgeduel_token');
+          var user = getStoredUser();
+          if (token && user && user.username) {
+            section.style.display = '';
+            nameEl.textContent = user.username;
+          } else {
+            section.style.display = 'none';
+          }
+        }
+
+        // Auto-login from cookie if no token in localStorage
+        (function autoLogin() {
+          var hasLocalToken = !!localStorage.getItem('forgeduel_token');
+          if (hasLocalToken) return;
+          var cookieToken = getCookie('forgeduel_token');
+          if (!cookieToken) return;
+          // Validate cookie token with server
+          fetch('/api/auth/me', {
+            headers: { 'Authorization': 'Bearer ' + cookieToken }
+          }).then(function(r) {
+            if (!r.ok) throw new Error('unauthorized');
+            return r.json();
+          }).then(function(data) {
+            if (data.user) {
+              localStorage.setItem('forgeduel_token', cookieToken);
+              localStorage.setItem('forgeduel_user', JSON.stringify(data.user));
+            }
+          }).catch(function() {
+            // Cookie expired or invalid — ignore
+          });
+        })();
+
+        // Logout handler
+        var logoutBtn = document.getElementById('settings-logout-btn');
+        if (logoutBtn) {
+          logoutBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            // Clear local state
+            localStorage.removeItem('forgeduel_token');
+            localStorage.removeItem('forgeduel_user');
+            // Clear server cookie
+            fetch('/api/auth/logout', { method: 'POST' }).catch(function(){});
+            // Also clear cookie client-side as fallback
+            document.cookie = 'forgeduel_token=; path=/; max-age=0';
+            closeSettings();
+            refreshAuthSection();
+            // Navigate Phaser to MainMenuScene
+            if (window.__forgeduelGame && window.__forgeduelGame.scene) {
+              var scenes = window.__forgeduelGame.scene.getScenes(true);
+              scenes.forEach(function(s) {
+                if (s.scene.key !== 'MainMenuScene') {
+                  s.scene.stop();
+                }
+              });
+              var menu = window.__forgeduelGame.scene.getScene('MainMenuScene');
+              if (menu) {
+                menu.scene.restart();
+              } else {
+                window.__forgeduelGame.scene.start('MainMenuScene');
+              }
+            }
+          });
+        }
       })();
     </script>
   </body>

@@ -5,13 +5,14 @@ import jwt from "jsonwebtoken";
 import path from "path";
 import { fileURLToPath } from "url";
 
-import { PORT, MONGODB_URI, SESSION_SECRET, CORS_ORIGIN } from "./config.js";
+import { PORT, MONGODB_URI, SESSION_SECRET, CORS_ORIGIN, HOST } from "./config.js";
 import { connectDB } from "./db/connection.js";
 import { authRoutes } from "./auth/routes.js";
 import { playerDataRoutes } from "./api/player-data.js";
 import { leaderboardRoutes } from "./api/leaderboard.js";
 import { RoomManager } from "./rooms/RoomManager.js";
 import { setupVoiceSignaling } from "./signaling/voice.js";
+import os from "os";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +63,20 @@ io.use((socket, next) => {
 const roomManager = new RoomManager(io);
 setupVoiceSignaling(io);
 
-httpServer.listen(PORT, () => {
-  console.log(`[Server] ForgeDuel server running on http://localhost:${PORT}`);
+httpServer.listen(PORT, HOST, () => {
+  const localIP = getLocalIP();
+  console.log(`[Server] ForgeDuel server running on http://${HOST === '0.0.0.0' ? localIP : HOST}:${PORT}`);
+  console.log(`[Server] 局域网访问: http://${localIP}:${PORT}`);
 });
+
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return 'localhost';
+}

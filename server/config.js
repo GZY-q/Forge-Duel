@@ -6,3 +6,4 @@ export const SESSION_SECRET = process.env.SESSION_SECRET || "forgeduel-dev-secre
 export const JWT_EXPIRES_IN = "7d";
 export const TURN_SECRET = process.env.TURN_SECRET || "forgeduel-turn-secret";
 export const CORS_ORIGIN = process.env.CORS_ORIGIN || "*";
+export const HOST = process.env.HOST || "0.0.0.0";

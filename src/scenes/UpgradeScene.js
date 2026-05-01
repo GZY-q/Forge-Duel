@@ -107,9 +107,14 @@ export class UpgradeScene extends Phaser.Scene {
       })
       .setOrigin(0.5);
 
-    this.createButton(centerX, 628, "开始游戏", () => {
-      this.scene.start("GameScene");
-    });
+    this.createButton(centerX - 140, 628, "开始游戏", () => {
+      const selectedShip = this.resolveSelectedShip();
+      this.scene.start("GameScene", selectedShip ? { selectedShip } : undefined);
+    }, 200, 50);
+
+    this.createButton(centerX + 140, 628, "返回主菜单", () => {
+      this.scene.start("MainMenuScene");
+    }, 200, 50);
 
     this.refreshCoinsText();
   }
@@ -285,5 +290,12 @@ export class UpgradeScene extends Phaser.Scene {
     } catch (_error) {
       // Ignore storage failures to keep runtime stable.
     }
+  }
+
+  resolveSelectedShip() {
+    if (typeof window === "undefined" || !window.localStorage) {
+      return null;
+    }
+    return window.localStorage.getItem("forgeduel_selected_ship") || null;
   }
 }

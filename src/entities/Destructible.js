@@ -102,10 +102,13 @@ export class Destructible extends Phaser.GameObjects.Container {
     if (this.destroyed) return;
     this.currentHp -= amount;
 
-    // Flash white
-    this.gfx.setTint(0xffffff);
+    // Flash by redrawing with white overlay
+    this.gfx.clear();
+    this.gfx.fillStyle(0xffffff, 1);
+    const r = this.config.radius;
+    this.gfx.fillRect(-r, -r, r * 2, r * 2);
     this.scene.time.delayedCall(80, () => {
-      if (this.gfx?.active) this.gfx.clearTint();
+      if (this.gfx?.active) this.draw();
     });
 
     if (this.currentHp <= 0) {
