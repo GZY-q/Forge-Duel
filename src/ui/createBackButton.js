@@ -1,62 +1,71 @@
 /**
- * Creates a unified back button fixed at the top-left corner.
- * Style matches Blood Survivors: gold border, blue fill, pixel-bevel.
+ * VS-style back button fixed at the top-right corner.
+ * Red button with gold border — matches Vampire Survivors UI.
  *
  * @param {Phaser.Scene} scene
  * @param {function} onBack - callback when back is pressed
+ * @param {number} [x] - optional x position (defaults to top-right)
+ * @param {number} [y] - optional y position
+ * @returns {{ container, plate, text, setVisible }}
  */
-export function createBackButton(scene, onBack) {
-  const x = 60;
-  const y = 36;
+export function createBackButton(scene, onBack, x, y) {
+  x = x ?? scene.cameras.main.width - 84;
+  y = y ?? 36;
+
+  const C = {
+    btnRed: 0xb03020,
+    btnRedHover: 0xc04030,
+    btnBorder: 0xc4a040,
+    textGold: 0xfef08a,
+  };
   const w = 100;
-  const h = 36;
+  const h = 42;
+  const container = scene.add.container(x, y).setDepth(9999);
 
-  const plate = scene.add.rectangle(x, y, w, h, 0x3b5998, 1)
-    .setStrokeStyle(3, 0xd4af37, 1)
+  const shadow = scene.add.rectangle(0, 3, w, h, 0x000000, 0.5).setOrigin(0.5);
+  const plate = scene.add.rectangle(0, 0, w, h, C.btnRed, 1)
+    .setStrokeStyle(3, C.btnBorder, 1)
     .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(9999)
     .setInteractive({ useHandCursor: true });
+  const bevel = scene.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
+    .setStrokeStyle(1, 0xffffff, 0.1)
+    .setOrigin(0.5);
 
-  const bevel = scene.add.rectangle(x, y, w - 6, h - 6, 0, 0)
-    .setStrokeStyle(1, 0xffffff, 0.12)
-    .setOrigin(0.5)
-    .setScrollFactor(0)
-    .setDepth(9999);
+  const text = scene.add.text(0, 0, "返回", {
+    fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
+    fontStyle: "bold", stroke: "#0a0a0a", strokeThickness: 3
+  }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  const text = scene.add.text(x, y, "← 返回", {
-    fontFamily: "Zpix", fontSize: "15px", color: "#ffffff",
-    fontStyle: "bold", stroke: "#0a0a0a", strokeThickness: 2
-  }).setOrigin(0.5).setScrollFactor(0).setDepth(9999)
-    .setInteractive({ useHandCursor: true });
+  container.add([shadow, plate, bevel, text]);
 
-  plate.on("pointerover", () => {
-    plate.setStrokeStyle(3, 0xfef08a, 1);
+  const onOver = () => {
+    plate.setFillStyle(C.btnRedHover, 1);
+    plate.setStrokeStyle(3, C.textGold, 1);
     text.setColor("#fef08a");
-  });
-  plate.on("pointerout", () => {
-    plate.setStrokeStyle(3, 0xd4af37, 1);
+  };
+  const onOut = () => {
+    plate.setFillStyle(C.btnRed, 1);
+    plate.setStrokeStyle(3, C.btnBorder, 1);
     text.setColor("#ffffff");
-  });
-  text.on("pointerover", () => {
-    plate.setStrokeStyle(3, 0xfef08a, 1);
-    text.setColor("#fef08a");
-  });
-  text.on("pointerout", () => {
-    plate.setStrokeStyle(3, 0xd4af37, 1);
-    text.setColor("#ffffff");
-  });
-
+  };
   const trigger = () => {
     scene.tweens.add({
-      targets: [plate, text, bevel],
-      scaleX: 0.92, scaleY: 0.92,
+      targets: container, scaleX: 0.92, scaleY: 0.92,
       duration: 60, yoyo: true,
-      onComplete: () => onBack()
+      onComplete: () => { if (typeof onBack === "function") onBack(); }
     });
   };
+
+  plate.on("pointerover", onOver);
+  plate.on("pointerout", onOut);
+  text.on("pointerover", onOver);
+  text.on("pointerout", onOut);
   plate.on("pointerdown", trigger);
   text.on("pointerdown", trigger);
 
-  return { plate, text, bevel };
+  function setVisible(isVisible) {
+    container.setVisible(isVisible);
+  }
+
+  return { container, plate, text, setVisible };
 }

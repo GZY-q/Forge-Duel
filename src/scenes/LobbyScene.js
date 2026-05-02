@@ -3,6 +3,7 @@ import { SHIP_CONFIGS, SHIP_STORAGE_KEY } from "../config/ships.js";
 import { SocketClient } from "../networking/SocketClient.js";
 import { NetworkManager } from "../networking/NetworkManager.js";
 import { VoiceManager } from "../networking/VoiceManager.js";
+import { createVSBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
@@ -26,18 +27,16 @@ export class LobbyScene extends Phaser.Scene {
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    this.add.rectangle(cx, cy, camera.width, camera.height, 0x071120, 1);
-    for (let y = 0; y < camera.height; y += 32) {
-      const color = Math.floor(y / 32) % 2 === 0 ? 0x0d1a31 : 0x11213d;
-      this.add.rectangle(cx, y + 16, camera.width, 30, color, 1).setOrigin(0.5);
-    }
+    // ── VS Background ──
+    createVSBackground(this);
 
-    this.add.rectangle(cx, cy, 700, 520, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96);
-    this.add.rectangle(cx, cy, 680, 500, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88);
+    // ── Panel ──
+    createVSPanel(this, cx, cy, 700, 520);
 
+    // ── Title ──
     this.add.text(cx, cy - 225, "联机大厅", {
-      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
-      stroke: "#102640", strokeThickness: 6
+      fontFamily: "Zpix", fontSize: "32px", color: "#ffffff",
+      stroke: "#2a2a3a", strokeThickness: 5
     }).setOrigin(0.5);
 
     this.statusText = this.add.text(cx, cy - 190, "正在连接...", {
@@ -52,10 +51,10 @@ export class LobbyScene extends Phaser.Scene {
     this.playerSlots = [];
     for (let i = 0; i < MAX_PLAYERS; i++) {
       const slotY = cy - 100 + i * 55;
-      const bg = this.add.rectangle(cx, slotY, 500, 44, 0x1a324f, 0.9)
-        .setStrokeStyle(1, 0x3a5a7f, 0.8);
+      const bg = this.add.rectangle(cx, slotY, 500, 44, 0x2a2a4a, 0.9)
+        .setStrokeStyle(1, 0x4a4a5a, 0.8);
       const nameText = this.add.text(cx - 220, slotY, "等待玩家...", {
-        fontFamily: "Zpix", fontSize: "16px", color: "#5a7a9f"
+        fontFamily: "Zpix", fontSize: "16px", color: "#5a5a6a"
       }).setOrigin(0, 0.5);
       const readyText = this.add.text(cx + 200, slotY, "", {
         fontFamily: "Zpix", fontSize: "14px", color: "#44ff44"
@@ -68,10 +67,16 @@ export class LobbyScene extends Phaser.Scene {
     }
 
     this.voiceControls = this._createVoiceControls(cx, cy + 155);
-    this.readyBtn = this._createButton(cx - 80, cy + 210, "准备", () => this._toggleReady());
-    this.startBtn = this._createButton(cx + 80, cy + 210, "开始游戏", () => this._startGame());
-    this.startBtn.bg.setAlpha(0.4);
-    this.startBtn.bg.disableInteractive();
+    this.readyBtn = createVSButton(this, cx - 80, cy + 210, "准备", {
+      width: 140, height: 42, fontSize: "18px",
+      onClick: () => this._toggleReady()
+    });
+    this.startBtn = createVSButton(this, cx + 80, cy + 210, "开始游戏", {
+      width: 140, height: 42, fontSize: "18px",
+      onClick: () => this._startGame()
+    });
+    this.startBtn.plate.setAlpha(0.4);
+    this.startBtn.plate.disableInteractive();
 
     createBackButton(this, () => this._leaveAndReturn());
 
@@ -97,21 +102,21 @@ export class LobbyScene extends Phaser.Scene {
       position: "absolute", left: "50%", top: "30%",
       transform: "translate(-50%, -50%)", width: "180px",
       padding: "10px", fontSize: "20px", fontFamily: "monospace",
-      background: "#0b1830", color: "#ffd866", border: "2px solid #ffd866",
-      borderRadius: "6px", outline: "none", textAlign: "center",
+      background: "#1a1a2a", color: "#ffd866", border: "2px solid #c4a040",
+      borderRadius: "4px", outline: "none", textAlign: "center",
       letterSpacing: "8px", zIndex: "200", textTransform: "uppercase"
     });
     document.body.appendChild(this.codeInput);
   }
 
   _createVoiceControls(x, y) {
-    const micBg = this.add.rectangle(x - 60, y, 44, 44, 0x1a324f, 1)
+    const micBg = this.add.rectangle(x - 60, y, 44, 44, 0x2a2a4a, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const micIcon = this.add.text(x - 60, y, "MIC", {
       fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
     }).setOrigin(0.5);
 
-    const spkBg = this.add.rectangle(x + 60, y, 44, 44, 0x1a324f, 1)
+    const spkBg = this.add.rectangle(x + 60, y, 44, 44, 0x2a2a4a, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const spkIcon = this.add.text(x + 60, y, "SPK", {
       fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
@@ -135,30 +140,6 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     return { micBg, micIcon, spkBg, spkIcon };
-  }
-
-  _createButton(x, y, label, onClick) {
-    const bg = this.add.rectangle(x, y, 140, 40, 0x1a324f, 1)
-      .setStrokeStyle(2, 0x6ab8ff, 1).setInteractive({ useHandCursor: true });
-    const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
-      stroke: "#0f1c2f", strokeThickness: 3
-    }).setOrigin(0.5);
-    bg.on("pointerdown", onClick);
-    text.on("pointerdown", onClick);
-    bg.on("pointerover", () => bg.setStrokeStyle(3, 0x9bd3ff, 1));
-    bg.on("pointerout", () => bg.setStrokeStyle(2, 0x6ab8ff, 1));
-    return { bg, text };
-  }
-
-  _createLink(x, y, label, onClick) {
-    const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-    text.on("pointerdown", onClick);
-    text.on("pointerover", () => text.setColor("#ffffff"));
-    text.on("pointerout", () => text.setColor("#7ab8e0"));
-    return text;
   }
 
   async _connectAndJoin() {
@@ -229,13 +210,13 @@ export class LobbyScene extends Phaser.Scene {
         slot.readyText.setText(p.ready ? "✓ 准备" : "等待中");
         slot.readyText.setColor(p.ready ? "#44ff44" : "#888888");
         slot.hostText.setText(p.isHost ? "HOST" : "");
-        slot.bg.setStrokeStyle(1, p.isHost ? 0xffd866 : 0x3a5a7f, 0.8);
+        slot.bg.setStrokeStyle(1, p.isHost ? 0xffd866 : 0x4a4a5a, 0.8);
       } else {
         slot.nameText.setText("等待玩家...");
-        slot.nameText.setColor("#5a7a9f");
+        slot.nameText.setColor("#5a5a6a");
         slot.readyText.setText("");
         slot.hostText.setText("");
-        slot.bg.setStrokeStyle(1, 0x3a5a7f, 0.8);
+        slot.bg.setStrokeStyle(1, 0x4a4a5a, 0.8);
       }
     }
     this._updateStartButton();
@@ -247,11 +228,11 @@ export class LobbyScene extends Phaser.Scene {
     const allReady = players.length >= 1 && players.every((p) => p.ready || p.isHost);
 
     if (isHost && allReady) {
-      this.startBtn.bg.setAlpha(1);
-      this.startBtn.bg.setInteractive({ useHandCursor: true });
+      this.startBtn.plate.setAlpha(1);
+      this.startBtn.plate.setInteractive({ useHandCursor: true });
     } else {
-      this.startBtn.bg.setAlpha(0.4);
-      this.startBtn.bg.disableInteractive();
+      this.startBtn.plate.setAlpha(0.4);
+      this.startBtn.plate.disableInteractive();
     }
   }
 
@@ -280,7 +261,7 @@ export class LobbyScene extends Phaser.Scene {
     this.isReady = !this.isReady;
     await this.networkManager?.setReady(this.isReady);
     this.readyBtn.text.setText(this.isReady ? "取消准备" : "准备");
-    this.readyBtn.bg.setStrokeStyle(2, this.isReady ? 0xffd866 : 0x6ab8ff, 1);
+    this.readyBtn.plate.setStrokeStyle(3, this.isReady ? 0xffd866 : 0xc4a040, 1);
   }
 
   async _startGame() {

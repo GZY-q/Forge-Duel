@@ -6,7 +6,17 @@ import {
   isShipUnlocked,
   getUnlockConditionText
 } from "../config/ships.js";
-import { createBackButton } from "../ui/createBackButton.js";
+import {
+  createVSBackground,
+  createVSTopBar,
+  createVSBackButton,
+  createVSPanel,
+  createVSCard,
+  createVSConfirmButton,
+  createVSButton
+} from "../ui/vsUI.js";
+
+const COIN_STORAGE_KEY = "forgeduel_coins";
 
 export class ShipSelectionScene extends Phaser.Scene {
   constructor() {
@@ -19,53 +29,49 @@ export class ShipSelectionScene extends Phaser.Scene {
 
   create() {
     const cam = this.cameras.main;
-    const centerX = cam.width * 0.5;
-    const centerY = cam.height * 0.5;
+    const cx = cam.width * 0.5;
+    const cy = cam.height * 0.5;
 
-    // Background
-    this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x071120, 1);
-    for (let y = 0; y < cam.height; y += 32) {
-      const color = Math.floor(y / 32) % 2 === 0 ? 0x0d1a31 : 0x11213d;
-      this.add.rectangle(centerX, y + 16, cam.width, 30, color, 1).setOrigin(0.5);
-    }
+    // ── Background ──
+    createVSBackground(this);
 
-    // Panel
-    const panelW = 900;
-    const panelH = 600;
-    this.add.rectangle(centerX, centerY, panelW, panelH, 0x10203a, 0.96)
-      .setStrokeStyle(4, 0x5ca7ff, 1);
-    this.add.rectangle(centerX, centerY, panelW - 16, panelH - 16, 0x0b1830, 0)
-      .setStrokeStyle(2, 0x9bd3ff, 0.9);
+    // ── Top bar ──
+    const coins = this.loadCoins();
+    this.topBar = createVSTopBar(this, {
+      coins,
+      showBack: true,
+      onBack: () => this.scene.start("MainMenuScene")
+    });
 
-    // Title
-    this.add.text(centerX, centerY - panelH / 2 + 40, "选择你的战机", {
-      fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
-      stroke: "#102640", strokeThickness: 6
-    }).setOrigin(0.5);
+    // ── Central Panel ──
+    const panelW = 780;
+    const panelH = 520;
+    const panelCenterY = cy + 20;
+    const panelTop = panelCenterY - panelH / 2;
+    const panelBottom = panelCenterY + panelH / 2;
+    createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    // Subtitle
-    this.add.text(centerX, centerY - panelH / 2 + 72, "每种战机拥有不同属性和特殊能力", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#8ab8e0",
-      stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5);
+    // ── Title (above panel) ──
+    this.add.text(cx, panelTop - 20, "角色选择", {
+      fontFamily: "Zpix", fontSize: "26px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 5
+    }).setOrigin(0.5).setDepth(100);
 
-    // Load stats for unlock checks
+    // ── Load stats ──
     this.shipStats = loadShipStats();
     this.selectedShipId = null;
     this.shipCards = [];
-    this.confirmBtn = null;
-    this.confirmLabel = null;
-    this.statusText = null;
+    this.detailObjects = null;
 
-    // Ship cards grid: 4 columns x 2 rows
+    // ── Ship cards grid ──
     const cols = 4;
-    const cardW = 190;
-    const cardH = 200;
-    const gapX = 14;
-    const gapY = 14;
+    const cardW = 150;
+    const cardH = 140;
+    const gapX = 12;
+    const gapY = 12;
     const gridW = cols * cardW + (cols - 1) * gapX;
-    const startX = centerX - gridW / 2 + cardW / 2;
-    const startY = centerY - 40;
+    const startX = cx - gridW / 2 + cardW / 2;
+    const startY = panelTop + 100;
 
     SHIP_KEYS.forEach((key, index) => {
       const config = SHIP_CONFIGS[key];
@@ -76,152 +82,18 @@ export class ShipSelectionScene extends Phaser.Scene {
       this.createShipCard(x, y, cardW, cardH, config);
     });
 
-    // Status text
-    this.statusText = this.add.text(centerX, centerY + panelH / 2 - 80, "", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#ff8888",
-      stroke: "#0d1a2d", strokeThickness: 3
-    }).setOrigin(0.5);
+    // ── Detail panel at bottom ──
+    this.createDetailPanel(cx, panelBottom - 55, panelW - 30, 90);
 
-    // Confirm button
-    this.createConfirmButton(centerX, centerY + panelH / 2 - 45);
-
-    // Back button (unified, top-left)
-    createBackButton(this, () => this.scene.start("MainMenuScene"));
-  }
-
-  createShipCard(x, y, w, h, config) {
-    const unlocked = isShipUnlocked(config.id, this.shipStats);
-    const tint = config.tint;
-
-    // Card background
-    const card = this.add.rectangle(x, y, w, h, 0x1a324f, 0.95)
-      .setStrokeStyle(2, 0x5ca7ff, 0.9)
-      .setInteractive({ useHandCursor: unlocked });
-
-    // Inner
-    const cardInner = this.add.rectangle(x, y, w - 10, h - 10, 0x0f2440, 0.9)
-      .setStrokeStyle(1, 0x3a7abf, 0.6);
-
-    // Ship icon area (colored circle as placeholder)
-    const iconCircle = this.add.circle(x, y - 50, 28, tint, unlocked ? 0.85 : 0.25)
-      .setStrokeStyle(2, tint, unlocked ? 1 : 0.3);
-
-    // Ship name
-    const nameColor = unlocked ? "#ffffff" : "#667788";
-    const nameText = this.add.text(x, y - 14, config.name, {
-      fontFamily: "Zpix", fontSize: "20px", color: nameColor,
-      stroke: "#0f1c2f", strokeThickness: 4
-    }).setOrigin(0.5);
-
-    // Difficulty stars
-    const stars = "★".repeat(config.difficulty) + "☆".repeat(5 - config.difficulty);
-    const starsText = this.add.text(x, y + 8, stars, {
-      fontFamily: "Zpix", fontSize: "14px", color: unlocked ? "#ffd866" : "#556666"
-    }).setOrigin(0.5);
-
-    // Stats
-    const statsStr = `HP:${config.stats.maxHp} SPD:${config.stats.speed}`;
-    const statsText = this.add.text(x, y + 28, statsStr, {
-      fontFamily: "Zpix", fontSize: "12px", color: unlocked ? "#cfe9ff" : "#556666"
-    }).setOrigin(0.5);
-
-    // Weapon
-    const weaponLabels = { dagger: "匕首", fireball: "火球", lightning: "闪电", orbit_blades: "轨道刃" };
-    const wepName = config.initialWeapons
-      ? config.initialWeapons.map(w => weaponLabels[w] || w).join("+")
-      : (weaponLabels[config.initialWeapon] || config.initialWeapon);
-    const wepText = this.add.text(x, y + 44, `武器: ${wepName}`, {
-      fontFamily: "Zpix", fontSize: "11px", color: unlocked ? "#8ab8dd" : "#556666"
-    }).setOrigin(0.5);
-
-    // Lock overlay / unlock condition
-    let lockOverlay = null;
-    let lockText = null;
-    if (!unlocked) {
-      lockOverlay = this.add.rectangle(x, y, w, h, 0x000000, 0.55);
-      const condText = getUnlockConditionText(config.id);
-      lockText = this.add.text(x, y + 64, `🔒 ${condText}`, {
-        fontFamily: "Zpix", fontSize: "11px", color: "#ffaa66",
-        stroke: "#0d1a2d", strokeThickness: 2,
-        wordWrap: { width: w - 20 },
-        align: "center"
-      }).setOrigin(0.5);
-    }
-
-    // Click handler
-    const onSelect = () => {
-      if (!unlocked) {
-        this.statusText.setText("此战机尚未解锁");
-        this.statusText.setColor("#ff8888");
-        return;
-      }
-      this.selectShip(config.id);
-    };
-
-    card.on("pointerdown", onSelect);
-    cardInner.on("pointerdown", onSelect);
-    iconCircle.on("pointerdown", onSelect);
-    nameText.on("pointerdown", onSelect);
-
-    if (unlocked) {
-      card.on("pointerover", () => {
-        if (this.selectedShipId !== config.id) {
-          card.setStrokeStyle(3, 0x9bd3ff, 1);
-        }
-      });
-      card.on("pointerout", () => {
-        if (this.selectedShipId !== config.id) {
-          card.setStrokeStyle(2, 0x5ca7ff, 0.9);
-        }
-      });
-    }
-
-    this.shipCards.push({
-      id: config.id,
-      card,
-      cardInner,
-      iconCircle,
-      unlocked
-    });
-  }
-
-  selectShip(shipId) {
-    this.selectedShipId = shipId;
-
-    // Update card highlights
-    this.shipCards.forEach((entry) => {
-      if (entry.id === shipId) {
-        entry.card.setStrokeStyle(3, 0xffdd44, 1);
-      } else {
-        entry.card.setStrokeStyle(2, 0x5ca7ff, entry.unlocked ? 0.9 : 0.5);
-      }
-    });
-
-    const config = SHIP_CONFIGS[shipId];
-    this.statusText.setText(`已选择: ${config.name}`);
-    this.statusText.setColor("#88ff88");
-  }
-
-  createConfirmButton(x, y) {
-    const btn = this.add.rectangle(x, y, 200, 48, 0x255283, 1)
-      .setStrokeStyle(3, 0x6ab8ff, 1)
-      .setInteractive({ useHandCursor: true });
-    const label = this.add.text(x, y, "开始游戏", {
-      fontFamily: "Zpix", fontSize: "24px", color: "#ffffff",
-      stroke: "#0f1c2f", strokeThickness: 5
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-    const trigger = () => {
+    // ── Confirm button ──
+    createVSConfirmButton(this, cx + 260, panelBottom - 55, "确认", () => {
       if (!this.selectedShipId) {
-        this.statusText.setText("请先选择一架战机");
-        this.statusText.setColor("#ff8888");
+        this.updateDetailPanel(null, "请先选择一个角色", true);
         return;
       }
-      // Save selection
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(SHIP_STORAGE_KEY, this.selectedShipId);
       }
-
       if (this.pendingMode === "coop") {
         const token = window.localStorage.getItem("forgeduel_token") || "";
         const user = JSON.parse(window.localStorage.getItem("forgeduel_user") || "null");
@@ -235,14 +107,144 @@ export class ShipSelectionScene extends Phaser.Scene {
       } else {
         this.scene.start("GameScene", { selectedShip: this.selectedShipId });
       }
-    };
+    });
+  }
 
-    btn.on("pointerdown", trigger);
-    label.on("pointerdown", trigger);
-    btn.on("pointerover", () => btn.setFillStyle(0x3a7abf, 1));
-    btn.on("pointerout", () => btn.setFillStyle(0x255283, 1));
+  createShipCard(x, y, w, h, config) {
+    const unlocked = isShipUnlocked(config.id, this.shipStats);
+    const tint = config.tint;
 
-    this.confirmBtn = btn;
-    this.confirmLabel = label;
+    const { container, bg } = createVSCard(this, x, y, w, h, {
+      onClick: () => {
+        if (!unlocked) {
+          this.updateDetailPanel(config, "此角色尚未解锁", true);
+          return;
+        }
+        this.selectShip(config.id);
+      }
+    });
+
+    // Placeholder pixel-art icon (colored square with border)
+    const iconSize = 48;
+    const iconBg = this.add.rectangle(0, -30, iconSize + 4, iconSize + 4, 0x1a1a2a, 1)
+      .setStrokeStyle(2, unlocked ? tint : 0x555555, unlocked ? 1 : 0.4);
+    const icon = this.add.rectangle(0, -30, iconSize, iconSize, tint, unlocked ? 0.8 : 0.2);
+    container.add([iconBg, icon]);
+
+    // Weapon icon placeholder (small, bottom-right of main icon)
+    const weaponLabels = { dagger: "🗡️", fireball: "🔥", lightning: "⚡", orbit_blades: "🌀" };
+    const wepIcon = this.add.text(w / 2 - 18, h / 2 - 18,
+      weaponLabels[config.initialWeapon] || "⚔️", {
+      fontFamily: "Zpix", fontSize: "16px"
+    }).setOrigin(0.5);
+    if (!unlocked) wepIcon.setAlpha(0.3);
+    container.add(wepIcon);
+
+    // Ship name
+    const nameColor = unlocked ? "#ffffff" : "#667788";
+    const nameText = this.add.text(0, 16, config.name, {
+      fontFamily: "Zpix", fontSize: "16px", color: nameColor,
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
+    container.add(nameText);
+
+    // Lock overlay
+    if (!unlocked) {
+      const lockOverlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.5).setOrigin(0.5);
+      const lockText = this.add.text(0, 0, "🔒", {
+        fontFamily: "Zpix", fontSize: "24px"
+      }).setOrigin(0.5);
+      container.add([lockOverlay, lockText]);
+    }
+
+    this.shipCards.push({ id: config.id, bg, container, unlocked, config });
+  }
+
+  selectShip(shipId) {
+    this.selectedShipId = shipId;
+
+    // Update card highlights
+    this.shipCards.forEach((entry) => {
+      if (entry.id === shipId) {
+        entry.bg.setStrokeStyle(3, 0xffffff, 1);
+      } else {
+        entry.bg.setStrokeStyle(2, 0xc4a040, entry.unlocked ? 0.9 : 0.4);
+      }
+    });
+
+    const config = SHIP_CONFIGS[shipId];
+    this.updateDetailPanel(config, null, false);
+  }
+
+  createDetailPanel(x, y, w, h) {
+    const container = this.add.container(x, y);
+
+    const bg = this.add.rectangle(0, 0, w, h, 0x4a4a5a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1)
+      .setOrigin(0.5);
+    const inner = this.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
+      .setStrokeStyle(1, 0x8a7a3a, 0.6)
+      .setOrigin(0.5);
+
+    container.add([bg, inner]);
+
+    // Placeholder icon
+    const iconBg = this.add.rectangle(-w / 2 + 50, 0, 56, 56, 0x1a1a2a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1);
+    const icon = this.add.rectangle(-w / 2 + 50, 0, 48, 48, 0x888888, 0.5);
+    container.add([iconBg, icon]);
+
+    // Name
+    const nameText = this.add.text(-w / 2 + 110, -18, "", {
+      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 5
+    }).setOrigin(0, 0.5);
+    container.add(nameText);
+
+    // Description / stats
+    const descText = this.add.text(-w / 2 + 110, 12, "", {
+      fontFamily: "Zpix", fontSize: "14px", color: "#d4d4e0",
+      stroke: "#1a1a2a", strokeThickness: 2,
+      wordWrap: { width: w - 240 }
+    }).setOrigin(0, 0.5);
+    container.add(descText);
+
+    // Status / error
+    const statusText = this.add.text(w / 2 - 20, 0, "", {
+      fontFamily: "Zpix", fontSize: "16px", color: "#ff8888",
+      stroke: "#1a1a2a", strokeThickness: 2
+    }).setOrigin(1, 0.5);
+    container.add(statusText);
+
+    this.detailObjects = { container, icon, nameText, descText, statusText };
+  }
+
+  updateDetailPanel(config, errorMsg, isError) {
+    const detail = this.detailObjects;
+    if (!detail) return;
+
+    if (errorMsg) {
+      detail.nameText.setText("");
+      detail.descText.setText("");
+      detail.statusText.setText(errorMsg);
+      detail.statusText.setColor(isError ? "#ff8888" : "#88ff88");
+      detail.icon.setFillStyle(0x888888, 0.5);
+      return;
+    }
+
+    if (!config) return;
+
+    detail.nameText.setText(config.name);
+    const statsStr = `HP:${config.stats.maxHp}  SPD:${config.stats.speed}  武器:${config.initialWeapon || "未知"}`;
+    detail.descText.setText(statsStr);
+    detail.statusText.setText("");
+    detail.icon.setFillStyle(config.tint, 0.8);
+  }
+
+  loadCoins() {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
   }
 }

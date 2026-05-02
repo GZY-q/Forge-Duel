@@ -1257,25 +1257,15 @@ export class GameScene extends Phaser.Scene {
     this.ensureDomHudOverlay();
     this._applyMobileHudAdjustments();
     this.registerSceneShutdownCleanup();
-    // Auto-equip starting weapon(s), then show weapon selection for additional slot
+    // Auto-equip starting weapon(s), then immediately show weapon selection
     if (this.shipConfig) {
       const weapons = this.shipConfig.initialWeapons || [this.shipConfig.initialWeapon];
       weapons.forEach((w) => this.weaponSystem.addWeapon(w));
-      this.showHudAlert(`${this.shipConfig.name} READY`, 1200);
-      this.time.delayedCall(800, () => {
-        if (!this.isGameOver) {
-          this.openWeaponSelection();
-        }
-      });
+      this.openWeaponSelection();
     } else if (this.fighterConfig) {
       const startWeapon = this.fighterConfig.startingWeapon;
       this.weaponSystem.addWeapon(startWeapon);
-      this.showHudAlert(`${this.fighterConfig.label} READY`, 1200);
-      this.time.delayedCall(800, () => {
-        if (!this.isGameOver) {
-          this.openWeaponSelection();
-        }
-      });
+      this.openWeaponSelection();
     } else {
       this.openWeaponSelection();
     }

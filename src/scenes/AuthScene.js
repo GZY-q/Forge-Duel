@@ -1,3 +1,4 @@
+import { createVSBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
@@ -12,18 +13,16 @@ export class AuthScene extends Phaser.Scene {
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    this.add.rectangle(cx, cy, camera.width, camera.height, 0x071120, 1);
-    for (let y = 0; y < camera.height; y += 32) {
-      const color = Math.floor(y / 32) % 2 === 0 ? 0x0d1a31 : 0x11213d;
-      this.add.rectangle(cx, y + 16, camera.width, 30, color, 1).setOrigin(0.5);
-    }
+    // ── VS Background ──
+    createVSBackground(this);
 
-    this.add.rectangle(cx, cy, 420, 400, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96);
-    this.add.rectangle(cx, cy, 400, 380, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88);
+    // ── Panel ──
+    createVSPanel(this, cx, cy, 420, 400);
 
+    // ── Title ──
     this.add.text(cx, cy - 155, "ForgeDuel", {
       fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
-      stroke: "#102640", strokeThickness: 6
+      stroke: "#2a2a3a", strokeThickness: 6
     }).setOrigin(0.5);
 
     this.isLogin = true;
@@ -56,19 +55,19 @@ export class AuthScene extends Phaser.Scene {
   }
 
   _createTab(x, y, label, isActive) {
-    const bg = this.add.rectangle(x, y, 100, 30, isActive ? 0x1a324f : 0x0b1830, 1)
-      .setStrokeStyle(1, isActive ? 0x6ab8ff : 0x3a5a7f, 1)
+    const bg = this.add.rectangle(x, y, 100, 30, isActive ? 0x2a2a4a : 0x1a1a2a, 1)
+      .setStrokeStyle(2, isActive ? 0xc4a040 : 0x4a4a5a, 1)
       .setInteractive({ useHandCursor: true });
     const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "16px", color: isActive ? "#ffffff" : "#7a9abf"
+      fontFamily: "Zpix", fontSize: "16px", color: isActive ? "#ffffff" : "#888888"
     }).setOrigin(0.5);
 
     bg.on("pointerdown", () => {
       this.isLogin = label === "登录";
-      this.tabLogin.bg.setStrokeStyle(1, this.isLogin ? 0x6ab8ff : 0x3a5a7f, 1);
-      this.tabLogin.text.setColor(this.isLogin ? "#ffffff" : "#7a9abf");
-      this.tabRegister.bg.setStrokeStyle(1, !this.isLogin ? 0x6ab8ff : 0x3a5a7f, 1);
-      this.tabRegister.text.setColor(!this.isLogin ? "#ffffff" : "#7a9abf");
+      this.tabLogin.bg.setStrokeStyle(2, this.isLogin ? 0xc4a040 : 0x4a4a5a, 1);
+      this.tabLogin.text.setColor(this.isLogin ? "#ffffff" : "#888888");
+      this.tabRegister.bg.setStrokeStyle(2, !this.isLogin ? 0xc4a040 : 0x4a4a5a, 1);
+      this.tabRegister.text.setColor(!this.isLogin ? "#ffffff" : "#888888");
       this.submitBtn.text.setText(this.isLogin ? "登录" : "注册");
       this.errorText.setText("");
     });
@@ -87,20 +86,18 @@ export class AuthScene extends Phaser.Scene {
     Object.assign(input.style, {
       position: "absolute",
       transform: "translate(-50%, -50%)",
-      width: "240px",
-      padding: "8px 10px",
-      fontSize: "14px",
       fontFamily: "Zpix",
-      background: "#0b1830",
+      background: "#1a1a2a",
       color: "#ffffff",
-      border: "2px solid #3a7abf",
-      borderRadius: "6px",
+      border: "2px solid #c4a040",
+      borderRadius: "4px",
       outline: "none",
       zIndex: "200",
-      boxSizing: "border-box"
+      boxSizing: "border-box",
+      textAlign: "center"
     });
-    input.addEventListener("focus", () => { input.style.borderColor = "#6ab8ff"; });
-    input.addEventListener("blur", () => { input.style.borderColor = "#3a7abf"; });
+    input.addEventListener("focus", () => { input.style.borderColor = "#fef08a"; });
+    input.addEventListener("blur", () => { input.style.borderColor = "#c4a040"; });
     document.body.appendChild(input);
     this._positionDomInput(input);
     return input;
@@ -112,18 +109,27 @@ export class AuthScene extends Phaser.Scene {
     if (!canvas) return;
     const rect = canvas.getBoundingClientRect();
     const gameY = input._gameY ?? 0;
-    const screenY = rect.top + (gameY / 720) * rect.height;
+
+    // Scale factor: canvas CSS pixels vs design resolution (1280x720)
+    const scaleX = rect.width / 1280;
+    const scaleY = rect.height / 720;
+
+    const screenY = rect.top + gameY * scaleY;
     const centerX = rect.left + rect.width * 0.5;
-    const canvasW = rect.width;
-    const isMobile = canvasW < 600;
-    const inputWidth = isMobile
-      ? Math.min(240, canvasW * 0.7)
-      : Math.min(260, canvasW * 0.4);
+
+    // Scale input size proportionally, but cap so it never overflows the panel (≈420 game px)
+    const designInputWidth = 260;
+    const maxWidth = rect.width * 0.72; // leave side margin
+    const inputWidth = Math.min(designInputWidth * scaleX, maxWidth);
+    const fontSize = Math.max(12, Math.round(14 * Math.min(scaleX, scaleY)));
+    const padH = Math.max(6, Math.round(8 * scaleX));
+    const padV = Math.max(6, Math.round(8 * scaleY));
+
     input.style.top = `${screenY}px`;
     input.style.left = `${centerX}px`;
-    input.style.width = `${inputWidth}px`;
-    input.style.fontSize = isMobile ? "14px" : "16px";
-    input.style.padding = isMobile ? "8px 10px" : "10px 14px";
+    input.style.width = `${Math.round(inputWidth)}px`;
+    input.style.fontSize = `${fontSize}px`;
+    input.style.padding = `${padV}px ${padH}px`;
   }
 
   _positionAllDomInputs() {
@@ -132,29 +138,18 @@ export class AuthScene extends Phaser.Scene {
   }
 
   _createButton(x, y, label, onClick) {
-    const bg = this.add.rectangle(x, y, 280, 46, 0x1a324f, 1)
-      .setStrokeStyle(2, 0x6ab8ff, 1)
-      .setInteractive({ useHandCursor: true });
-    const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff",
-      stroke: "#0f1c2f", strokeThickness: 4
-    }).setOrigin(0.5);
-
-    bg.on("pointerdown", onClick);
-    text.on("pointerdown", onClick);
-    bg.on("pointerover", () => bg.setStrokeStyle(3, 0x9bd3ff, 1));
-    bg.on("pointerout", () => bg.setStrokeStyle(2, 0x6ab8ff, 1));
-
-    return { bg, text };
+    return createVSButton(this, x, y, label, {
+      width: 280, height: 46, fontSize: "20px", onClick
+    });
   }
 
   _createLink(x, y, label, onClick) {
     const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "Zpix", fontSize: "14px", color: "#c4a040"
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     text.on("pointerdown", onClick);
-    text.on("pointerover", () => text.setColor("#ffffff"));
-    text.on("pointerout", () => text.setColor("#7ab8e0"));
+    text.on("pointerover", () => text.setColor("#fef08a"));
+    text.on("pointerout", () => text.setColor("#c4a040"));
     return text;
   }
 
@@ -172,7 +167,7 @@ export class AuthScene extends Phaser.Scene {
     }
 
     this.errorText.setText("请稍候...");
-    this.submitBtn.bg.disableInteractive();
+    this.submitBtn.plate.disableInteractive();
 
     try {
       const endpoint = this.isLogin ? "/api/auth/login" : "/api/auth/register";
@@ -186,7 +181,7 @@ export class AuthScene extends Phaser.Scene {
 
       if (!res.ok) {
         this.errorText.setText(data.error || "请求失败");
-        this.submitBtn.bg.setInteractive({ useHandCursor: true });
+        this.submitBtn.plate.setInteractive({ useHandCursor: true });
         return;
       }
 
@@ -199,7 +194,7 @@ export class AuthScene extends Phaser.Scene {
       this.scene.start("MainMenuScene", { authUser: data.user, authToken: data.token });
     } catch (err) {
       this.errorText.setText("网络错误，请检查服务器是否运行");
-      this.submitBtn.bg.setInteractive({ useHandCursor: true });
+      this.submitBtn.plate.setInteractive({ useHandCursor: true });
     }
   }
 

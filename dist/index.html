@@ -9,10 +9,10 @@
     <meta name="apple-mobile-web-app-title" content="ForgeDuel" />
     <meta name="screen-orientation" content="landscape" />
     <title>ForgeDuel</title>
-    <script type="module" crossorigin src="./assets/index-DD_1aSNC.js"></script>
+    <script type="module" crossorigin src="./assets/index-y7ngSQFK.js"></script>
     <link rel="modulepreload" crossorigin href="./assets/rolldown-runtime-S-ySWqyJ.js">
     <link rel="modulepreload" crossorigin href="./assets/phaser-BkTOejYE.js">
-    <link rel="stylesheet" crossorigin href="./assets/index-mX88jYle.css">
+    <link rel="stylesheet" crossorigin href="./assets/index-BMFYx67R.css">
   </head>
   <body>
     <div id="app">
@@ -36,34 +36,40 @@
       <button id="fullscreen-btn" title="全屏">⛶</button>
       <div id="settings-panel">
         <div id="settings-panel-inner">
-          <div id="settings-title">设置</div>
+          <div id="settings-title">Options</div>
+
           <div class="settings-row">
-            <span class="settings-label">音乐音量</span>
-            <input type="range" id="settings-bgm-vol" min="0" max="100" value="60" />
-            <span class="settings-val" id="settings-bgm-val">60%</span>
+            <span class="settings-label">声音</span>
+            <button class="settings-checkbox" id="settings-sfx-toggle" data-on="true">✓</button>
           </div>
           <div class="settings-row">
-            <span class="settings-label">音效音量</span>
-            <input type="range" id="settings-sfx-vol" min="0" max="100" value="80" />
-            <span class="settings-val" id="settings-sfx-val">80%</span>
+            <span class="settings-label">音乐</span>
+            <button class="settings-checkbox" id="settings-bgm-toggle" data-on="true">✓</button>
           </div>
           <div class="settings-row">
-            <span class="settings-label">伤害数字</span>
-            <button class="settings-toggle" id="settings-dmg-num" data-on="true">开</button>
+            <span class="settings-label">闪烁的视觉特效</span>
+            <button class="settings-checkbox" id="settings-shake-toggle" data-on="true">✓</button>
           </div>
           <div class="settings-row">
-            <span class="settings-label">屏幕震动</span>
-            <button class="settings-toggle" id="settings-shake" data-on="true">开</button>
+            <span class="settings-label">Visible joystick</span>
+            <button class="settings-checkbox" id="settings-joystick-toggle" data-on="true">✓</button>
           </div>
+          <div class="settings-row">
+            <span class="settings-label">Damage Numbers</span>
+            <button class="settings-checkbox" id="settings-dmg-toggle" data-on="true">✓</button>
+          </div>
+
+          <button id="settings-reset-upgrades">回退增强</button>
+
           <div id="settings-auth-section" style="display:none;">
-            <div class="settings-divider"></div>
-            <div class="settings-row settings-user-row">
+            <div class="settings-row settings-user-row" style="border-bottom:none;">
               <span class="settings-label">账号</span>
-              <span id="settings-username" class="settings-val" style="color:#88ff88;min-width:auto;flex:1;text-align:left;"></span>
+              <span id="settings-username" style="color:#88ff88;font-size:14px;"></span>
             </div>
-            <button id="settings-logout-btn" class="settings-logout-btn">退出登录</button>
+            <button id="settings-logout-btn" style="margin-top:8px;width:100%;padding:10px 0;border-radius:4px;border:2px solid rgba(255,100,100,0.5);background:rgba(80,20,20,0.8);color:#ff8888;font-family:'Zpix',sans-serif;font-size:14px;cursor:pointer;">退出登录</button>
           </div>
-          <button id="settings-close">确定</button>
+
+          <button id="settings-close">返回</button>
         </div>
       </div>
     </div>
@@ -108,7 +114,7 @@
 
         // Settings panel
         var SETTINGS_KEY = 'forgeduel_settings';
-        var defaults = { bgmVol: 60, sfxVol: 80, showDmgNum: true, screenShake: true };
+        var defaults = { bgmVol: 60, sfxVol: 80, showDmgNum: true, screenShake: true, showJoystick: true };
         var settings = Object.assign({}, defaults);
 
         try {
@@ -132,63 +138,118 @@
           }
         }
 
-        var bgmSlider = document.getElementById('settings-bgm-vol');
-        var bgmVal = document.getElementById('settings-bgm-val');
-        var sfxSlider = document.getElementById('settings-sfx-vol');
-        var sfxVal = document.getElementById('settings-sfx-val');
-        var dmgBtn = document.getElementById('settings-dmg-num');
-        var shakeBtn = document.getElementById('settings-shake');
+        var sfxToggle = document.getElementById('settings-sfx-toggle');
+        var bgmToggle = document.getElementById('settings-bgm-toggle');
+        var shakeToggle = document.getElementById('settings-shake-toggle');
+        var joystickToggle = document.getElementById('settings-joystick-toggle');
+        var dmgToggle = document.getElementById('settings-dmg-toggle');
         var closeBtn = document.getElementById('settings-close');
+        var resetBtn = document.getElementById('settings-reset-upgrades');
 
-        bgmSlider.value = settings.bgmVol;
-        bgmVal.textContent = settings.bgmVol + '%';
-        sfxSlider.value = settings.sfxVol;
-        sfxVal.textContent = settings.sfxVol + '%';
-        dmgBtn.textContent = settings.showDmgNum ? '开' : '关';
-        dmgBtn.dataset.on = String(settings.showDmgNum);
-        shakeBtn.textContent = settings.screenShake ? '开' : '关';
-        shakeBtn.dataset.on = String(settings.screenShake);
+        function updateCheckbox(el, isOn) {
+          el.textContent = isOn ? '✓' : '';
+          el.dataset.on = String(isOn);
+        }
 
-        bgmSlider.addEventListener('input', function() {
-          settings.bgmVol = parseInt(this.value, 10);
-          bgmVal.textContent = settings.bgmVol + '%';
+        updateCheckbox(sfxToggle, settings.sfxVol > 0);
+        updateCheckbox(bgmToggle, settings.bgmVol > 0);
+        updateCheckbox(shakeToggle, settings.screenShake);
+        updateCheckbox(joystickToggle, settings.showJoystick !== false);
+        updateCheckbox(dmgToggle, settings.showDmgNum);
+
+        sfxToggle.addEventListener('click', function() {
+          var isOn = this.dataset.on !== 'true';
+          settings.sfxVol = isOn ? 80 : 0;
+          updateCheckbox(this, isOn);
           saveSettings();
           applySettings();
         });
-        sfxSlider.addEventListener('input', function() {
-          settings.sfxVol = parseInt(this.value, 10);
-          sfxVal.textContent = settings.sfxVol + '%';
+        bgmToggle.addEventListener('click', function() {
+          var isOn = this.dataset.on !== 'true';
+          settings.bgmVol = isOn ? 60 : 0;
+          updateCheckbox(this, isOn);
           saveSettings();
           applySettings();
         });
-        dmgBtn.addEventListener('click', function() {
-          settings.showDmgNum = !settings.showDmgNum;
-          this.textContent = settings.showDmgNum ? '开' : '关';
-          this.dataset.on = String(settings.showDmgNum);
-          saveSettings();
-          applySettings();
-        });
-        shakeBtn.addEventListener('click', function() {
+        shakeToggle.addEventListener('click', function() {
           settings.screenShake = !settings.screenShake;
-          this.textContent = settings.screenShake ? '开' : '关';
-          this.dataset.on = String(settings.screenShake);
+          updateCheckbox(this, settings.screenShake);
           saveSettings();
           applySettings();
+        });
+        joystickToggle.addEventListener('click', function() {
+          settings.showJoystick = !settings.showJoystick;
+          updateCheckbox(this, settings.showJoystick);
+          saveSettings();
+          applySettings();
+        });
+        dmgToggle.addEventListener('click', function() {
+          settings.showDmgNum = !settings.showDmgNum;
+          updateCheckbox(this, settings.showDmgNum);
+          saveSettings();
+          applySettings();
+        });
+
+        resetBtn.addEventListener('click', function(e) {
+          e.stopPropagation();
+          if (!confirm('确定要回退所有增强吗？这将退还所有花费的金币。')) return;
+          var UPGRADE_STORAGE_KEY = 'forgeduel_shop_upgrades_v1';
+          var COIN_STORAGE_KEY = 'forgeduel_coins';
+          try {
+            var raw = localStorage.getItem(UPGRADE_STORAGE_KEY);
+            var upgrades = raw ? JSON.parse(raw) : {};
+            var totalRefund = 0;
+            var defs = [
+              {key:'power',baseCost:200,costStep:100},
+              {key:'max_hp',baseCost:200,costStep:100},
+              {key:'armor',baseCost:600,costStep:200},
+              {key:'amount',baseCost:5000,costStep:0},
+              {key:'cooldown',baseCost:900,costStep:300},
+              {key:'area',baseCost:300,costStep:150},
+              {key:'speed',baseCost:300,costStep:150},
+              {key:'duration',baseCost:300,costStep:150},
+              {key:'move_speed2',baseCost:300,costStep:150},
+              {key:'magnet',baseCost:300,costStep:150},
+              {key:'luck',baseCost:600,costStep:200},
+              {key:'growth',baseCost:900,costStep:300}
+            ];
+            defs.forEach(function(d) {
+              var level = upgrades[d.key] || 0;
+              for (var i = 0; i < level; i++) {
+                totalRefund += d.baseCost + i * d.costStep;
+              }
+            });
+            localStorage.removeItem(UPGRADE_STORAGE_KEY);
+            var currentCoins = Number(localStorage.getItem(COIN_STORAGE_KEY)) || 0;
+            localStorage.setItem(COIN_STORAGE_KEY, String(currentCoins + totalRefund));
+            alert('已回退增强，退还 ' + totalRefund + ' 金币');
+            // Refresh menu coin display if visible
+            if (window.__forgeduelGame && window.__forgeduelGame.scene) {
+              var menu = window.__forgeduelGame.scene.getScene('MainMenuScene');
+              if (menu && menu.topBar) {
+                var newCoins = Number(localStorage.getItem(COIN_STORAGE_KEY)) || 0;
+                menu.topBar.setCoins(newCoins);
+              }
+            }
+          } catch(err) {}
         });
 
         function openSettings() {
           settingsPanel.classList.add('open');
           applySettings();
           refreshAuthSection();
+          var menu = window.__forgeduelGame && window.__forgeduelGame.scene && window.__forgeduelGame.scene.getScene('MainMenuScene');
+          if (menu && menu.showBackButton) menu.showBackButton(true);
         }
         function closeSettings() {
           settingsPanel.classList.remove('open');
-          // Temporarily block pointer events from reaching Phaser canvas
           var gameRoot = document.getElementById('game-root');
           if (gameRoot) {
             gameRoot.style.pointerEvents = 'none';
             setTimeout(function() { gameRoot.style.pointerEvents = ''; }, 200);
           }
+          var menu = window.__forgeduelGame && window.__forgeduelGame.scene && window.__forgeduelGame.scene.getScene('MainMenuScene');
+          if (menu && menu.showBackButton) menu.showBackButton(false);
         }
 
         closeBtn.addEventListener('click', function(e) { e.preventDefault(); e.stopPropagation(); closeSettings(); });
@@ -196,15 +257,10 @@
           if (e.target === settingsPanel) { e.preventDefault(); e.stopPropagation(); closeSettings(); }
         });
 
-        // Prevent all clicks inside settings panel from propagating
         document.querySelectorAll('#settings-panel button, #settings-panel input, #settings-panel select').forEach(function(el) {
           el.addEventListener('click', function(e) { e.stopPropagation(); });
           el.addEventListener('mousedown', function(e) { e.stopPropagation(); });
         });
-
-        window.__forgeduelSettings = settings;
-        window.__forgeduelOpenSettings = openSettings;
-        window.__forgeduelCloseSettings = closeSettings;
 
         // --- Cookie auth helpers ---
         function getCookie(name) {
@@ -238,7 +294,6 @@
           if (hasLocalToken) return;
           var cookieToken = getCookie('forgeduel_token');
           if (!cookieToken) return;
-          // Validate cookie token with server
           fetch('/api/auth/me', {
             headers: { 'Authorization': 'Bearer ' + cookieToken }
           }).then(function(r) {
@@ -249,9 +304,7 @@
               localStorage.setItem('forgeduel_token', cookieToken);
               localStorage.setItem('forgeduel_user', JSON.stringify(data.user));
             }
-          }).catch(function() {
-            // Cookie expired or invalid — ignore
-          });
+          }).catch(function() {});
         })();
 
         // Logout handler
@@ -259,16 +312,12 @@
         if (logoutBtn) {
           logoutBtn.addEventListener('click', function(e) {
             e.stopPropagation();
-            // Clear local state
             localStorage.removeItem('forgeduel_token');
             localStorage.removeItem('forgeduel_user');
-            // Clear server cookie
             fetch('/api/auth/logout', { method: 'POST' }).catch(function(){});
-            // Also clear cookie client-side as fallback
             document.cookie = 'forgeduel_token=; path=/; max-age=0';
             closeSettings();
             refreshAuthSection();
-            // Navigate Phaser to MainMenuScene
             if (window.__forgeduelGame && window.__forgeduelGame.scene) {
               var scenes = window.__forgeduelGame.scene.getScenes(true);
               scenes.forEach(function(s) {
@@ -285,6 +334,10 @@
             }
           });
         }
+
+        window.__forgeduelSettings = settings;
+        window.__forgeduelOpenSettings = openSettings;
+        window.__forgeduelCloseSettings = closeSettings;
       })();
     </script>
   </body>

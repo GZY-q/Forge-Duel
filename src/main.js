@@ -50,5 +50,8 @@ const config = {
 };
 
 document.fonts.load('16px Zpix').then(function() {
-  new Phaser.Game(config);
+  const game = new Phaser.Game(config);
+  if (typeof window !== "undefined") {
+    window.__forgeduelGame = game;
+  }
 });

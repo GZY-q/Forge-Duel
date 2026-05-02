@@ -47,18 +47,18 @@ export class RunSummaryScene extends Phaser.Scene {
       .rectangle(centerX, centerY, camera.width, camera.height, 0x000000, 0.65)
       .setDepth(UI_LAYER_ORDER.OVERLAY);
     this.add
-      .rectangle(centerX, centerY, cardWidth + 16, cardHeight + 16, 0x071120, 0.98)
+      .rectangle(centerX, centerY, cardWidth + 16, cardHeight + 16, 0x1a0508, 0.98)
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY);
     this.add
-      .rectangle(centerX, centerY, cardWidth, cardHeight, 0x111827, 0.98)
+      .rectangle(centerX, centerY, cardWidth, cardHeight, 0x2a2a3a, 0.98)
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY);
     this.add
       .rectangle(centerX, centerY, cardWidth, cardHeight, 0, 0)
-      .setStrokeStyle(4, 0x5ca7ff, 1)
+      .setStrokeStyle(4, 0xc4a040, 1)
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 1);
     this.add
       .rectangle(centerX, centerY, cardWidth - 12, cardHeight - 12, 0, 0)
-      .setStrokeStyle(2, 0xb8e0ff, 0.95)
+      .setStrokeStyle(2, 0x8a7a3a, 0.95)
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 1);
 
     const panelContainer = this.add.container(centerX, centerY).setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 2);
@@ -87,8 +87,8 @@ export class RunSummaryScene extends Phaser.Scene {
     const titleBottomY = titleText.y + titleText.height;
     const statsTopY = titleBottomY + titleMarginBottom;
     const statsCenterY = statsTopY + statsContainerHeight * 0.5;
-    const statsBg = this.add.rectangle(0, statsCenterY, 360, statsContainerHeight, 0x152947, 0.92);
-    statsBg.setStrokeStyle(2, 0x7bc3ff, 1);
+    const statsBg = this.add.rectangle(0, statsCenterY, 360, statsContainerHeight, 0x2a2a3a, 0.92);
+    statsBg.setStrokeStyle(2, 0xc4a040, 1);
     const statsText = this.add
       .text(0, statsCenterY, lines.join("\n"), {
         fontFamily: "Zpix",
@@ -122,8 +122,8 @@ export class RunSummaryScene extends Phaser.Scene {
     const variant = options.variant === "primary" ? "primary" : "secondary";
     const width = Number.isFinite(options.width) ? options.width : variant === "primary" ? 260 : 220;
     const height = Number.isFinite(options.height) ? options.height : variant === "primary" ? 56 : 48;
-    const baseFill = variant === "primary" ? 0x255283 : 0x1b2d45;
-    const baseStroke = variant === "primary" ? 0x8ccfff : 0x6eb9ff;
+    const baseFill = variant === "primary" ? 0x3b5998 : 0x2a2a4a;
+    const baseStroke = variant === "primary" ? 0xc4a040 : 0x8a7a3a;
     const hoverFill = this.adjustHexBrightness(baseFill, variant === "primary" ? 0.08 : 0.06);
     const hoverStroke = this.adjustHexBrightness(baseStroke, variant === "primary" ? 0.08 : 0.06);
 
@@ -137,7 +137,7 @@ export class RunSummaryScene extends Phaser.Scene {
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 2);
     this.add
       .rectangle(x, y, width - 10, height - 10, 0, 0)
-      .setStrokeStyle(1, 0xb8e0ff, 0.9)
+      .setStrokeStyle(1, 0xc4a040, 0.3)
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 2);
     const text = this.add
       .text(x, y, label, {
