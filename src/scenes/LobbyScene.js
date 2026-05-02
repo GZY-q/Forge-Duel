@@ -35,16 +35,16 @@ export class LobbyScene extends Phaser.Scene {
 
     // ── Title ──
     this.add.text(cx, cy - 225, "联机大厅", {
-      fontFamily: "Zpix", fontSize: "32px", color: "#ffffff",
+      fontFamily: "ZpixOne", fontSize: "32px", color: "#ffffff",
       stroke: "#2a2a3a", strokeThickness: 5
     }).setOrigin(0.5);
 
     this.statusText = this.add.text(cx, cy - 190, "正在连接...", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#8ab8e0"
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#8ab8e0"
     }).setOrigin(0.5);
 
     this.roomCodeText = this.add.text(cx, cy - 155, "", {
-      fontFamily: "Zpix", fontSize: "28px", color: "#ffd866",
+      fontFamily: "ZpixOne", fontSize: "28px", color: "#ffd866",
       stroke: "#1a1a00", strokeThickness: 4
     }).setOrigin(0.5);
 
@@ -54,13 +54,13 @@ export class LobbyScene extends Phaser.Scene {
       const bg = this.add.rectangle(cx, slotY, 500, 44, 0x2a2a4a, 0.9)
         .setStrokeStyle(1, 0x4a4a5a, 0.8);
       const nameText = this.add.text(cx - 220, slotY, "等待玩家...", {
-        fontFamily: "Zpix", fontSize: "16px", color: "#5a5a6a"
+        fontFamily: "ZpixOne", fontSize: "16px", color: "#5a5a6a"
       }).setOrigin(0, 0.5);
       const readyText = this.add.text(cx + 200, slotY, "", {
-        fontFamily: "Zpix", fontSize: "14px", color: "#44ff44"
+        fontFamily: "ZpixOne", fontSize: "14px", color: "#44ff44"
       }).setOrigin(1, 0.5);
       const hostText = this.add.text(cx + 230, slotY, "", {
-        fontFamily: "Zpix", fontSize: "12px", color: "#ffd866"
+        fontFamily: "ZpixOne", fontSize: "12px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const speakingDot = this.add.circle(cx - 235, slotY, 5, 0x333333);
       this.playerSlots.push({ bg, nameText, readyText, hostText, speakingDot });
@@ -113,13 +113,13 @@ export class LobbyScene extends Phaser.Scene {
     const micBg = this.add.rectangle(x - 60, y, 44, 44, 0x2a2a4a, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const micIcon = this.add.text(x - 60, y, "MIC", {
-      fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#44ff44"
     }).setOrigin(0.5);
 
     const spkBg = this.add.rectangle(x + 60, y, 44, 44, 0x2a2a4a, 1)
       .setStrokeStyle(2, 0x44ff44, 1).setInteractive({ useHandCursor: true });
     const spkIcon = this.add.text(x + 60, y, "SPK", {
-      fontFamily: "Zpix", fontSize: "12px", color: "#44ff44"
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#44ff44"
     }).setOrigin(0.5);
 
     this.micEnabled = true;

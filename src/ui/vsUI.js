@@ -78,11 +78,11 @@ export function createVSTopBar(scene, options = {}) {
     .setOrigin(0.5);
 
   const coinIcon = scene.add.text(pillX - 36, pillY, "💰", {
-    fontFamily: "Zpix", fontSize: "22px"
+    fontFamily: "ZpixOne", fontSize: "22px"
   }).setOrigin(0.5);
 
   const coinText = scene.add.text(pillX + 24, pillY, `${coinAmount}`, {
-    fontFamily: "Zpix", fontSize: "24px", color: "#fef08a",
+    fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
     stroke: "#3a2a06", strokeThickness: 3
   }).setOrigin(0.5);
 
@@ -122,7 +122,7 @@ export function createVSBackButton(scene, x, y, onClick) {
     .setOrigin(0.5);
 
   const text = scene.add.text(0, 0, "返回", {
-    fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
+    fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
     stroke: "#0a0a0a", strokeThickness: 4
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -172,14 +172,14 @@ export function createVSOptionsButton(scene, x, y, onClick) {
     .setOrigin(0.5);
 
   const leftArrow = scene.add.text(-38, 0, "→", {
-    fontFamily: "Zpix", fontSize: "12px", color: "#c4a040"
+    fontFamily: "ZpixOne", fontSize: "12px", color: "#c4a040"
   }).setOrigin(0.5);
   const rightArrow = scene.add.text(38, 0, "←", {
-    fontFamily: "Zpix", fontSize: "12px", color: "#c4a040"
+    fontFamily: "ZpixOne", fontSize: "12px", color: "#c4a040"
   }).setOrigin(0.5);
 
   const text = scene.add.text(0, 0, "选项", {
-    fontFamily: "Zpix", fontSize: "16px", color: "#ffffff",
+    fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
     stroke: "#0a0a0a", strokeThickness: 4
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -259,7 +259,7 @@ export function createVSButton(scene, x, y, label, options = {}) {
     .setOrigin(0.5);
 
   const text = scene.add.text(0, 0, label, {
-    fontFamily: "Zpix", fontSize, color: "#ffffff",
+    fontFamily: "ZpixOne", fontSize, color: "#ffffff",
     stroke: "#0a0a0a", strokeThickness: 4
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
@@ -385,7 +385,7 @@ export function createVSTitle(scene, x, y, text, options = {}) {
   const fontSize = options.fontSize ?? "48px";
   const color = options.color ?? "#f8fbff";
   return scene.add.text(x, y, text, {
-    fontFamily: "Zpix", fontSize, color,
+    fontFamily: "ZpixOne", fontSize, color,
     stroke: "#000000", strokeThickness: 8,
     shadow: { offsetX: 3, offsetY: 3, color: "#000", blur: 0, fill: true }
   }).setOrigin(0.5).setDepth(100);
@@ -394,7 +394,7 @@ export function createVSTitle(scene, x, y, text, options = {}) {
 /* ── Section Title (inside panel) ── */
 export function createVSSectionTitle(scene, x, y, text) {
   return scene.add.text(x, y, text, {
-    fontFamily: "Zpix", fontSize: "32px", color: "#ffffff",
+    fontFamily: "ZpixOne", fontSize: "32px", color: "#ffffff",
     stroke: "#000000", strokeThickness: 6
   }).setOrigin(0.5).setDepth(100);
 }
@@ -403,6 +403,6 @@ export function createVSSectionTitle(scene, x, y, text) {
 export function createVSFooter(scene) {
   const cam = scene.cameras.main;
   return scene.add.text(cam.width * 0.5, cam.height - 24, "ForgeDuel © 2025", {
-    fontFamily: "Zpix", fontSize: "12px", color: "#ffffff"
+    fontFamily: "ZpixOne", fontSize: "12px", color: "#ffffff"
   }).setOrigin(0.5).setAlpha(0.35);
 }

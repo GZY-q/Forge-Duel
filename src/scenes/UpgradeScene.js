@@ -95,27 +95,27 @@ export class UpgradeScene extends Phaser.Scene {
 
     // ── Main Panel ──
     const panelW = 780;
-    const panelH = 520;
-    const panelCenterY = cy + 10;
+    const panelH = 560;
+    const panelCenterY = cy + 15;
     const panelTop = panelCenterY - panelH / 2;
     const panelBottom = panelCenterY + panelH / 2;
     createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    // ── Title (above panel) ──
-    this.add.text(cx, panelTop - 20, "增强选择", {
-      fontFamily: "Zpix", fontSize: "26px", color: "#ffffff",
-      stroke: "#000000", strokeThickness: 5
-    }).setOrigin(0.5).setDepth(100);
+    // ── Title (inside panel) ──
+    this.add.text(cx, panelTop + 60, "增强选择", {
+      fontFamily: "ZpixOne", fontSize: "30px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
 
     // ── Cards grid (4 columns x 3 rows) ──
     const cols = 4;
     const cardW = 148;
-    const cardH = 95;
+    const cardH = 90;
     const gapX = 10;
-    const gapY = 8;
+    const gapY = 7;
     const gridW = cols * cardW + (cols - 1) * gapX;
     const startX = cx - gridW / 2 + cardW / 2;
-    const startY = panelTop + 85;
+    const startY = panelTop + 160;
 
     UPGRADE_DEFINITIONS.forEach((def, i) => {
       const col = i % cols;
@@ -129,13 +129,13 @@ export class UpgradeScene extends Phaser.Scene {
 
     // ── Status text (between cards and detail) ──
     this.statusText = this.add.text(cx, gridBottom + 14, "", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#cde5ff",
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#cde5ff",
       stroke: "#0e1a2a", strokeThickness: 3
     }).setOrigin(0.5);
 
     // ── Detail panel at bottom ──
-    const detailY = panelBottom - 55;
-    this.createDetailPanel(cx, detailY, panelW - 30, 85);
+    const detailY = panelBottom - 50;
+    this.createDetailPanel(cx, detailY, panelW - 30, 80);
 
     // Select first by default
     this.selectUpgrade(0);
@@ -153,7 +153,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     // Name
     const nameText = this.add.text(0, -h / 2 + 16, def.label, {
-      fontFamily: "Zpix", fontSize: "13px", color: "#ffffff",
+      fontFamily: "ZpixOne", fontSize: "13px", color: "#ffffff",
       stroke: "#000000", strokeThickness: 3
     }).setOrigin(0.5);
     container.add(nameText);
@@ -165,7 +165,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     // Icon
     const icon = this.add.text(0, -2, def.icon || "?", {
-      fontFamily: "Zpix", fontSize: "22px"
+      fontFamily: "ZpixOne", fontSize: "22px"
     }).setOrigin(0.5);
     container.add(icon);
 
@@ -207,27 +207,27 @@ export class UpgradeScene extends Phaser.Scene {
     container.add(iconBg);
 
     const icon = this.add.text(-w / 2 + 46, 0, "", {
-      fontFamily: "Zpix", fontSize: "28px"
+      fontFamily: "ZpixOne", fontSize: "28px"
     }).setOrigin(0.5);
     container.add(icon);
 
     // Name
     const nameText = this.add.text(-w / 2 + 100, -16, "", {
-      fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0, 0.5);
     container.add(nameText);
 
     // Description
     const descText = this.add.text(-w / 2 + 100, 12, "", {
-      fontFamily: "Zpix", fontSize: "13px", color: "#d4d4e0",
+      fontFamily: "ZpixOne", fontSize: "13px", color: "#d4d4e0",
       stroke: "#1a1a2a", strokeThickness: 2
     }).setOrigin(0, 0.5);
     container.add(descText);
 
     // Cost
     const costText = this.add.text(w / 2 - 130, -12, "", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#ffe08a",
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffe08a",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(1, 0.5);
     container.add(costText);
@@ -248,7 +248,7 @@ export class UpgradeScene extends Phaser.Scene {
     container.add(btnBg);
 
     const btnText = this.add.text(btnX, btnY, "购买", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#ffffff",
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     container.add(btnText);

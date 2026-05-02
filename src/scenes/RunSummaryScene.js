@@ -67,7 +67,7 @@ export class RunSummaryScene extends Phaser.Scene {
 
     const titleText = this.add
       .text(0, panelTop + panelPadding, "战斗总结", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "34px",
         color: "#ffffff",
         stroke: "#0b1220",
@@ -91,7 +91,7 @@ export class RunSummaryScene extends Phaser.Scene {
     statsBg.setStrokeStyle(2, 0xc4a040, 1);
     const statsText = this.add
       .text(0, statsCenterY, lines.join("\n"), {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "21px",
         color: "#f3f7ff",
         align: "center",
@@ -141,7 +141,7 @@ export class RunSummaryScene extends Phaser.Scene {
       .setDepth(UI_LAYER_ORDER.RUN_SUMMARY + 2);
     const text = this.add
       .text(x, y, label, {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: variant === "primary" ? "26px" : "22px",
         color: "#ffffff",
         stroke: "#0e1a2a",

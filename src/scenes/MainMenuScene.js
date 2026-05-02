@@ -144,14 +144,14 @@ export class MainMenuScene extends Phaser.Scene {
     createVSFooter(this);
 
     this.add.text(60, cam.height - 24, "v1.0", {
-      fontFamily: "Zpix", fontSize: "12px", color: "#ffffff"
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#ffffff"
     }).setOrigin(0, 0.5).setAlpha(0.35);
 
     // Username display
     const authUser = this.loadAuthUser();
     if (authUser) {
       this.add.text(cx + 560, cam.height - 24, `👤 ${authUser.username}`, {
-        fontFamily: "Zpix", fontSize: "12px", color: "#88ff88"
+        fontFamily: "ZpixOne", fontSize: "12px", color: "#88ff88"
       }).setOrigin(1, 0.5).setAlpha(0.5);
     }
 

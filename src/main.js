@@ -49,7 +49,7 @@ const config = {
   scene: [MainMenuScene, ShipSelectionScene, GameScene, RunSummaryScene, UpgradeScene, AuthScene, LobbyScene, LeaderboardScene]
 };
 
-document.fonts.load('16px Zpix').then(function() {
+document.fonts.load('16px ZpixOne').then(function() {
   const game = new Phaser.Game(config);
   if (typeof window !== "undefined") {
     window.__forgeduelGame = game;

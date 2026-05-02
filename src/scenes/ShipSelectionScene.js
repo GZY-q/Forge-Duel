@@ -43,19 +43,19 @@ export class ShipSelectionScene extends Phaser.Scene {
       onBack: () => this.scene.start("MainMenuScene")
     });
 
-    // ── Central Panel ──
+// ── Central Panel ──
     const panelW = 780;
-    const panelH = 520;
-    const panelCenterY = cy + 20;
+    const panelH = 540;
+    const panelCenterY = cy + 15;
     const panelTop = panelCenterY - panelH / 2;
     const panelBottom = panelCenterY + panelH / 2;
     createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    // ── Title (above panel) ──
-    this.add.text(cx, panelTop - 20, "角色选择", {
-      fontFamily: "Zpix", fontSize: "26px", color: "#ffffff",
-      stroke: "#000000", strokeThickness: 5
-    }).setOrigin(0.5).setDepth(100);
+    // ── Title (inside panel) ──
+    this.add.text(cx, panelTop + 50, "角色选择", {
+      fontFamily: "ZpixOne", fontSize: "30px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
 
     // ── Load stats ──
     this.shipStats = loadShipStats();
@@ -66,12 +66,12 @@ export class ShipSelectionScene extends Phaser.Scene {
     // ── Ship cards grid ──
     const cols = 4;
     const cardW = 150;
-    const cardH = 140;
+    const cardH = 130;
     const gapX = 12;
-    const gapY = 12;
+    const gapY = 10;
     const gridW = cols * cardW + (cols - 1) * gapX;
     const startX = cx - gridW / 2 + cardW / 2;
-    const startY = panelTop + 100;
+    const startY = panelTop + 160;
 
     SHIP_KEYS.forEach((key, index) => {
       const config = SHIP_CONFIGS[key];
@@ -83,10 +83,10 @@ export class ShipSelectionScene extends Phaser.Scene {
     });
 
     // ── Detail panel at bottom ──
-    this.createDetailPanel(cx, panelBottom - 55, panelW - 30, 90);
+    this.createDetailPanel(cx, panelBottom - 50, panelW - 30, 90);
 
     // ── Confirm button ──
-    createVSConfirmButton(this, cx + 260, panelBottom - 55, "确认", () => {
+    createVSConfirmButton(this, cx + 260, panelBottom - 50, "确认", () => {
       if (!this.selectedShipId) {
         this.updateDetailPanel(null, "请先选择一个角色", true);
         return;
@@ -135,7 +135,7 @@ export class ShipSelectionScene extends Phaser.Scene {
     const weaponLabels = { dagger: "🗡️", fireball: "🔥", lightning: "⚡", orbit_blades: "🌀" };
     const wepIcon = this.add.text(w / 2 - 18, h / 2 - 18,
       weaponLabels[config.initialWeapon] || "⚔️", {
-      fontFamily: "Zpix", fontSize: "16px"
+      fontFamily: "ZpixOne", fontSize: "16px"
     }).setOrigin(0.5);
     if (!unlocked) wepIcon.setAlpha(0.3);
     container.add(wepIcon);
@@ -143,7 +143,7 @@ export class ShipSelectionScene extends Phaser.Scene {
     // Ship name
     const nameColor = unlocked ? "#ffffff" : "#667788";
     const nameText = this.add.text(0, 16, config.name, {
-      fontFamily: "Zpix", fontSize: "16px", color: nameColor,
+      fontFamily: "ZpixOne", fontSize: "16px", color: nameColor,
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5);
     container.add(nameText);
@@ -152,7 +152,7 @@ export class ShipSelectionScene extends Phaser.Scene {
     if (!unlocked) {
       const lockOverlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.5).setOrigin(0.5);
       const lockText = this.add.text(0, 0, "🔒", {
-        fontFamily: "Zpix", fontSize: "24px"
+        fontFamily: "ZpixOne", fontSize: "24px"
       }).setOrigin(0.5);
       container.add([lockOverlay, lockText]);
     }
@@ -196,14 +196,14 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // Name
     const nameText = this.add.text(-w / 2 + 110, -18, "", {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff",
+      fontFamily: "ZpixOne", fontSize: "20px", color: "#ffffff",
       stroke: "#000000", strokeThickness: 5
     }).setOrigin(0, 0.5);
     container.add(nameText);
 
     // Description / stats
     const descText = this.add.text(-w / 2 + 110, 12, "", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#d4d4e0",
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#d4d4e0",
       stroke: "#1a1a2a", strokeThickness: 2,
       wordWrap: { width: w - 240 }
     }).setOrigin(0, 0.5);
@@ -211,7 +211,7 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // Status / error
     const statusText = this.add.text(w / 2 - 20, 0, "", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#ff8888",
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ff8888",
       stroke: "#1a1a2a", strokeThickness: 2
     }).setOrigin(1, 0.5);
     container.add(statusText);

@@ -21,13 +21,13 @@ export class AuthScene extends Phaser.Scene {
 
     // ── Title ──
     this.add.text(cx, cy - 155, "ForgeDuel", {
-      fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
+      fontFamily: "ZpixOne", fontSize: "36px", color: "#f8fbff",
       stroke: "#2a2a3a", strokeThickness: 6
     }).setOrigin(0.5);
 
     this.isLogin = true;
     this.errorText = this.add.text(cx, cy - 105, "", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#ff6666"
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#ff6666"
     }).setOrigin(0.5);
 
     this.tabLogin = this._createTab(cx - 60, cy - 78, "登录", true);
@@ -59,7 +59,7 @@ export class AuthScene extends Phaser.Scene {
       .setStrokeStyle(2, isActive ? 0xc4a040 : 0x4a4a5a, 1)
       .setInteractive({ useHandCursor: true });
     const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "16px", color: isActive ? "#ffffff" : "#888888"
+      fontFamily: "ZpixOne", fontSize: "16px", color: isActive ? "#ffffff" : "#888888"
     }).setOrigin(0.5);
 
     bg.on("pointerdown", () => {
@@ -86,7 +86,7 @@ export class AuthScene extends Phaser.Scene {
     Object.assign(input.style, {
       position: "absolute",
       transform: "translate(-50%, -50%)",
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       background: "#1a1a2a",
       color: "#ffffff",
       border: "2px solid #c4a040",
@@ -145,7 +145,7 @@ export class AuthScene extends Phaser.Scene {
 
   _createLink(x, y, label, onClick) {
     const text = this.add.text(x, y, label, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#c4a040"
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#c4a040"
     }).setOrigin(0.5).setInteractive({ useHandCursor: true });
     text.on("pointerdown", onClick);
     text.on("pointerover", () => text.setColor("#fef08a"));

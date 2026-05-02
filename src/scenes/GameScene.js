@@ -163,21 +163,21 @@ const HUD_EXP_PULSE_SCALE = 1.3;
 const HUD_EXP_PULSE_DURATION_MS = 120;
 const HUD_ALERT_POOL_SIZE = 3;
 const HUD_ALERT_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "34px",
   color: "#ffd76c",
   stroke: "#2e1b08",
   strokeThickness: 6
 });
 const HUD_COMBO_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "18px",
   color: "#fff0b6",
   stroke: "#2d1f08",
   strokeThickness: 4
 });
 const WARNING_BANNER_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "28px",
   color: "#fff0c6",
   stroke: "#281206",
@@ -1028,7 +1028,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hudLevelText = this.add
       .text(20, 24, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "21px",
         color: "#fff0cf",
         stroke: "#28170f",
@@ -1038,7 +1038,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudStatsText = this.add
       .text(20, 58, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#cdb28a",
         stroke: "#28170f",
@@ -1048,7 +1048,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudTimerText = this.add
       .text(20, 74, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#f0dfbe",
         stroke: "#28170f",
@@ -1058,7 +1058,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudGoldText = this.add
       .text(20, 90, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#e6cc86",
         stroke: "#28170f",
@@ -1068,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudXpLabelText = this.add
       .text(20, 44, "EXP", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "9px",
         color: "#e7d6b4",
         stroke: "#28170f",
@@ -1078,7 +1078,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryText = this.add
       .text(1032, 22, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#ddc69e",
         stroke: "#28170f",
@@ -1133,7 +1133,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.hudCoreLabelText = this.add
       .text(76, 18, "SURVIVAL LOG", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1142,7 +1142,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryLabelText = this.add
       .text(1104, 18, "CREW KIT", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1166,7 +1166,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(10);
       const label = this.add
         .text(slotX, slotY, "", {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "15px",
           color: "#f4e5c8",
           stroke: "#2a170f",
@@ -1200,7 +1200,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.debugDirectorText = this.add
       .text(1024, 108, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "13px",
         color: "#baa27d",
         stroke: "#22150d",
@@ -1216,7 +1216,7 @@ export class GameScene extends Phaser.Scene {
 
     this.gameOverText = this.add
       .text(640, 360, "GAME OVER", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "28px",
         color: "#ffdad7",
         align: "center",
@@ -1237,7 +1237,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.gameOverRestartLabel = this.add
       .text(640, 540, "Restart Run", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "26px",
         color: "#eaf6ff",
         stroke: "#0d1628",
@@ -2662,7 +2662,7 @@ export class GameScene extends Phaser.Scene {
     const dashText = document.createElement("span");
     dashText.textContent = "闪";
     Object.assign(dashText.style, {
-      fontFamily: "'Zpix', sans-serif",
+      fontFamily: "'ZpixOne', sans-serif",
       fontSize: "14px", color: "#ffe8a8",
       textShadow: "0 0 0 3px #2a1a04"
     });
@@ -2692,7 +2692,7 @@ export class GameScene extends Phaser.Scene {
     const pauseText = document.createElement("span");
     pauseText.textContent = "菜单";
     Object.assign(pauseText.style, {
-      fontFamily: "'Zpix', sans-serif",
+      fontFamily: "'ZpixOne', sans-serif",
       fontSize: "11px", color: "#ffffff",
       textShadow: "0 0 0 2px #0a0a0a",
       fontWeight: "bold"
@@ -4057,7 +4057,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(depth).setAlpha(0);
 
     const label = this.add.text(cx, cy, text, {
-      fontFamily: "Zpix", fontSize: "28px", color,
+      fontFamily: "ZpixOne", fontSize: "28px", color,
       stroke: "#000000", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -4187,7 +4187,7 @@ export class GameScene extends Phaser.Scene {
     if (!text) {
       text = this.add
         .text(x, y, "", {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "14px",
           color: "#ff4444",
           stroke: "#000000",
@@ -4780,7 +4780,7 @@ export class GameScene extends Phaser.Scene {
     const indicatorY = boss.y - Math.max(42, boss.displayHeight * 0.45);
     const warningText = this.add
       .text(boss.x, indicatorY, "环形冲击", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "16px",
         color: "#ffd1d1",
         stroke: "#3f0f0f",
@@ -5347,7 +5347,7 @@ export class GameScene extends Phaser.Scene {
     const color = colorMap[item.itemConfig.id] || "#ffffff";
     const text = this.add
       .text(item.x, item.y - 16, label, {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color,
         stroke: "#000000",
@@ -5473,7 +5473,7 @@ export class GameScene extends Phaser.Scene {
     const badgeDepth = Number(config.badgeDepth ?? 30.4);
     const textDepth = Number(config.textDepth ?? badgeDepth + 0.6);
     const textStyle = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${fontSize}px`,
       color: config.color ?? "#3a1f11"
     };
@@ -5529,12 +5529,12 @@ export class GameScene extends Phaser.Scene {
       .setStrokeStyle(1, 0x3a7abf, 0.85).setScrollFactor(0).setDepth(depth + 1);
 
     const title = this.add.text(centerX, centerY - panelHeight / 2 + 30, "升级!", {
-      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
+      fontFamily: "ZpixOne", fontSize: "32px", color: "#f8fbff",
       stroke: "#0e1a2e", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 56, `Lv.${this.level}`, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#7ab8e0"
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     // Filter out passives the player already has
@@ -5619,7 +5619,7 @@ export class GameScene extends Phaser.Scene {
 
       // Icon
       const iconText = this.add.text(centerX - optWidth / 2 + 22, y - 12, icon, {
-        fontFamily: "Zpix", fontSize: "22px"
+        fontFamily: "ZpixOne", fontSize: "22px"
       }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
 
       // Name + key hint
@@ -5628,7 +5628,7 @@ export class GameScene extends Phaser.Scene {
         nameStr += " [已拥有]";
       }
       const nameText = this.add.text(centerX - optWidth / 2 + 50, y - 18, nameStr, {
-        fontFamily: "Zpix", fontSize: "17px", color: "#f0f4ff",
+        fontFamily: "ZpixOne", fontSize: "17px", color: "#f0f4ff",
         stroke: "#0e1a2e", strokeThickness: 3
       }).setScrollFactor(0).setDepth(depth + 3);
 
@@ -5638,7 +5638,7 @@ export class GameScene extends Phaser.Scene {
         descStr = `✨ 进化! → ${evoName}`;
       }
       const descText = this.add.text(centerX - optWidth / 2 + 50, y + 4, descStr, {
-        fontFamily: "Zpix", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
+        fontFamily: "ZpixOne", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
       }).setScrollFactor(0).setDepth(depth + 3);
 
       // Weapon level info for weapon-related upgrades
@@ -5660,7 +5660,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (levelStr) {
         const levelText = this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
-          fontFamily: "Zpix", fontSize: "11px", color: "#6688aa"
+          fontFamily: "ZpixOne", fontSize: "11px", color: "#6688aa"
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(levelText);
       }
@@ -5668,7 +5668,7 @@ export class GameScene extends Phaser.Scene {
       // Evolution badge
       if (isEvolution) {
         const badge = this.add.text(centerX + optWidth / 2 - 16, y + 10, "进化!", {
-          fontFamily: "Zpix", fontSize: "12px", color: "#ffdd44",
+          fontFamily: "ZpixOne", fontSize: "12px", color: "#ffdd44",
           stroke: "#2a1a10", strokeThickness: 2
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(badge);
@@ -5697,7 +5697,7 @@ export class GameScene extends Phaser.Scene {
         return `${name} Lv.${w.level}`;
       }).join("  |  ");
       const weaponBar = this.add.text(centerX, barY, weaponStr, {
-        fontFamily: "Zpix", fontSize: "12px", color: "#8ab8dd"
+        fontFamily: "ZpixOne", fontSize: "12px", color: "#8ab8dd"
       }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
       optionObjects.push(barBg, weaponBar);
     }
@@ -5741,7 +5741,7 @@ export class GameScene extends Phaser.Scene {
     const panelInner = this.add.rectangle(cx, cy, pw - 14, ph - 14, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(d + 1);
 
     const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
-      fontFamily: "Zpix", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
+      fontFamily: "ZpixOne", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
     // Stats section (left side)
@@ -5751,15 +5751,15 @@ export class GameScene extends Phaser.Scene {
 
     const addStatLine = (label, value, color = "#c8ddef") => {
       uiObjs.push(
-        this.add.text(statsX, sy, label, { fontFamily: "Zpix", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "Zpix", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(statsX, sy, label, { fontFamily: "ZpixOne", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "ZpixOne", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
       sy += 18;
     };
 
     const addSectionHeader = (text) => {
       uiObjs.push(
-        this.add.text(statsX, sy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(statsX, sy, text, { fontFamily: "ZpixOne", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
       );
       sy += 18;
     };
@@ -5802,7 +5802,7 @@ export class GameScene extends Phaser.Scene {
     const weapons = this.player.weapons || [];
     const addWeaponHeader = (text) => {
       uiObjs.push(
-        this.add.text(wx, wy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(wx, wy, text, { fontFamily: "ZpixOne", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
       );
       wy += 18;
     };
@@ -5814,8 +5814,8 @@ export class GameScene extends Phaser.Scene {
       const cd = this.weaponSystem?.getEffectiveCooldownMs?.(w) ?? w.cooldownMs;
       const evoTag = w.evolved ? " ✦" : "";
       uiObjs.push(
-        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "Zpix", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "Zpix", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "ZpixOne", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "ZpixOne", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
       wy += 18;
     });
@@ -5835,8 +5835,8 @@ export class GameScene extends Phaser.Scene {
         const status = hasPassive && levelOk ? "✓ 就绪" : `Lv.${owned.level}/${r.level} ${hasPassive ? "✓被动" : "✗被动"}`;
         const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === r.requiredPassive);
         uiObjs.push(
-          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "Zpix", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
-          this.add.text(wx + ww, wy, status, { fontFamily: "Zpix", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "ZpixOne", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
+          this.add.text(wx + ww, wy, status, { fontFamily: "ZpixOne", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
         );
         wy += 16;
       });
@@ -5846,27 +5846,27 @@ export class GameScene extends Phaser.Scene {
     const btnY = cy + ph / 2 - 70;
     const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 44, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 44, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
     const bgmBtn = this.add.rectangle(cx - 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0x5ca7ff, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const bgmText = this.add.text(cx - 80, btnY + 50, bgmLabel, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
     const settingsBtn = this.add.rectangle(cx + 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0xffd866, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const settingsLabel = this.add.text(cx + 80, btnY + 50, "设置", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
     const escHint = this.add.text(cx, cy + ph / 2 - 12, "按 ESC / P 继续", {
-      fontFamily: "Zpix", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
     const onResume = () => this.closePauseMenu();
@@ -6052,7 +6052,7 @@ export class GameScene extends Phaser.Scene {
 
       const coinText = this.add
       .text(centerX, panelTop + 85, `金币: ${this.metaData.currency}`, {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "20px",
         color: "#e2c388",
         stroke: "#2e170d",
@@ -6064,7 +6064,7 @@ export class GameScene extends Phaser.Scene {
 
       const subtitle = this.add
       .text(centerX, headerBottom, "选择一把武器开始游戏", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "17px",
         color: "#d8bf95",
         stroke: "#2a1a10",
@@ -6077,7 +6077,7 @@ export class GameScene extends Phaser.Scene {
       const statusTextY = centerY + panelHeight / 2 - 22;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "18px",
         color: "#ebd7b7",
         stroke: "#2e170d",
@@ -6114,7 +6114,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const heading = this.add
         .text(centerX - 268, y - 13, `[${index + 1}] ${option.label}`, {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "24px",
           color: "#2e170d",
           stroke: "#f7e8cc",
@@ -6125,7 +6125,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const detail = this.add
         .text(centerX - 268, y + 15, "", {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "13px",
           color: "#6a4d36",
           stroke: "#f7e8cc",
@@ -6568,14 +6568,14 @@ export class GameScene extends Phaser.Scene {
 
     // "YOU DIED" text
     const deathText = this.add.text(cx, cy - 30, "YOU DIED", {
-      fontFamily: "Zpix", fontSize: "64px", color: "#ff2222",
+      fontFamily: "ZpixOne", fontSize: "64px", color: "#ff2222",
       stroke: "#000000", strokeThickness: 8,
       shadow: { offsetX: 0, offsetY: 0, color: "#ff0000", blur: 20, fill: true }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0).setScale(0.3);
 
     // Subtitle
     const subText = this.add.text(cx, cy + 30, `击杀: ${this.totalKills}  等级: ${this.level}  存活: ${this.formatRunTime(this.runTimeMs)}`, {
-      fontFamily: "Zpix", fontSize: "18px", color: "#cc8888",
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#cc8888",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -6964,14 +6964,14 @@ export class GameScene extends Phaser.Scene {
     const lineSpacing = 16 * scale;
     const fontSize = Math.floor(14 * scale);
     const style = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${fontSize}px`,
       color: "#f7f3de",
       stroke: "#1c130e",
       strokeThickness: Math.max(1, Math.floor(2 * scale))
     };
     const labelStyle = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${Math.floor(10 * scale)}px`,
       color: "#d6c6a2",
       stroke: "#1c130e",

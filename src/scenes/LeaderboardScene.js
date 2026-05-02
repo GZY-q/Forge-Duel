@@ -29,13 +29,16 @@ export class LeaderboardScene extends Phaser.Scene {
     this.add.rectangle(cx, cy, camera.width, camera.height, 0x000000, 0.3);
 
     // ── Panel ──
-    createVSPanel(this, cx, cy, 600, 500);
+    const panelW = 600;
+    const panelH = 500;
+    const panelTop = cy - panelH / 2;
+    createVSPanel(this, cx, cy, panelW, panelH);
 
-    // ── Title ──
-    this.add.text(cx, cy - 215, "排行榜", {
-      fontFamily: "Zpix", fontSize: "32px", color: "#ffffff",
-      stroke: "#000000", strokeThickness: 6
-    }).setOrigin(0.5).setDepth(100);
+    // ── Title (inside panel) ──
+    this.add.text(cx, panelTop + 25, "排行榜", {
+      fontFamily: "ZpixOne", fontSize: "22px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
 
     this.currentSort = "bestTime";
     this.tabButtons = [];
@@ -47,12 +50,12 @@ export class LeaderboardScene extends Phaser.Scene {
 
     tabs.forEach((tab, i) => {
       const tx = cx - 120 + i * 120;
-      const ty = cy - 170;
+      const ty = panelTop + 62;
       const bg = this.add.rectangle(tx, ty, 110, 32, 0x2a2a4a, 1)
         .setStrokeStyle(2, i === 0 ? 0xc4a040 : 0x4a4a5a, 1)
         .setInteractive({ useHandCursor: true });
       const text = this.add.text(tx, ty, tab.label, {
-        fontFamily: "Zpix", fontSize: "14px", color: i === 0 ? "#ffffff" : "#888888"
+        fontFamily: "ZpixOne", fontSize: "14px", color: i === 0 ? "#ffffff" : "#888888"
       }).setOrigin(0.5);
 
       bg.on("pointerdown", () => {
@@ -64,10 +67,10 @@ export class LeaderboardScene extends Phaser.Scene {
       this.tabButtons.push({ bg, text, key: tab.key });
     });
 
-    this.entriesContainer = this.add.container(cx, cy);
+    this.entriesContainer = this.add.container(cx, cy - 30);
 
-    this.statusText = this.add.text(cx, cy, "加载中...", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#8ab8e0"
+    this.statusText = this.add.text(cx, cy - 30, "加载中...", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#8ab8e0"
     }).setOrigin(0.5);
 
     this._loadLeaderboard();
@@ -104,13 +107,13 @@ export class LeaderboardScene extends Phaser.Scene {
       this.entriesContainer.add(headerBg);
 
       const rankHeader = this.add.text(-200, startY - 10, "排名", {
-        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
+        fontFamily: "ZpixOne", fontSize: "13px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const nameHeader = this.add.text(-80, startY - 10, "玩家", {
-        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
+        fontFamily: "ZpixOne", fontSize: "13px", color: "#ffd866"
       }).setOrigin(0, 0.5);
       const valueHeader = this.add.text(160, startY - 10, "数据", {
-        fontFamily: "Zpix", fontSize: "13px", color: "#ffd866"
+        fontFamily: "ZpixOne", fontSize: "13px", color: "#ffd866"
       }).setOrigin(1, 0.5);
       this.entriesContainer.add([rankHeader, nameHeader, valueHeader]);
 
@@ -123,12 +126,12 @@ export class LeaderboardScene extends Phaser.Scene {
         const medalColors = { 1: "#ffd700", 2: "#c0c0c0", 3: "#cd7f32" };
         const rankColor = medalColors[entry.rank] || "#ffffff";
         const rankText = this.add.text(-200, y, `#${entry.rank}`, {
-          fontFamily: "Zpix", fontSize: "15px", color: rankColor
+          fontFamily: "ZpixOne", fontSize: "15px", color: rankColor
         }).setOrigin(0, 0.5);
         this.entriesContainer.add(rankText);
 
         const nameText = this.add.text(-80, y, entry.username, {
-          fontFamily: "Zpix", fontSize: "15px", color: "#ffffff"
+          fontFamily: "ZpixOne", fontSize: "15px", color: "#ffffff"
         }).setOrigin(0, 0.5);
         this.entriesContainer.add(nameText);
 
@@ -141,7 +144,7 @@ export class LeaderboardScene extends Phaser.Scene {
         }
 
         const valueText = this.add.text(160, y, displayValue, {
-          fontFamily: "Zpix", fontSize: "15px", color: "#cfe9ff"
+          fontFamily: "ZpixOne", fontSize: "15px", color: "#cfe9ff"
         }).setOrigin(1, 0.5);
         this.entriesContainer.add(valueText);
       });

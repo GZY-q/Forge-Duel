@@ -32,7 +32,7 @@ export function createBackButton(scene, onBack, x, y) {
     .setOrigin(0.5);
 
   const text = scene.add.text(0, 0, "返回", {
-    fontFamily: "Zpix", fontSize: "18px", color: "#ffffff",
+    fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
     fontStyle: "bold", stroke: "#0a0a0a", strokeThickness: 3
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 

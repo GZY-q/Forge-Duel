@@ -1,5 +1,5 @@
 @font-face {
-  font-family: 'Zpix';
+  font-family: 'ZpixOne';
   src: url('./assets/fonts/zpix.woff2') format('woff2'),
        url('./assets/fonts/zpix.ttf') format('truetype');
   font-weight: normal;
@@ -25,7 +25,7 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   background: radial-gradient(circle at 30% 20%, var(--bg-b), var(--bg-a) 70%);
-  font-family: 'Zpix', sans-serif;
+  font-family: 'ZpixOne', sans-serif;
   color: var(--text);
   touch-action: none;
   user-select: none;
@@ -222,7 +222,7 @@ canvas {
   height: 100%;
   z-index: 42;
   pointer-events: none;
-  font-family: 'Zpix', sans-serif;
+  font-family: 'ZpixOne', sans-serif;
   font-variant-numeric: tabular-nums;
   color: #ffffff;
 }
@@ -559,7 +559,7 @@ canvas {
   border: 4px solid #c4a040;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6),
               inset 0 0 0 2px rgba(138, 122, 58, 0.8);
-  font-family: 'Zpix', sans-serif;
+  font-family: 'ZpixOne', sans-serif;
   color: #ffffff;
 }
 
@@ -599,7 +599,7 @@ canvas {
   border-radius: 2px;
   background: rgba(26, 26, 42, 0.9);
   color: #4ade80;
-  font-family: 'Zpix', sans-serif;
+  font-family: 'ZpixOne', sans-serif;
   font-size: 20px;
   font-weight: 700;
   line-height: 1;
@@ -632,7 +632,7 @@ canvas {
   border: 3px solid #c4a040;
   background: rgba(59, 89, 152, 0.95);
   color: #ffffff;
-  font-family: 'Zpix', sans-serif;
+  font-family: 'ZpixOne', sans-serif;
   font-size: 18px;
   font-weight: 700;
   cursor: pointer;
