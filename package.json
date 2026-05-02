@@ -3,11 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "node scripts/build.mjs",
-    "serve:dist": "node scripts/serve-dist.mjs",
-    "preview": "npm run serve:dist",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "serve:dist": "vite preview --outDir dist",
     "server": "node server/index.js",
-    "dev": "node server/index.js",
+    "dev:full": "npm run server & npm run dev",
     "pw:test": "playwright test",
     "pw:test:headed": "playwright test --project=chromium --headed",
     "pw:test:debug": "PWDEBUG=1 playwright test --project=chromium",
@@ -21,11 +22,12 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
+    "phaser": "^3.90.0",
     "socket.io": "^4.8.1",
-    "socket.io-client": "^4.8.3"
+    "socket.io-client": "^4.8.3",
+    "vite": "^8.0.10"
   },
   "devDependencies": {
-    "@playwright/test": "^1.58.2",
-    "esbuild": "^0.25.0"
+    "@playwright/test": "^1.58.2"
   }
 }

@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { GameScene } from "./scenes/GameScene.js";
 import { RunSummaryScene } from "./scenes/RunSummaryScene.js";
 import { UpgradeScene } from "./scenes/UpgradeScene.js";
