@@ -61,7 +61,7 @@ io.use((socket, next) => {
 });
 
 const roomManager = new RoomManager(io);
-setupVoiceSignaling(io);
+setupVoiceSignaling(io, roomManager);
 
 httpServer.listen(PORT, HOST, () => {
   const localIP = getLocalIP();

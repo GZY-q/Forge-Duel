@@ -19,10 +19,14 @@ export class EnemySync {
       let enemy = this.syncedEnemies.get(state.id);
 
       if (!enemy) {
-        enemy = this.enemyPool?.acquire(state.x, state.y, {
-          type: state.type,
+        if (!this.enemyPool) continue;
+        enemy = this.enemyPool.acquire(state.type, {
+          x: state.x,
+          y: state.y,
           hp: state.hp,
-          damage: state.damage
+          maxHp: state.maxHp,
+          damage: state.damage,
+          xpValue: state.xpValue
         });
         if (!enemy) continue;
         enemy.serverId = state.id;
@@ -37,20 +41,33 @@ export class EnemySync {
         enemy.hp = state.hp;
         enemy.maxHp = state.maxHp;
         enemy.facingDirection = state.facing || enemy.facingDirection;
+        enemy.xpValue = state.xpValue ?? enemy.xpValue;
 
         if (state.isElite && !enemy.isElite) {
           enemy.setElite(state.eliteType);
         }
 
-        if (state.hp <= 0 && enemy.active) {
-          this._releaseEnemy(state.id, enemy);
+        // Sync data needed for proper drop generation on non-host.
+        if (state.archetype !== undefined) {
+          enemy.setData("archetype", state.archetype);
         }
+        if (state.bossVariant !== undefined) {
+          enemy.setData("bossVariant", state.bossVariant);
+        }
+
+        // Don't auto-release on HP <= 0 — the onEnemyKilled event is the
+        // authoritative death trigger (generates drops and death animation).
+        // The cleanup loop below releases enemies no longer in the sync batch.
       }
     }
 
     for (const [id, enemy] of this.syncedEnemies) {
-      if (!seenIds.has(id) && enemy.active) {
-        this._releaseEnemy(id, enemy);
+      if (!seenIds.has(id)) {
+        if (enemy.active) {
+          this._releaseEnemy(id, enemy);
+        } else {
+          this.syncedEnemies.delete(id);
+        }
       }
     }
   }
@@ -75,5 +92,11 @@ export class EnemySync {
       this._releaseEnemy(id, enemy);
     }
     this.syncedEnemies.clear();
+  }
+
+  destroy() {
+    this.clear();
+    this.scene = null;
+    this.enemyPool = null;
   }
 }

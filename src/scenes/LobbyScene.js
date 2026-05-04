@@ -22,18 +22,241 @@ export class LobbyScene extends Phaser.Scene {
     this.selectedFighter = data?.fighterType || this.selectedShip || localStorage.getItem("forgeduel_selected_fighter") || "scout";
   }
 
-  async create() {
+  create() {
     const camera = this.cameras.main;
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    // ── VS Background ──
     createVSBackground(this);
 
-    // ── Panel ──
+    if (this.mode === "select") {
+      this._showRoomSelection(cx, cy);
+    } else {
+      this._setupLobbyUI(cx, cy);
+      this._connectAndJoin();
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // Room Selection Screen
+  // ═══════════════════════════════════════════════
+
+  _showRoomSelection(cx, cy) {
+    this.selectionObjects = [];
+
+    createVSPanel(this, cx, cy, 500, 340);
+
+    const title = this.add.text(cx, cy - 120, "联机模式", {
+      fontFamily: "ZpixOne", fontSize: "32px", color: "#ffffff",
+      stroke: "#2a2a3a", strokeThickness: 5
+    }).setOrigin(0.5);
+    this.selectionObjects.push(title);
+
+    const subtitle = this.add.text(cx, cy - 70, "选择房间模式", {
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#8ab8e0"
+    }).setOrigin(0.5);
+    this.selectionObjects.push(subtitle);
+
+    // Create room button
+    const createBtn = createVSButton(this, cx, cy + 10, "创建房间", {
+      width: 240, height: 60, fontSize: "22px",
+      onClick: () => this._onSelectCreate()
+    });
+    this.selectionObjects.push(createBtn.plate, createBtn.text);
+
+    // Join room button
+    const joinBtn = createVSButton(this, cx, cy + 90, "加入房间", {
+      width: 240, height: 60, fontSize: "22px",
+      onClick: () => this._onSelectJoin()
+    });
+    this.selectionObjects.push(joinBtn.plate, joinBtn.text);
+
+    this._selectionBackBtn = createBackButton(this, () => {
+      this.scene.start("ShipSelectionScene", { mode: "coop" });
+    });
+  }
+
+  _destroySelectionUI() {
+    if (this.selectionObjects) {
+      this.selectionObjects.forEach(obj => obj?.destroy?.());
+      this.selectionObjects = null;
+    }
+    if (this._selectionBackBtn) {
+      this._selectionBackBtn.container?.destroy();
+      this._selectionBackBtn = null;
+    }
+  }
+
+  _onSelectCreate() {
+    this._destroySelectionUI();
+    this.mode = "create";
+    const cx = this.cameras.main.width * 0.5;
+    const cy = this.cameras.main.height * 0.5;
+    this._setupLobbyUI(cx, cy);
+    this._connectAndJoin();
+  }
+
+  _onSelectJoin() {
+    this._destroySelectionUI();
+    const cx = this.cameras.main.width * 0.5;
+    const cy = this.cameras.main.height * 0.5;
+    this._showRoomCodeInput(cx, cy);
+  }
+
+  // ═══════════════════════════════════════════════
+  // Room Code Input — visible DOM input over the Phaser panel.
+  // A single-line input avoids all hidden-input cursor issues on mobile.
+  // ═══════════════════════════════════════════════
+
+  _showRoomCodeInput(cx, cy) {
+    this.codeInputObjects = [];
+
+    createVSPanel(this, cx, cy, 420, 280);
+
+    const title = this.add.text(cx, cy - 95, "输入房间码", {
+      fontFamily: "ZpixOne", fontSize: "24px", color: "#ffffff",
+      stroke: "#2a2a3a", strokeThickness: 4
+    }).setOrigin(0.5);
+    this.codeInputObjects.push(title);
+
+    const hint = this.add.text(cx, cy - 60, "输入房主分享的4位数字", {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#8ab8e0"
+    }).setOrigin(0.5);
+    this.codeInputObjects.push(hint);
+
+    this.codeStatusText = this.add.text(cx, cy + 50, "", {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#ff6666"
+    }).setOrigin(0.5);
+    this.codeInputObjects.push(this.codeStatusText);
+
+    // Confirm button
+    const confirmBtn = createVSButton(this, cx + 80, cy + 92, "确认", {
+      width: 100, height: 36, fontSize: "14px",
+      onClick: () => this._submitJoinCode()
+    });
+    this.codeInputObjects.push(confirmBtn.plate, confirmBtn.text);
+
+    // Back button
+    const backBtn = createVSButton(this, cx - 80, cy + 92, "返回", {
+      width: 100, height: 36, fontSize: "14px",
+      onClick: () => this._cancelCodeInput()
+    });
+    this.codeInputObjects.push(backBtn.plate, backBtn.text);
+
+    // Visible single-line DOM input — native keyboard on mobile, no cursor tricks.
+    this._codeDomInput = document.createElement("input");
+    this._codeDomInput.type = "tel";
+    this._codeDomInput.inputMode = "numeric";
+    this._codeDomInput.maxLength = 4;
+    this._codeDomInput.placeholder = "0000";
+    this._codeDomInput.autocomplete = "off";
+    this._codeDomInput.autocorrect = "off";
+    this._codeDomInput.spellcheck = false;
+    this._codeDomInput.pattern = "[0-9]*";
+    Object.assign(this._codeDomInput.style, {
+      position: "fixed",
+      left: "50%",
+      top: "50%",
+      transform: "translate(-50%, -50%)",
+      width: "220px",
+      height: "52px",
+      padding: "0 16px",
+      fontSize: "28px",
+      fontFamily: "'ZpixOne', 'Courier New', monospace",
+      color: "#ffd866",
+      background: "#1a1a2a",
+      border: "2px solid #c4a040",
+      borderRadius: "6px",
+      outline: "none",
+      textAlign: "center",
+      letterSpacing: "18px",
+      zIndex: "9999",
+      caretColor: "#ffd866",
+      boxSizing: "border-box"
+    });
+    document.body.appendChild(this._codeDomInput);
+
+    // Focus after DOM settles
+    this.time.delayedCall(100, () => this._codeDomInput?.focus());
+
+    // Block non-digit keystrokes early
+    this._beforeInputHandler = (event) => {
+      if (event.data && !/^[0-9]+$/.test(event.data)) {
+        event.preventDefault();
+      }
+    };
+    this._codeDomInput.addEventListener("beforeinput", this._beforeInputHandler);
+
+    // Read current value and update status / auto-submit
+    this._domInputHandler = () => {
+      const digits = this._codeDomInput.value.replace(/[^0-9]/g, "");
+      if (this.codeStatusText) {
+        this.codeStatusText.setText("");
+      }
+      if (digits.length >= 4) {
+        this.time.delayedCall(200, () => this._submitJoinCode());
+      }
+    };
+    this._codeDomInput.addEventListener("input", this._domInputHandler);
+
+    // Enter key on desktop
+    this._domKeyHandler = (event) => {
+      if (event.key === "Enter") {
+        this._submitJoinCode();
+      }
+    };
+    this._codeDomInput.addEventListener("keydown", this._domKeyHandler);
+  }
+
+  _submitJoinCode() {
+    const code = this._codeDomInput?.value.replace(/[^0-9]/g, "") || "";
+    if (code.length < 4) {
+      if (this.codeStatusText) {
+        this.codeStatusText.setText("请输入完整的4位数字");
+        this.codeStatusText.setColor("#ff6666");
+      }
+      return;
+    }
+    this._destroyCodeInput();
+    this.joinCode = code;
+    this.mode = "join";
+    const cx = this.cameras.main.width * 0.5;
+    const cy = this.cameras.main.height * 0.5;
+    this._setupLobbyUI(cx, cy);
+    this._connectAndJoin();
+  }
+
+  _cancelCodeInput() {
+    this._destroyCodeInput();
+    const cx = this.cameras.main.width * 0.5;
+    const cy = this.cameras.main.height * 0.5;
+    this._showRoomSelection(cx, cy);
+  }
+
+  _destroyCodeInput() {
+    if (this._codeDomInput) {
+      this._codeDomInput.removeEventListener("beforeinput", this._beforeInputHandler);
+      this._codeDomInput.removeEventListener("input", this._domInputHandler);
+      this._codeDomInput.removeEventListener("keydown", this._domKeyHandler);
+      this._codeDomInput.remove();
+      this._codeDomInput = null;
+      this._beforeInputHandler = null;
+      this._domInputHandler = null;
+      this._domKeyHandler = null;
+    }
+    if (this.codeInputObjects) {
+      this.codeInputObjects.forEach(obj => obj?.destroy?.());
+      this.codeInputObjects = null;
+    }
+  }
+
+  // ═══════════════════════════════════════════════
+  // Lobby UI
+  // ═══════════════════════════════════════════════
+
+  _setupLobbyUI(cx, cy) {
     createVSPanel(this, cx, cy, 700, 520);
 
-    // ── Title ──
     this.add.text(cx, cy - 225, "联机大厅", {
       fontFamily: "ZpixOne", fontSize: "32px", color: "#ffffff",
       stroke: "#2a2a3a", strokeThickness: 5
@@ -49,6 +272,8 @@ export class LobbyScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.playerSlots = [];
+    this.readyStates = new Map();
+    this.kickButtons = [];
     for (let i = 0; i < MAX_PLAYERS; i++) {
       const slotY = cy - 100 + i * 55;
       const bg = this.add.rectangle(cx, slotY, 500, 44, 0x2a2a4a, 0.9)
@@ -80,33 +305,9 @@ export class LobbyScene extends Phaser.Scene {
 
     createBackButton(this, () => this._leaveAndReturn());
 
-    if (this.mode === "join") {
-      this._showJoinInput(cx, cy);
-    }
-
     this.isReady = false;
     this.voiceManager = null;
     this.speakingStates = new Map();
-
-    await this._connectAndJoin();
-  }
-
-  _showJoinInput(cx, cy) {
-    if (typeof document === "undefined") return;
-
-    this.codeInput = document.createElement("input");
-    this.codeInput.type = "text";
-    this.codeInput.placeholder = "输入房间码";
-    this.codeInput.maxLength = 4;
-    Object.assign(this.codeInput.style, {
-      position: "absolute", left: "50%", top: "30%",
-      transform: "translate(-50%, -50%)", width: "180px",
-      padding: "10px", fontSize: "20px", fontFamily: "monospace",
-      background: "#1a1a2a", color: "#ffd866", border: "2px solid #c4a040",
-      borderRadius: "4px", outline: "none", textAlign: "center",
-      letterSpacing: "8px", zIndex: "200", textTransform: "uppercase"
-    });
-    document.body.appendChild(this.codeInput);
   }
 
   _createVoiceControls(x, y) {
@@ -142,6 +343,10 @@ export class LobbyScene extends Phaser.Scene {
     return { micBg, micIcon, spkBg, spkIcon };
   }
 
+  // ═══════════════════════════════════════════════
+  // Connection
+  // ═══════════════════════════════════════════════
+
   async _connectAndJoin() {
     try {
       this.socketClient = new SocketClient();
@@ -157,6 +362,16 @@ export class LobbyScene extends Phaser.Scene {
         this._refreshPlayerList();
         this._updateStartButton();
       };
+      this.networkManager.onReadyChanged = (data) => {
+        this._updatePlayerReadyState(data.playerId, data.ready);
+      };
+      this.networkManager.onAllReady = () => {
+        this.statusText.setText("所有玩家已准备，开始游戏!");
+      };
+      this.networkManager.onKicked = (data) => {
+        this.statusText.setText(`被踢出: ${data.reason || "未知原因"}`);
+        this.time.delayedCall(2000, () => this._leaveAndReturn());
+      };
 
       this.voiceManager = new VoiceManager(this.networkManager);
       this.voiceManager.onSpeakingChange = (id, speaking) => {
@@ -171,7 +386,7 @@ export class LobbyScene extends Phaser.Scene {
         this._updateStartButton();
         this._refreshPlayerList();
       } else {
-        const code = this.codeInput?.value?.trim()?.toUpperCase();
+        const code = this.joinCode;
         if (!code || code.length < 4) {
           this.statusText.setText("请输入有效的房间码");
           return;
@@ -179,7 +394,6 @@ export class LobbyScene extends Phaser.Scene {
         const result = await this.networkManager.joinRoom(code, this.selectedFighter);
         this.roomCodeText.setText(`房间码: ${result.roomCode}`);
         this.statusText.setText("已加入房间，等待开始...");
-        this.codeInput?.remove();
         this._refreshPlayerList();
       }
 
@@ -196,6 +410,10 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // Player list & state
+  // ═══════════════════════════════════════════════
+
   _refreshPlayerList() {
     const players = this.networkManager?.players || [];
     for (let i = 0; i < MAX_PLAYERS; i++) {
@@ -211,6 +429,7 @@ export class LobbyScene extends Phaser.Scene {
         slot.readyText.setColor(p.ready ? "#44ff44" : "#888888");
         slot.hostText.setText(p.isHost ? "HOST" : "");
         slot.bg.setStrokeStyle(1, p.isHost ? 0xffd866 : 0x4a4a5a, 0.8);
+        this.readyStates.set(p.playerId, p.ready);
       } else {
         slot.nameText.setText("等待玩家...");
         slot.nameText.setColor("#5a5a6a");
@@ -220,19 +439,68 @@ export class LobbyScene extends Phaser.Scene {
       }
     }
     this._updateStartButton();
+    this._updateKickButtons();
+  }
+
+  _updatePlayerReadyState(playerId, ready) {
+    this.readyStates.set(playerId, ready);
+    const players = this.networkManager?.players || [];
+    const index = players.findIndex((p) => p.playerId === playerId);
+    if (index >= 0 && this.playerSlots[index]) {
+      const slot = this.playerSlots[index];
+      slot.readyText.setText(ready ? "✓ 准备" : "等待中");
+      slot.readyText.setColor(ready ? "#44ff44" : "#888888");
+    }
+    this._updateStartButton();
+  }
+
+  _updateKickButtons() {
+    for (const btn of this.kickButtons) {
+      btn?.destroy();
+    }
+    this.kickButtons = [];
+
+    if (!this.networkManager?.isHost) return;
+
+    const players = this.networkManager.players || [];
+    for (let i = 0; i < players.length; i++) {
+      const p = players[i];
+      if (p.isHost || p.playerId === this.networkManager.playerId) continue;
+
+      const slot = this.playerSlots[i];
+      const kickBtn = this.add.text(slot.nameText.x + 280, slot.nameText.y, "[踢]", {
+        fontFamily: "ZpixOne", fontSize: "12px", color: "#ff4444"
+      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+      kickBtn.on("pointerdown", async () => {
+        await this.networkManager.kickPlayer(p.playerId);
+      });
+
+      this.kickButtons.push(kickBtn);
+    }
   }
 
   _updateStartButton() {
     const isHost = this.networkManager?.isHost;
     const players = this.networkManager?.players || [];
-    const allReady = players.length >= 1 && players.every((p) => p.ready || p.isHost);
+    const allReady = players.length >= 2 && players.every((p) => p.ready);
 
-    if (isHost && allReady) {
+    if (isHost && allReady && players.length >= 2) {
       this.startBtn.plate.setAlpha(1);
       this.startBtn.plate.setInteractive({ useHandCursor: true });
+      this.statusText.setText("所有玩家已准备，点击开始游戏");
+    } else if (isHost && players.length < 2) {
+      this.startBtn.plate.setAlpha(0.4);
+      this.startBtn.plate.disableInteractive();
+      this.statusText.setText("等待更多玩家加入...");
+    } else if (isHost && !allReady) {
+      this.startBtn.plate.setAlpha(0.4);
+      this.startBtn.plate.disableInteractive();
+      this.statusText.setText("等待所有玩家准备...");
     } else {
       this.startBtn.plate.setAlpha(0.4);
       this.startBtn.plate.disableInteractive();
+      this.statusText.setText("等待房主开始...");
     }
   }
 
@@ -257,11 +525,16 @@ export class LobbyScene extends Phaser.Scene {
     }
   }
 
+  // ═══════════════════════════════════════════════
+  // Actions
+  // ═══════════════════════════════════════════════
+
   async _toggleReady() {
     this.isReady = !this.isReady;
     await this.networkManager?.setReady(this.isReady);
     this.readyBtn.text.setText(this.isReady ? "取消准备" : "准备");
     this.readyBtn.plate.setStrokeStyle(3, this.isReady ? 0xffd866 : 0xc4a040, 1);
+    this._updateStartButton();
   }
 
   async _startGame() {
@@ -295,8 +568,7 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   _cleanup() {
-    this.codeInput?.remove();
-    this.codeInput = null;
+    this._destroyCodeInput();
   }
 
   shutdown() {

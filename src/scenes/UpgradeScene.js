@@ -93,28 +93,42 @@ export class UpgradeScene extends Phaser.Scene {
     // ── Dark overlay (not interactive) ──
     this.add.rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.3);
 
-    // ── Main Panel ──
+    //========== 增强选择面板尺寸 ==========
+    // 面板宽度（默认780）
     const panelW = 780;
+    // 面板高度（默认560）
     const panelH = 560;
+    // 垂直位置（默认cy + 15）
     const panelCenterY = cy + 15;
+    // 面板顶部Y
     const panelTop = panelCenterY - panelH / 2;
+    // 面板底部Y
     const panelBottom = panelCenterY + panelH / 2;
     createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    // ── Title (inside panel) ──
+    //========== 标题 ==========
+    // Y偏移60（面板顶部往下60px）| 字号30px
     this.add.text(cx, panelTop + 60, "增强选择", {
       fontFamily: "ZpixOne", fontSize: "30px", color: "#fef08a",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5);
 
-    // ── Cards grid (4 columns x 3 rows) ──
+    //========== 卡片网格 ==========
+    // 列数（默认4列）
     const cols = 4;
+    // 卡片宽度（默认148）
     const cardW = 148;
+    // 卡片高度（默认90）
     const cardH = 90;
+    // 水平间距（默认10）
     const gapX = 10;
+    // 垂直间距（默认7）
     const gapY = 7;
+    // 网格总宽度
     const gridW = cols * cardW + (cols - 1) * gapX;
+    // 网格起始X（居中）
     const startX = cx - gridW / 2 + cardW / 2;
+    // 网格起始Y（默认panelTop + 160）
     const startY = panelTop + 160;
 
     UPGRADE_DEFINITIONS.forEach((def, i) => {
@@ -127,13 +141,15 @@ export class UpgradeScene extends Phaser.Scene {
 
     const gridBottom = startY + (3 - 1) * (cardH + gapY) + cardH / 2;
 
-    // ── Status text (between cards and detail) ──
+    //========== 状态文字 ==========
+    // 位于卡片下方 | 字号14px
     this.statusText = this.add.text(cx, gridBottom + 14, "", {
       fontFamily: "ZpixOne", fontSize: "14px", color: "#cde5ff",
       stroke: "#0e1a2a", strokeThickness: 3
     }).setOrigin(0.5);
 
-    // ── Detail panel at bottom ──
+    //========== 详情面板 ==========
+    // Y位置（默认panelBottom - 50）
     const detailY = panelBottom - 50;
     this.createDetailPanel(cx, detailY, panelW - 30, 80);
 

@@ -38,6 +38,16 @@ export const STATUS_EFFECTS = {
     tickDamage: 3,
     speedMultiplier: 1.0,
     label: "中毒"
+  },
+  bleed: {
+    id: "bleed",
+    color: 0xff2244,
+    tintColor: 0xcc1133,
+    durationMs: 3000,
+    tickIntervalMs: 400,
+    tickDamage: 4,
+    speedMultiplier: 1.0,
+    label: "流血"
   }
 };
 
@@ -48,7 +58,18 @@ export const WEAPON_STATUS_CHANCES = {
   thunderstorm: { effect: "slow", chance: 0.3 },
   laser: { effect: "burn", chance: 0.1 },
   prismatic_laser: { effect: "burn", chance: 0.2 },
-  frost_shard: { effect: "freeze", chance: 0.35 }
+  frost_shard: { effect: "freeze", chance: 0.35 },
+  dagger: { effect: "bleed", chance: 0.2 },
+  slash: { effect: "bleed", chance: 0.3 },
+  cyclone_slash: { effect: "bleed", chance: 0.4 },
+  boomerang: { effect: "slow", chance: 0.15 },
+  death_spiral: { effect: "slow", chance: 0.25 },
+  garlic_aura: { effect: "slow", chance: 0.1 },
+  holy_aura: { effect: "freeze", chance: 0.15 },
+  molotov: { effect: "burn", chance: 0.5 },
+  inferno: { effect: "burn", chance: 0.6 },
+  gravity_well: { effect: "slow", chance: 0.3 },
+  singularity: { effect: "freeze", chance: 0.2 }
 };
 
 export class StatusEffectSystem {

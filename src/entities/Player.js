@@ -26,7 +26,7 @@ function getPlayerDirectionalTextureKey(scene, direction = "south") {
   return null;
 }
 
-function getPlayerTextureKey(scene, direction = "south") {
+export function getPlayerTextureKey(scene, direction = "south") {
   const directionalKey = getPlayerDirectionalTextureKey(scene, direction);
   if (directionalKey) {
     return directionalKey;

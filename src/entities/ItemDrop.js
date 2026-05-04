@@ -143,6 +143,43 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
           }
         }
         break;
+      case "bomb":
+        if (scene.enemies) {
+          scene.enemies.getChildren().forEach((enemy) => {
+            if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+            if (scene.weaponSystem) {
+              scene.weaponSystem.applyDamage(enemy, 50, 200, player.x, player.y, "bomb");
+            } else {
+              enemy.takeDamage(50);
+            }
+          });
+          if (scene.showHudAlert) {
+            scene.showHudAlert("BOMB!", 800);
+          }
+          const bombGfx = scene.add.graphics().setDepth(30);
+          bombGfx.fillStyle(0xff4422, 0.3);
+          bombGfx.fillCircle(player.x, player.y, 400);
+          scene.tweens.add({
+            targets: bombGfx,
+            alpha: 0,
+            duration: 400,
+            onComplete: () => bombGfx.destroy()
+          });
+        }
+        break;
+      case "red_potion":
+        if (player.active) {
+          player.redPotionHeal = player.redPotionHeal ?? 0;
+          player.redPotionHealTotal = config.healAmount;
+          player.redPotionHealElapsed = 0;
+          player.redPotionHealTick = config.healPerTick;
+          player.redPotionHealDuration = config.healDurationMs;
+          player.redPotionHealInterval = config.healTickMs;
+          if (scene.showHudAlert) {
+            scene.showHudAlert("REGEN", 1000);
+          }
+        }
+        break;
     }
   }
 }

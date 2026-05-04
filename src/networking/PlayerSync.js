@@ -1,5 +1,7 @@
 import { Player } from "../entities/Player.js";
+import { SHIP_CONFIGS } from "../config/ships.js";
 import { FIGHTER_CONFIGS } from "../config/fighters.js";
+import { getPlayerTextureKey } from "../entities/Player.js";
 
 const INTERPOLATION_DELAY_MS = 100;
 const MAX_BUFFER_SIZE = 20;
@@ -12,8 +14,9 @@ export class RemotePlayer {
     this.playerId = playerId;
     this.username = username;
     this.isDead = false;
+    this.disconnected = false;
 
-    const config = FIGHTER_CONFIGS[fighterType] || FIGHTER_CONFIGS.scout;
+    const config = SHIP_CONFIGS[fighterType] || FIGHTER_CONFIGS[fighterType] || FIGHTER_CONFIGS.scout;
     this.sprite = new Player(scene, 0, 0);
     this.sprite.setTint(config.tint || 0xffffff);
     this.sprite.setAlpha(0.9);
@@ -50,8 +53,14 @@ export class RemotePlayer {
       return;
     }
 
-    this.sprite.setAlpha(0.9);
-    this.hpBarFill.setVisible(true);
+    if (this.disconnected) {
+      this.sprite.setAlpha(0.4);
+      this.nameLabel?.setAlpha(0.4);
+    } else {
+      this.sprite.setAlpha(0.9);
+      this.nameLabel?.setAlpha(1);
+    }
+    this.hpBarFill.setVisible(!this.disconnected);
 
     const renderTime = currentTime - INTERPOLATION_DELAY_MS;
     const buffer = this.positionBuffer;
@@ -82,8 +91,12 @@ export class RemotePlayer {
     this.sprite.setPosition(this.lastX, this.lastY);
 
     const latest = buffer[buffer.length - 1];
-    if (latest.facing && this.sprite.updateFacingFromVelocity) {
+    if (latest.facing && latest.facing !== this.sprite.facingDirection) {
       this.sprite.facingDirection = latest.facing;
+      const textureKey = getPlayerTextureKey(this.scene, latest.facing);
+      if (textureKey && this.sprite.texture?.key !== textureKey) {
+        this.sprite.setTexture(textureKey);
+      }
     }
 
     this.nameLabel.setPosition(this.lastX, this.lastY - 22);

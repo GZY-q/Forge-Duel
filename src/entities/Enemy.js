@@ -17,7 +17,9 @@ const ENEMY_TYPE_TO_FOLDER = Object.freeze({
   swarm: "enemy_swarm",
   tank: "enemy_tank",
   hunter: "enemy_hunter",
-  ranger: "enemy_ranger"
+  ranger: "enemy_ranger",
+  thrower: "enemy_ranger",
+  boomeranger: "enemy_hunter"
 });
 const HIT_FLASH_DURATION_MS = 100;
 const HIT_FLASH_TINT = 0xffaaaa;
@@ -68,6 +70,12 @@ function getEnemyTextureKey(type, scene, direction = "south") {
   if (type === "ranger") {
     return "enemy_ranger";
   }
+  if (type === "thrower") {
+    return "enemy_ranger";
+  }
+  if (type === "boomeranger") {
+    return "enemy_hunter";
+  }
   if (type === "boss") {
     return "enemy_boss";
   }
@@ -112,6 +120,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.fireIntervalMs = config.fireIntervalMs ?? archetype.fireIntervalMs;
     this.projectileSpeed = config.projectileSpeed ?? archetype.projectileSpeed;
     this.projectileDamage = config.projectileDamage ?? archetype.projectileDamage;
+    this.predictPlayer = config.predictPlayer ?? archetype.predictPlayer ?? false;
+    this.isBoomerang = config.isBoomerang ?? archetype.isBoomerang ?? false;
+    this.meleeDamage = config.meleeDamage ?? archetype.meleeDamage ?? 0;
     this.nextRangerFireAtMs = 0;
     this.flashToken = (this.flashToken ?? 0) + 1;
     this.facingDirection = "south";
@@ -253,13 +264,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
 
     let moveVx = 0;
     let moveVy = 0;
+    const moveSpeed = this.isBoomerang ? this.speed / 2 : this.speed;
 
     if (distance < preferredRange * 0.7) {
       moveVx = -Math.cos(playerAngle) * this.speed * 0.8;
       moveVy = -Math.sin(playerAngle) * this.speed * 0.8;
     } else if (distance > preferredRange * 1.3) {
-      moveVx = Math.cos(playerAngle) * this.speed;
-      moveVy = Math.sin(playerAngle) * this.speed;
+      moveVx = Math.cos(playerAngle) * moveSpeed;
+      moveVy = Math.sin(playerAngle) * moveSpeed;
     }
 
     this.body.setVelocity(moveVx + this.knockbackVx, moveVy + this.knockbackVy);
@@ -281,8 +293,30 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     if (dist < 0.001) return;
 
     const speed = this.projectileSpeed || 200;
-    const nx = dx / dist;
-    const ny = dy / dist;
+    let aimX = dx;
+    let aimY = dy;
+
+    if (this.predictPlayer && target.body) {
+      const travelTime = dist / speed;
+      const vx = target.body.velocity?.x ?? 0;
+      const vy = target.body.velocity?.y ?? 0;
+      aimX = (target.x + vx * travelTime * 0.7) - this.x;
+      aimY = (target.y + vy * travelTime * 0.7) - this.y;
+      const aimDist = Math.hypot(aimX, aimY);
+      if (aimDist > 0.001) {
+        aimX /= aimDist;
+        aimY /= aimDist;
+      } else {
+        aimX = dx / dist;
+        aimY = dy / dist;
+      }
+    } else {
+      aimX = dx / dist;
+      aimY = dy / dist;
+    }
+
+    const nx = aimX;
+    const ny = aimY;
 
     let projectile = this.scene.bossProjectiles.getFirstDead(false);
     if (!projectile) {
@@ -299,7 +333,15 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     projectile.setPosition(this.x, this.y);
     projectile.body.setVelocity(nx * speed, ny * speed);
     projectile.setData("damage", this.projectileDamage || 8);
-    projectile.setTint(0xdd88ff);
+    const tint = this.isBoomerang ? 0x44ddaa : 0xdd88ff;
+    projectile.setTint(tint);
+    projectile.setData("isBoomerangProjectile", this.isBoomerang || false);
+    projectile.setData("originX", this.x);
+    projectile.setData("originY", this.y);
+    projectile.setData("boomerangDist", dist * 0.7);
+    projectile.setData("boomerangPhase", "out");
+    projectile.setData("boomerangSpeed", speed);
+    projectile.setData("boomerangElapsed", 0);
 
     this.scene.time.delayedCall(3000, () => {
       if (projectile.active) {

@@ -4,6 +4,7 @@ import { DirectorSystem, DIRECTOR_STATE } from "../systems/DirectorSystem.js";
 import { WeaponSystem } from "../systems/WeaponSystem.js";
 import { MetaProgressionSystem } from "../systems/MetaProgressionSystem.js";
 import { ObjectPool } from "../systems/ObjectPool.js";
+import { SeededRNG } from "../utils/SeededRNG.js";
 import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC, RANGER_UNLOCK_TIME_SEC } from "../config/enemies.js";
 import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
@@ -847,6 +848,9 @@ export class GameScene extends Phaser.Scene {
     this.voiceManager = data?.voiceManager || null;
     this.isHost = data?.isHost ?? true;
     this.coopPlayers = data?.players || [];
+    this.coopSeed = data?.seed ?? Date.now();
+    this._hasSentPlayerDied = false;
+    this._hasSentGameOver = false;
     this.networkSyncAccumulator = 0;
     this.lastEnemySyncTime = 0;
   }
@@ -884,7 +888,8 @@ export class GameScene extends Phaser.Scene {
     this.runMetaCurrency = 0;
     this.lastRunMetaCurrency = 0;
     this.metaSettled = false;
-    this.director = new DirectorSystem();
+    this.coopRNG = this.gameMode === "coop" ? new SeededRNG(this.coopSeed) : null;
+    this.director = new DirectorSystem({ rng: this.coopRNG });
     this.dashTrailTickMs = 0;
     this.sfxLastPlayedAt = {};
     this.clearEvolutionSlowMoTimer();
@@ -915,7 +920,7 @@ export class GameScene extends Phaser.Scene {
     this.devAntiJamEnabled = this.resolveDevAntiJamEnabled();
 
     this.createTextures();
-    this.drawArena();
+    this._createInfiniteBackground();
 
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
@@ -1311,6 +1316,8 @@ export class GameScene extends Phaser.Scene {
       this.load.image(key, path);
     });
 
+    this.load.image("game_bg", "assets/sprites/ui/bg.png");
+
     this.setupCoopMode();
   }
 
@@ -1329,7 +1336,7 @@ export class GameScene extends Phaser.Scene {
 
     import("../networking/EnemySync.js").then(({ EnemySync }) => {
       if (!this.isHost) {
-        this.enemySync = new EnemySync(this, null);
+        this.enemySync = new EnemySync(this, this.enemyPool);
       }
     });
 
@@ -1341,6 +1348,22 @@ export class GameScene extends Phaser.Scene {
     this.networkManager.onEnemyStateUpdate = (data) => {
       if (this.isHost) return;
       this.enemySync?.applyEnemyState(data);
+    };
+
+    this.networkManager.onEnemyDamage = (data) => {
+      if (!this.isHost) return;
+      const enemy = this.enemies.getChildren().find(
+        (e) => e.active && e.serverId === data.enemyId && !e.getData("isDying")
+      );
+      if (enemy) {
+        enemy.takeDamage(data.damage);
+        if (this.spawnWeaponHitParticles) {
+          this.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
+        }
+        if (enemy.isDead()) {
+          this.handleEnemyDefeat(enemy);
+        }
+      }
     };
 
     this.networkManager.onEnemyKilled = (data) => {
@@ -1401,9 +1424,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateHelpOverlayPresentation();
-    this.updateSeaWaves(time);
     this.handlePlaytestHotkeys();
-    this.updateEdgeFogOverlay();
 
     if (this.isGameOver) {
       this.updateBossProjectiles(time);
@@ -1473,18 +1494,28 @@ export class GameScene extends Phaser.Scene {
     }
     this.checkStageAnnouncements();
     this.updateBossApproachWarning();
-    this.spawnAccumulatorMs += delta;
-    this.processDirectorBossSpawns();
-    this.processDirectorMiniBossSpawns();
-    this.processDirectorSpawnBursts();
-    this.processDirectorLadderSpawns();
-    this.processDirectorHatchBreaches();
 
-    const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
-    const effectiveSpawnIntervalMs = this.baseSpawnCheckIntervalMs / Math.max(0.2, spawnRateMultiplier);
-    while (this.spawnAccumulatorMs >= effectiveSpawnIntervalMs) {
-      this.spawnAccumulatorMs -= effectiveSpawnIntervalMs;
-      this.maintainEnemyDensity();
+    // Enemy spawning is host-authoritative in coop — only the host creates enemies.
+    if (this.gameMode !== "coop" || this.isHost) {
+      this.spawnAccumulatorMs += delta;
+      this.processDirectorBossSpawns();
+      this.processDirectorMiniBossSpawns();
+      this.processDirectorSpawnBursts();
+      this.processDirectorLadderSpawns();
+      this.processDirectorHatchBreaches();
+
+      const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
+      const effectiveSpawnIntervalMs = this.baseSpawnCheckIntervalMs / Math.max(0.2, spawnRateMultiplier);
+      while (this.spawnAccumulatorMs >= effectiveSpawnIntervalMs) {
+        this.spawnAccumulatorMs -= effectiveSpawnIntervalMs;
+        this.maintainEnemyDensity();
+      }
+    } else {
+      this.director.consumeBossSpawnRequests();
+      this.director.consumeMiniBossSpawnRequests();
+      this.director.consumeSpawnBurstRequests();
+      this.director.consumeLadderSpawnRequests();
+      this.director.consumeHatchBreachSpawnRequests();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.dash) || this.consumeTouchDash()) {
@@ -1515,10 +1546,11 @@ export class GameScene extends Phaser.Scene {
         }
         enemy.speed = enemy.baseSpeed * speedMultiplier;
         enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
-        enemy.chase(this.player, delta, time);
-        enemy.tryApplyPoisonAura(this.player, time);
+        const target = this._getNearestPlayerForEnemy(enemy);
+        enemy.chase(target, delta, time);
+        enemy.tryApplyPoisonAura(target, time);
         if (enemy.updateBossPattern) {
-          enemy.updateBossPattern(this.player, time);
+          enemy.updateBossPattern(target, time);
         }
         this.applyEnemyAntiJam(enemy, time);
       });
@@ -1544,13 +1576,22 @@ export class GameScene extends Phaser.Scene {
               facing: e.facingDirection,
               isElite: e.isElite || false,
               eliteType: e.eliteType,
-              damage: e.damage
+              damage: e.damage,
+              xpValue: e.xpValue,
+              archetype: e.getData("archetype"),
+              bossVariant: e.getData("bossVariant")
             }));
           this.networkManager.sendEnemyState(activeEnemies);
         }
-
-        this.playerSync?.update(this.time.now);
       }
+
+      this.playerSync?.update(this.time.now);
+    }
+
+    // Infinite background parallax — tiles scroll at 30% of camera speed.
+    if (this._bgTile) {
+      this._bgTile.tilePositionX = this.cameras.main.scrollX * 0.3;
+      this._bgTile.tilePositionY = this.cameras.main.scrollY * 0.3;
     }
 
     if (this.player.isDead()) {
@@ -2339,151 +2380,12 @@ export class GameScene extends Phaser.Scene {
     gfx.destroy();
   }
 
-  drawArena() {
-    const seaGraphics = this.add.graphics();
-    seaGraphics.setDepth(-3);
-    seaGraphics.fillStyle(0x061328, 1);
-    seaGraphics.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  drawArena() {}
 
-    const graphics = this.add.graphics();
-    graphics.setDepth(0);
-
-    const deckLeft = DECK_SURFACE_INSET;
-    const deckTop = DECK_SURFACE_INSET;
-    const deckWidth = WORLD_WIDTH - DECK_SURFACE_INSET * 2;
-    const deckHeight = WORLD_HEIGHT - DECK_SURFACE_INSET * 2;
-    const deckRight = deckLeft + deckWidth;
-    const deckBottom = deckTop + deckHeight;
-    const hasDeckPlankTexture = DECK_TILE_VARIANTS.some((variant) => this.textures.exists(variant.key));
-    const hasDeckTrimTexture = this.textures.exists(IMPORTED_PIXEL_ASSETS.deckPlankTrim.key);
-
-    graphics.fillStyle(scaleHexColor(0x5b3b25, DECK_BRIGHTNESS_MULTIPLIER), 1);
-    graphics.fillRect(deckLeft, deckTop, deckWidth, deckHeight);
-
-    let lastVariantKey = null;
-    let variantRunLength = 0;
-    for (let y = deckTop; y < deckBottom; y += DECK_TILE_SIZE) {
-      const plankIndex = Math.floor((y - deckTop) / DECK_TILE_SIZE);
-      const rowHeight = Math.min(DECK_TILE_SIZE - 2, deckBottom - y);
-      const excludedKey = variantRunLength >= 3 ? lastVariantKey : null;
-      const deckVariant = pickWeightedDeckVariant(DECK_TILE_VARIANTS, excludedKey);
-      if (deckVariant.key === lastVariantKey) {
-        variantRunLength += 1;
-      } else {
-        lastVariantKey = deckVariant.key;
-        variantRunLength = 1;
-      }
-
-      if (hasDeckPlankTexture) {
-        const textureKey = this.textures.exists(deckVariant.key) ? deckVariant.key : IMPORTED_PIXEL_ASSETS.deckPlankMain.key;
-        const plankRow = this.add.tileSprite(
-          deckLeft + deckWidth * 0.5,
-          y + rowHeight * 0.5,
-          deckWidth,
-          rowHeight,
-          textureKey
-        );
-        plankRow.setDepth(0);
-        const plankTint = plankIndex % 2 === 0 ? deckVariant.tintEven : deckVariant.tintOdd;
-        plankRow.setTint(scaleHexColor(plankTint, DECK_BRIGHTNESS_MULTIPLIER));
-        plankRow.tileScaleX = 1;
-        plankRow.tileScaleY = 1;
-        plankRow.tilePositionX = (plankIndex % 5) * deckVariant.tileOffsetStep;
-      } else {
-        const plankColor = plankIndex % 2 === 0 ? deckVariant.fallbackEven : deckVariant.fallbackOdd;
-        graphics.fillStyle(scaleHexColor(plankColor, DECK_BRIGHTNESS_MULTIPLIER), 1);
-        graphics.fillRect(deckLeft, y, deckWidth, rowHeight);
-      }
-
-      const seamInset = 28 + (plankIndex % 4) * 18;
-      const seamWidth = Math.max(120, deckWidth - seamInset * 2);
-      graphics.fillStyle(
-        scaleHexColor(0x8b603f, DECK_BRIGHTNESS_MULTIPLIER),
-        (plankIndex % 2 === 0 ? 0.08 : 0.14) * DECK_HIGHLIGHT_OPACITY
-      );
-      graphics.fillRect(deckLeft + seamInset, y, seamWidth, 2);
-
-      if (hasDeckTrimTexture) {
-        const trimRow = this.add.tileSprite(
-          deckLeft + deckWidth * 0.5,
-          y + 2,
-          deckWidth,
-          6,
-          IMPORTED_PIXEL_ASSETS.deckPlankTrim.key
-        );
-        trimRow.setDepth(0.1);
-        trimRow.setTint(
-          scaleHexColor(plankIndex % 2 === 0 ? 0xd9b48c : 0xc49263, DECK_BRIGHTNESS_MULTIPLIER)
-        );
-        trimRow.setAlpha(DECK_HIGHLIGHT_OPACITY);
-      }
-
-      const jointSteps = [148, 206, 172, 228];
-      let jointX = deckLeft + 76 + ((plankIndex % 5) * 22);
-      let jointIndex = plankIndex % jointSteps.length;
-      while (jointX < deckRight - 72) {
-        graphics.fillStyle(
-          scaleHexColor(0x4a2f1f, DECK_BRIGHTNESS_MULTIPLIER),
-          0.22 * DECK_HIGHLIGHT_OPACITY
-        );
-        graphics.fillRect(jointX, y + 4, 3, DECK_TILE_SIZE - 10);
-        if ((jointIndex + plankIndex) % 3 === 0) {
-          graphics.fillStyle(
-            scaleHexColor(0x2f1d12, DECK_BRIGHTNESS_MULTIPLIER),
-            0.1 * DECK_HIGHLIGHT_OPACITY
-          );
-          graphics.fillRect(jointX + 6, y + 8, 22, 2);
-        }
-        jointX += jointSteps[jointIndex];
-        jointIndex = (jointIndex + 1) % jointSteps.length;
-      }
-    }
-
-    graphics.fillStyle(0x3d2619, 1);
-    graphics.fillRect(deckLeft, deckTop, deckWidth, 18);
-    graphics.fillRect(deckLeft, deckBottom - 18, deckWidth, 18);
-    graphics.fillRect(deckLeft, deckTop, 18, deckHeight);
-    graphics.fillRect(deckRight - 18, deckTop, 18, deckHeight);
-
-    const hatchWidth = 128;
-    const hatchHeight = 64;
-    const hatchX = HATCH_BREACH_POINT.x - hatchWidth / 2;
-    const hatchY = HATCH_BREACH_POINT.y - hatchHeight / 2;
-    graphics.fillStyle(0x4b2f1e, 1);
-    graphics.fillRect(hatchX, hatchY, hatchWidth, hatchHeight);
-    graphics.lineStyle(2, 0x28170f, 1);
-    graphics.strokeRect(hatchX, hatchY, hatchWidth, hatchHeight);
-    graphics.lineStyle(2, 0x8f6441, 0.75);
-    graphics.lineBetween(HATCH_BREACH_POINT.x, hatchY + 6, HATCH_BREACH_POINT.x, hatchY + hatchHeight - 6);
-    graphics.lineBetween(hatchX + 6, HATCH_BREACH_POINT.y, hatchX + hatchWidth - 6, HATCH_BREACH_POINT.y);
-
-    const beamYPositions = [deckTop + 186, deckTop + 420, deckBottom - 214];
-    beamYPositions.forEach((beamY, index) => {
-      graphics.fillStyle(0x3f281a, 0.26);
-      graphics.fillRect(deckLeft + 36, beamY - 7, deckWidth - 72, 14);
-      graphics.fillStyle(0x8f6441, 0.12);
-      graphics.fillRect(deckLeft + 44, beamY - 5, deckWidth - 88, 3);
-      for (let x = deckLeft + 120 + (index % 2) * 38; x < deckRight - 120; x += 260) {
-        graphics.fillStyle(0x2d1a10, 0.35);
-        graphics.fillRect(x, beamY - 3, 10, 6);
-      }
-    });
-
-    [
-      { x: deckLeft + 118, y: deckTop + 146 },
-      { x: deckRight - 118, y: deckTop + 146 },
-      { x: deckLeft + 118, y: deckBottom - 146 },
-      { x: deckRight - 118, y: deckBottom - 146 }
-    ].forEach((plate) => {
-      graphics.fillStyle(0x4f3728, 0.42);
-      graphics.fillRect(plate.x - 18, plate.y - 12, 36, 24);
-      graphics.lineStyle(1, 0xb08961, 0.34);
-      graphics.strokeRect(plate.x - 18, plate.y - 12, 36, 24);
-    });
-
-    this.initializeSeaWaves();
-    this.drawDeckRails();
-    this.drawDeckDecor(deckLeft, deckTop, deckRight, deckBottom);
+  _createInfiniteBackground() {
+    this._bgTile = this.add.tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "game_bg");
+    this._bgTile.setOrigin(0, 0);
+    this._bgTile.setDepth(-5);
   }
 
   drawDeckDecor(deckLeft, deckTop, deckRight, deckBottom) {
@@ -3463,6 +3365,19 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  _getNearestPlayerForEnemy(enemy) {
+    let nearest = this.player;
+    let nearestDist = Phaser.Math.Distance.Between(enemy.x, enemy.y, nearest.x, nearest.y);
+    if (this.playerSync) {
+      for (const rp of this.playerSync.getAllRemotePlayers()) {
+        if (rp.isDead || rp.disconnected) continue;
+        const dist = Phaser.Math.Distance.Between(enemy.x, enemy.y, rp.sprite.x, rp.sprite.y);
+        if (dist < nearestDist) { nearestDist = dist; nearest = rp.sprite; }
+      }
+    }
+    return nearest;
   }
 
   applyEnemyAntiJam(enemy, nowMs) {
@@ -4910,12 +4825,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastAttackAt = now;
-    if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
-      return;
-    }
-    nearestEnemy.takeDamage(this.attackDamage);
-    nearestEnemy.applyKnockbackFrom(this.player.x, this.player.y, 140);
 
+    // Visual flash — shown on all clients.
     const flash = this.add.graphics();
     flash.lineStyle(2, 0x89e8ff, 1);
     flash.lineBetween(this.player.x, this.player.y, nearestEnemy.x, nearestEnemy.y);
@@ -4925,6 +4836,15 @@ export class GameScene extends Phaser.Scene {
       duration: 90,
       onComplete: () => flash.destroy()
     });
+
+    // Damage is host-authoritative in coop.
+    if (this.gameMode === "coop" && !this.isHost) return;
+
+    if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
+      return;
+    }
+    nearestEnemy.takeDamage(this.attackDamage);
+    nearestEnemy.applyKnockbackFrom(this.player.x, this.player.y, 140);
 
     if (nearestEnemy.isDead()) {
       this.handleEnemyDefeat(nearestEnemy);
@@ -5517,8 +5437,8 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const centerX = cam.width * 0.5;
     const centerY = cam.height * 0.5;
-    const panelWidth = 480;
-    const panelHeight = 420;
+    const panelWidth = 400;
+    const panelHeight = 400;
     const depth = RENDER_DEPTH.MENUS;
 
     const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.6)
@@ -6022,41 +5942,40 @@ export class GameScene extends Phaser.Scene {
       const canvasW = 1280;
       const canvasH = 720;
       const centerX = canvasW / 2;
-      const optionCount = START_WEAPON_OPTIONS.length;
-      const maxPanelHeight = canvasH - 20;
-      const panelHeight = Math.min(maxPanelHeight, Math.max(500, 260 + optionCount * 72));
+      const panelWidth = 400;
+      const panelHeight = 400;
       const panelTop = Math.max(10, (canvasH - panelHeight) / 2);
       const centerY = panelTop + panelHeight / 2;
       const panel = this.add
-      .rectangle(centerX, centerY, 700, panelHeight, 0x22150d, 0.96)
+      .rectangle(centerX, centerY, panelWidth, panelHeight, 0x22150d, 0.96)
       .setStrokeStyle(3, 0xb48855, 0.96)
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 1);
       const panelInset = this.add
-      .rectangle(centerX, centerY, 672, panelHeight - 30, 0x342214, 0.94)
+      .rectangle(centerX, centerY, panelWidth - 28, panelHeight - 30, 0x342214, 0.94)
       .setStrokeStyle(1, 0x6d4a31, 0.88)
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 2);
-      const headerBottom = panelTop + 130;
+      const headerBottom = panelTop + 100;
       const { titleChip, title } = this.createModalTitle(
       centerX,
-      panelTop + 50,
+      panelTop + 38,
       "选择初始武器",
       {
-        fontSize: 32,
-        minWidth: 292,
+        fontSize: 22,
+        minWidth: 220,
         badgeDepth: RENDER_DEPTH.MENUS + 3,
         textDepth: RENDER_DEPTH.MENUS + 4
       }
     );
 
       const coinText = this.add
-      .text(centerX, panelTop + 85, `金币: ${this.metaData.currency}`, {
+      .text(centerX, panelTop + 66, `金币: ${this.metaData.currency}`, {
         fontFamily: "ZpixOne",
-        fontSize: "20px",
+        fontSize: "14px",
         color: "#e2c388",
         stroke: "#2e170d",
-        strokeThickness: 3
+        strokeThickness: 2
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
@@ -6065,7 +5984,7 @@ export class GameScene extends Phaser.Scene {
       const subtitle = this.add
       .text(centerX, headerBottom, "选择一把武器开始游戏", {
         fontFamily: "ZpixOne",
-        fontSize: "17px",
+        fontSize: "12px",
         color: "#d8bf95",
         stroke: "#2a1a10",
         strokeThickness: 2
@@ -6074,48 +5993,53 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 4);
 
-      const statusTextY = centerY + panelHeight / 2 - 22;
+      const statusTextY = centerY + panelHeight / 2 - 18;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
         fontFamily: "ZpixOne",
-        fontSize: "18px",
+        fontSize: "13px",
         color: "#ebd7b7",
         stroke: "#2e170d",
-        strokeThickness: 4
+        strokeThickness: 3
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(RENDER_DEPTH.MENUS + 4);
 
       const optionRows = [];
-      const optAreaTop = headerBottom + 28;
-      const optAreaBottom = statusTextY - 28;
+      const optAreaTop = headerBottom + 14;
+      const optAreaBottom = statusTextY - 14;
       const optAreaHeight = optAreaBottom - optAreaTop;
-      const optionSpacing = Math.min(72, (optAreaHeight - 74) / Math.max(1, optionCount - 1));
-      const optionsStartY = optAreaTop + 37;
+      const optionCount = START_WEAPON_OPTIONS.length;
+      const optionSpacing = Math.min(54, (optAreaHeight - 44) / Math.max(1, optionCount - 1));
+      const optionsStartY = optAreaTop + 22;
+      const optBoxW = panelWidth - 48;
+      const optInlayW = optBoxW - 12;
+      const iconOffsetX = centerX - optBoxW / 2 + 22;
+      const textOffsetX = iconOffsetX + 34;
       START_WEAPON_OPTIONS.forEach((option, index) => {
       const y = optionsStartY + index * optionSpacing;
       const box = this.add
-        .rectangle(centerX, y, 620, 74, 0x4a2f1d, 0.98)
+        .rectangle(centerX, y, optBoxW, 44, 0x4a2f1d, 0.98)
         .setStrokeStyle(2, 0xb48855, 0.92)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
         .setDepth(RENDER_DEPTH.MENUS + 4);
       const boxInlay = this.add
-        .rectangle(centerX, y, 604, 58, 0xead7b7, 0.88)
+        .rectangle(centerX, y, optInlayW, 34, 0xead7b7, 0.88)
         .setStrokeStyle(1, 0x6d4a31, 0.6)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
         .setDepth(RENDER_DEPTH.MENUS + 5);
       const weaponIcon = this.add
-        .image(centerX - 314, y, this.getWeaponIconKey(option.weaponType))
-        .setDisplaySize(36, 36)
+        .image(iconOffsetX, y, this.getWeaponIconKey(option.weaponType))
+        .setDisplaySize(22, 22)
         .setScrollFactor(0)
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const heading = this.add
-        .text(centerX - 268, y - 13, `[${index + 1}] ${option.label}`, {
+        .text(textOffsetX, y - 9, `[${index + 1}] ${option.label}`, {
           fontFamily: "ZpixOne",
-          fontSize: "24px",
+          fontSize: "14px",
           color: "#2e170d",
           stroke: "#f7e8cc",
           strokeThickness: 1
@@ -6124,9 +6048,9 @@ export class GameScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(RENDER_DEPTH.MENUS + 6);
       const detail = this.add
-        .text(centerX - 268, y + 15, "", {
+        .text(textOffsetX, y + 9, "", {
           fontFamily: "ZpixOne",
-          fontSize: "13px",
+          fontSize: "10px",
           color: "#6a4d36",
           stroke: "#f7e8cc",
           strokeThickness: 1
@@ -6503,7 +6427,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.gameMode === "coop" && this.networkManager) {
-      this.networkManager.sendPlayerDied();
+      if (!this._hasSentPlayerDied) {
+        this._hasSentPlayerDied = true;
+        this.networkManager.sendPlayerDied();
+      }
       const allDead = this.player.isDead() &&
         (!this.playerSync || this.playerSync.isAllDead());
       if (!allDead) {
@@ -6511,10 +6438,13 @@ export class GameScene extends Phaser.Scene {
         this.showHudAlert("等待队友救援...", 3000);
         return;
       }
-      this.networkManager.sendGameOver({
-        timeSurvivedMs: this.runTimeMs,
-        enemiesKilled: this.totalKills
-      });
+      if (!this._hasSentGameOver) {
+        this._hasSentGameOver = true;
+        this.networkManager.sendGameOver({
+          timeSurvivedMs: this.runTimeMs,
+          enemiesKilled: this.totalKills
+        });
+      }
     }
 
     this.isGameOver = true;

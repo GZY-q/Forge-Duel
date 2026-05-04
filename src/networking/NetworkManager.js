@@ -5,6 +5,9 @@ export class NetworkManager {
     this.playerId = null;
     this.isHost = false;
     this.players = [];
+    this.reconnectToken = null;
+    this.isReconnecting = false;
+    this.isConnected = true;
 
     this.onRemotePlayerUpdate = null;
     this.onEnemyStateUpdate = null;
@@ -21,6 +24,14 @@ export class NetworkManager {
     this.onVoiceAnswer = null;
     this.onVoiceIceCandidate = null;
     this.onVoiceSpeaking = null;
+    this.onConnectionLost = null;
+    this.onConnectionRestored = null;
+    this.onPlayerDisconnected = null;
+    this.onPlayerReconnected = null;
+    this.onReadyChanged = null;
+    this.onAllReady = null;
+    this.onKicked = null;
+    this.onEnemyDamage = null;
 
     this._setupListeners();
   }
@@ -90,6 +101,89 @@ export class NetworkManager {
     this.socket.on("voice:speaking", (data) => {
       this.onVoiceSpeaking?.(data);
     });
+
+    this.socket.on("room:player-disconnected", (data) => {
+      this.onPlayerDisconnected?.(data);
+    });
+
+    this.socket.on("room:player-reconnected", (data) => {
+      if (data.oldPlayerId === this.playerId) {
+        this.playerId = data.playerId;
+      }
+      this.players = this.players.map((p) =>
+        p.playerId === data.oldPlayerId ? { ...p, playerId: data.playerId } : p
+      );
+      this.onPlayerReconnected?.(data);
+    });
+
+    this.socket.on("room:ready-changed", (data) => {
+      this.players = this.players.map((p) =>
+        p.playerId === data.playerId ? { ...p, ready: data.ready } : p
+      );
+      this.onReadyChanged?.(data);
+    });
+
+    this.socket.on("room:all-ready", () => {
+      this.onAllReady?.();
+    });
+
+    this.socket.on("room:kicked", (data) => {
+      this.onKicked?.(data);
+    });
+
+    this.socket.on("game:enemy-damage", (data) => {
+      this.onEnemyDamage?.(data);
+    });
+
+    this.socket.on("disconnect", () => {
+      this.isConnected = false;
+      this.onConnectionLost?.();
+    });
+
+    this.socket.on("connect", () => {
+      const wasDisconnected = !this.isConnected;
+      this.isConnected = true;
+      if (wasDisconnected && this.reconnectToken) {
+        this._attemptReconnect();
+      } else if (wasDisconnected) {
+        this.onConnectionRestored?.();
+      }
+    });
+  }
+
+  async _attemptReconnect() {
+    if (this.isReconnecting) return;
+    this.isReconnecting = true;
+
+    try {
+      const result = await this.socket.emitWithAck("room:reconnect", {
+        reconnectToken: this.reconnectToken
+      });
+
+      if (result.error) {
+        console.warn("[Network] Reconnect failed:", result.error);
+        this.reconnectToken = null;
+        this.onConnectionLost?.();
+        return;
+      }
+
+      this.roomCode = result.roomCode;
+      this.playerId = result.playerId;
+      this.isHost = result.isHost;
+      this.players = result.players || [];
+
+      if (result.gameState && result.gameState.state === "playing") {
+        this.isHost = result.gameState.hostId === result.playerId;
+        this.onConnectionRestored?.(result.gameState);
+      } else {
+        this.onConnectionRestored?.();
+      }
+    } catch (err) {
+      console.warn("[Network] Reconnect error:", err);
+      this.onConnectionLost?.();
+    } finally {
+      this.isReconnecting = false;
+    }
   }
 
   async createRoom(fighterType) {
@@ -99,6 +193,7 @@ export class NetworkManager {
     this.playerId = result.playerId;
     this.isHost = result.isHost;
     this.players = result.players || [];
+    this.reconnectToken = result.reconnectToken;
     return result;
   }
 
@@ -109,6 +204,7 @@ export class NetworkManager {
     this.playerId = result.playerId;
     this.isHost = result.isHost;
     this.players = result.players || [];
+    this.reconnectToken = result.reconnectToken;
     return result;
   }
 
@@ -118,10 +214,15 @@ export class NetworkManager {
     this.playerId = null;
     this.isHost = false;
     this.players = [];
+    this.reconnectToken = null;
   }
 
   async setReady(ready) {
     return this.socket.emitWithAck("room:ready", { ready });
+  }
+
+  async kickPlayer(targetId) {
+    return this.socket.emitWithAck("room:kick", { targetId });
   }
 
   async startGame() {
@@ -154,6 +255,10 @@ export class NetworkManager {
 
   sendXpDrop(data) {
     this.socket.emit("game:xp-drop", data);
+  }
+
+  sendEnemyDamage(enemyId, damage, sourceWeaponType) {
+    this.socket.emit("game:enemy-damage", { enemyId, damage, sourceWeaponType });
   }
 
   sendPlayerDied() {
@@ -196,5 +301,7 @@ export class NetworkManager {
     this.socket.off("voice:answer");
     this.socket.off("voice:ice-candidate");
     this.socket.off("voice:speaking");
+    this.socket.off("room:player-disconnected");
+    this.socket.off("room:player-reconnected");
   }
 }

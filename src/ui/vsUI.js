@@ -171,33 +171,23 @@ export function createVSOptionsButton(scene, x, y, onClick) {
     .setStrokeStyle(1, 0xffffff, 0.1)
     .setOrigin(0.5);
 
-  const leftArrow = scene.add.text(-38, 0, "→", {
-    fontFamily: "ZpixOne", fontSize: "12px", color: "#c4a040"
-  }).setOrigin(0.5);
-  const rightArrow = scene.add.text(38, 0, "←", {
-    fontFamily: "ZpixOne", fontSize: "12px", color: "#c4a040"
-  }).setOrigin(0.5);
 
   const text = scene.add.text(0, 0, "选项", {
     fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
     stroke: "#0a0a0a", strokeThickness: 4
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  container.add([shadow, plate, bevel, leftArrow, rightArrow, text]);
+  container.add([shadow, plate, bevel, text]);
 
   const onOver = () => {
     plate.setFillStyle(C.btnBlueHover, 1);
     plate.setStrokeStyle(3, C.textGold, 1);
     text.setColor("#fef08a");
-    leftArrow.setColor("#fef08a");
-    rightArrow.setColor("#fef08a");
   };
   const onOut = () => {
     plate.setFillStyle(C.btnBlue, 1);
     plate.setStrokeStyle(3, C.btnBorder, 1);
     text.setColor("#ffffff");
-    leftArrow.setColor("#c4a040");
-    rightArrow.setColor("#c4a040");
   };
   const trigger = () => {
     scene.tweens.add({

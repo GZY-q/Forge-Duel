@@ -148,12 +148,42 @@ export class VoiceManager {
     };
 
     pc.onconnectionstatechange = () => {
-      if (pc.connectionState === "failed" || pc.connectionState === "disconnected") {
-        this._removePeerAudio(peerId);
+      if (pc.connectionState === "failed") {
+        this._restartIce(peerId);
+      } else if (pc.connectionState === "disconnected") {
+        this._iceRestartTimer = this._iceRestartTimer || new Map();
+        if (!this._iceRestartTimer.has(peerId)) {
+          const timer = setTimeout(() => {
+            if (this.peers.get(peerId)?.connectionState === "disconnected") {
+              this._restartIce(peerId);
+            }
+            this._iceRestartTimer?.delete(peerId);
+          }, 5000);
+          this._iceRestartTimer.set(peerId, timer);
+        }
+      } else if (pc.connectionState === "connected") {
+        const timer = this._iceRestartTimer?.get(peerId);
+        if (timer) {
+          clearTimeout(timer);
+          this._iceRestartTimer.delete(peerId);
+        }
       }
     };
 
     return pc;
+  }
+
+  async _restartIce(peerId) {
+    const pc = this.peers.get(peerId);
+    if (!pc) return;
+
+    try {
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      this.network.sendVoiceOffer(peerId, offer);
+    } catch (err) {
+      console.warn("[Voice] ICE restart failed for", peerId, err.message);
+    }
   }
 
   _attachRemoteAudio(peerId, stream) {
@@ -202,6 +232,13 @@ export class VoiceManager {
     if (this._vadInterval) {
       clearInterval(this._vadInterval);
       this._vadInterval = null;
+    }
+
+    if (this._iceRestartTimer) {
+      for (const timer of this._iceRestartTimer.values()) {
+        clearTimeout(timer);
+      }
+      this._iceRestartTimer.clear();
     }
 
     for (const pc of this.peers.values()) {
