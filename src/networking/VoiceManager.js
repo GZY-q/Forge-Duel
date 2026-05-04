@@ -59,6 +59,9 @@ export class VoiceManager {
     if (!this.localStream) return;
 
     this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (this.audioContext.state === "suspended") {
+      this.audioContext.resume().catch(() => {});
+    }
     const source = this.audioContext.createMediaStreamSource(this.localStream);
     this.analyser = this.audioContext.createAnalyser();
     this.analyser.fftSize = 256;

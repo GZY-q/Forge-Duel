@@ -303,5 +303,11 @@ export class NetworkManager {
     this.socket.off("voice:speaking");
     this.socket.off("room:player-disconnected");
     this.socket.off("room:player-reconnected");
+    this.socket.off("room:ready-changed");
+    this.socket.off("room:all-ready");
+    this.socket.off("room:kicked");
+    this.socket.off("game:enemy-damage");
+    this.socket.off("disconnect");
+    this.socket.off("connect");
   }
 }

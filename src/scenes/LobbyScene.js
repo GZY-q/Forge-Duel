@@ -20,6 +20,7 @@ export class LobbyScene extends Phaser.Scene {
     this.authUser = data?.authUser || JSON.parse(localStorage.getItem("forgeduel_user") || "null");
     this.selectedShip = data?.selectedShip || localStorage.getItem(SHIP_STORAGE_KEY) || null;
     this.selectedFighter = data?.fighterType || this.selectedShip || localStorage.getItem("forgeduel_selected_fighter") || "scout";
+    this._transitioningToGame = false;
   }
 
   create() {
@@ -28,6 +29,9 @@ export class LobbyScene extends Phaser.Scene {
     const cy = camera.height * 0.5;
 
     createVSBackground(this);
+
+    // Register shutdown cleanup via Phaser's event system.
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._onShutdown());
 
     if (this.mode === "select") {
       this._showRoomSelection(cx, cy);
@@ -547,7 +551,8 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   _onGameStarted(data) {
-    this._cleanup();
+    this._transitioningToGame = true;
+    this._destroyCodeInput();
     this.scene.start("GameScene", {
       gameMode: "coop",
       networkManager: this.networkManager,
@@ -563,26 +568,24 @@ export class LobbyScene extends Phaser.Scene {
   }
 
   _leaveAndReturn() {
-    this._cleanup();
+    this._destroyCodeInput();
     this.scene.start("MainMenuScene");
   }
 
-  _cleanup() {
+  _onShutdown() {
     this._destroyCodeInput();
-  }
+    if (this._transitioningToGame) return;
 
-  shutdown() {
-    this._cleanup();
-    if (this.voiceManager && !this.scene.isActive("GameScene")) {
+    if (this.voiceManager) {
       this.voiceManager.hangup();
       this.voiceManager = null;
     }
-    if (this.networkManager && !this.scene.isActive("GameScene")) {
+    if (this.networkManager) {
       this.networkManager.leaveRoom();
       this.networkManager.destroy();
       this.networkManager = null;
     }
-    if (this.socketClient && !this.scene.isActive("GameScene")) {
+    if (this.socketClient) {
       this.socketClient.disconnect();
       this.socketClient = null;
     }

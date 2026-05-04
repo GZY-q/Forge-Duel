@@ -42,7 +42,11 @@ export class SocketClient {
   }
 
   off(event, handler) {
-    this.socket?.off(event, handler);
+    if (handler) {
+      this.socket?.off(event, handler);
+    } else {
+      this.socket?.off(event);
+    }
   }
 
   emit(event, data, ack) {

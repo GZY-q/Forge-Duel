@@ -369,7 +369,8 @@ export class RoomManager {
       const room = this.rooms.get(code);
       if (!room) return;
       if (room.state !== "playing") return;
-      this.io.to(code).emit("game:enemy-killed", { killerId: socket.id, ...data });
+      if (room.hostId !== socket.id) return;
+      socket.to(code).emit("game:enemy-killed", { killerId: socket.id, ...data });
     });
 
     socket.on("game:item-drop", (data) => {
@@ -377,7 +378,7 @@ export class RoomManager {
       if (!code) return;
       const room = this.rooms.get(code);
       if (!room || room.state !== "playing") return;
-      this.io.to(code).emit("game:item-drop", data);
+      socket.to(code).emit("game:item-drop", data);
     });
 
     socket.on("game:xp-drop", (data) => {
@@ -488,6 +489,12 @@ export class RoomManager {
     this.playerRooms.delete(socketId);
 
     if (room.players.size === 0) {
+      for (const [token, pending] of this.pendingReconnects) {
+        if (pending.roomCode === code) {
+          clearTimeout(pending.timeoutId);
+          this.pendingReconnects.delete(token);
+        }
+      }
       this.rooms.delete(code);
       return;
     }

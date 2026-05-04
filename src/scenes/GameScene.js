@@ -5,6 +5,8 @@ import { WeaponSystem } from "../systems/WeaponSystem.js";
 import { MetaProgressionSystem } from "../systems/MetaProgressionSystem.js";
 import { ObjectPool } from "../systems/ObjectPool.js";
 import { SeededRNG } from "../utils/SeededRNG.js";
+import { PlayerSync } from "../networking/PlayerSync.js";
+import { EnemySync } from "../networking/EnemySync.js";
 import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC, RANGER_UNLOCK_TIME_SEC } from "../config/enemies.js";
 import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
@@ -1324,21 +1326,17 @@ export class GameScene extends Phaser.Scene {
   setupCoopMode() {
     if (this.gameMode !== "coop" || !this.networkManager) return;
 
-    import("../networking/PlayerSync.js").then(({ PlayerSync }) => {
-      this.playerSync = new PlayerSync(this);
+    this.playerSync = new PlayerSync(this);
 
-      for (const p of this.coopPlayers) {
-        if (p.playerId !== this.networkManager.playerId) {
-          this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
-        }
+    for (const p of this.coopPlayers) {
+      if (p.playerId !== this.networkManager.playerId) {
+        this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
       }
-    });
+    }
 
-    import("../networking/EnemySync.js").then(({ EnemySync }) => {
-      if (!this.isHost) {
-        this.enemySync = new EnemySync(this, this.enemyPool);
-      }
-    });
+    if (!this.isHost) {
+      this.enemySync = new EnemySync(this, this.enemyPool);
+    }
 
     this.networkManager.onRemotePlayerUpdate = (data) => {
       if (data.playerId === this.networkManager.playerId) return;
@@ -1389,19 +1387,72 @@ export class GameScene extends Phaser.Scene {
 
     this.networkManager.onPlayerDied = (data) => {
       this.playerSync?.markPlayerDead(data.playerId);
-      this.showHudAlert(`${data.playerId} 已阵亡`, 2000);
+      const player = this.coopPlayers.find((p) => p.playerId === data.playerId);
+      const name = player?.username || "玩家";
+      this.showHudAlert(`${name} 已阵亡`, 2000);
     };
 
-    this.networkManager.onGameOver = (data) => {
-      if (!this.isGameOver) {
-        this.triggerGameOver();
-      }
+    this.networkManager.onGameOver = () => {
+      this.triggerGameOver(true);
     };
 
     this.networkManager.onHostMigrated = (data) => {
       if (data.newHostId === this.networkManager.playerId) {
         this.isHost = true;
         this.showHudAlert("你已成为房主", 2000);
+      }
+    };
+
+    this.networkManager.onPlayerLeft = (data) => {
+      this.playerSync?.removeRemotePlayer(data.playerId);
+      this.showHudAlert("玩家已离开", 2000);
+    };
+
+    this.networkManager.onPlayerDisconnected = (data) => {
+      const rp = this.playerSync?.remotePlayers?.get(data.playerId);
+      if (rp) {
+        rp.disconnected = true;
+        this.showHudAlert("玩家断线，等待重连...", 2000);
+      }
+    };
+
+    this.networkManager.onPlayerReconnected = (data) => {
+      if (!this.playerSync?.remotePlayers) return;
+      const rp = this.playerSync.remotePlayers.get(data.oldPlayerId);
+      if (rp) {
+        rp.disconnected = false;
+        this.playerSync.remotePlayers.delete(data.oldPlayerId);
+        this.playerSync.remotePlayers.set(data.playerId, rp);
+        rp.playerId = data.playerId;
+        this.showHudAlert("玩家已重连", 2000);
+      }
+    };
+
+    this.networkManager.onConnectionRestored = (gameState) => {
+      if (!gameState) return;
+      this.isHost = gameState.hostId === this.networkManager.playerId;
+      this.showHudAlert("已重新连接", 2000);
+
+      if (gameState.playerStates) {
+        for (const ps of gameState.playerStates) {
+          if (ps.playerId === this.networkManager.playerId) {
+            this.player.setPosition(ps.x, ps.y);
+            this.player.hp = ps.hp;
+            this.player.maxHp = ps.maxHp;
+            this.player.facingDirection = ps.facing;
+            this.level = ps.level || 1;
+            if (ps.isDead) {
+              this.player.setHp(0);
+            }
+          } else {
+            if (!this.playerSync) continue;
+            this.playerSync.addRemotePlayer(ps.playerId, ps.fighterType, ps.username);
+            this.playerSync.updatePlayerState(ps.playerId, {
+              x: ps.x, y: ps.y, facing: ps.facing,
+              hp: ps.hp, maxHp: ps.maxHp, isDead: ps.isDead
+            });
+          }
+        }
       }
     };
   }
@@ -1561,7 +1612,9 @@ export class GameScene extends Phaser.Scene {
 
       if (this.networkSyncAccumulator >= 50) {
         this.networkSyncAccumulator = 0;
-        this.networkManager.sendPlayerState(this.player);
+        if (!this.player.isDead()) {
+          this.networkManager.sendPlayerState(this.player);
+        }
 
         if (this.isHost) {
           const activeEnemies = this.enemies.getChildren()
@@ -4601,20 +4654,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.gameMode === "coop" && !this.isHost) {
-      return;
-    }
-
     if (player.isDashing()) {
       const lastDashHitId = enemy.getData("lastDashHitId") ?? -1;
       if (lastDashHitId !== player.currentDashId) {
         enemy.setData("lastDashHitId", player.currentDashId);
-        enemy.takeDamage(player.dashDamage);
-        enemy.applyKnockbackFrom(player.x, player.y, 360);
-        this.shakeScreen(80, 0.003);
 
-        if (enemy.isDead()) {
-          this.handleEnemyDefeat(enemy);
+        if (this.gameMode === "coop" && !this.isHost) {
+          const enemyId = enemy.serverId;
+          if (enemyId && enemy.active && !enemy.getData("isDying")) {
+            this.networkManager?.sendEnemyDamage(enemyId, player.dashDamage, "dash");
+          }
+        } else {
+          enemy.takeDamage(player.dashDamage);
+          enemy.applyKnockbackFrom(player.x, player.y, 360);
+          this.shakeScreen(80, 0.003);
+
+          if (enemy.isDead()) {
+            this.handleEnemyDefeat(enemy);
+          }
         }
       }
 
@@ -4838,7 +4895,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     // Damage is host-authoritative in coop.
-    if (this.gameMode === "coop" && !this.isHost) return;
+    if (this.gameMode === "coop" && !this.isHost) {
+      const enemyId = nearestEnemy.serverId;
+      if (enemyId && nearestEnemy.active && !nearestEnemy.getData("isDying")) {
+        this.networkManager?.sendEnemyDamage(enemyId, this.attackDamage, "autoAttack");
+      }
+      return;
+    }
 
     if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
       return;
@@ -6421,7 +6484,7 @@ export class GameScene extends Phaser.Scene {
     this.runMetaCurrency = 0;
   }
 
-  triggerGameOver() {
+  triggerGameOver(force = false) {
     if (this.isGameOver) {
       return;
     }
@@ -6431,12 +6494,14 @@ export class GameScene extends Phaser.Scene {
         this._hasSentPlayerDied = true;
         this.networkManager.sendPlayerDied();
       }
-      const allDead = this.player.isDead() &&
-        (!this.playerSync || this.playerSync.isAllDead());
-      if (!allDead) {
-        this.player.body?.setVelocity(0, 0);
-        this.showHudAlert("等待队友救援...", 3000);
-        return;
+      if (!force) {
+        const allDead = this.player.isDead() &&
+          (!this.playerSync || this.playerSync.isAllDead());
+        if (!allDead) {
+          this.player.body?.setVelocity(0, 0);
+          this.showHudAlert("等待队友救援...", 3000);
+          return;
+        }
       }
       if (!this._hasSentGameOver) {
         this._hasSentGameOver = true;

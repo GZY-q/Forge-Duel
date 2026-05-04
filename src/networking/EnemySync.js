@@ -63,7 +63,10 @@ export class EnemySync {
 
     for (const [id, enemy] of this.syncedEnemies) {
       if (!seenIds.has(id)) {
-        if (enemy.active) {
+        if (enemy.getData("isDying")) {
+          // Enemy is dying — the death tween will release it. Don't double-release.
+          this.syncedEnemies.delete(id);
+        } else if (enemy.active) {
           this._releaseEnemy(id, enemy);
         } else {
           this.syncedEnemies.delete(id);

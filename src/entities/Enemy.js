@@ -139,6 +139,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const spawnY = config.y ?? this.y;
     this.setTint(this.baseTint);
     this.setData("inPool", false);
+    this.setData("isDying", false);
 
     if (this.body) {
       this.enableBody(true, spawnX, spawnY, true, true);
@@ -159,6 +160,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.abilityNextAtMs = 0;
     this.abilityUntilMs = 0;
     this.nextPoisonTickAtMs = 0;
+    this.serverId = undefined;
     this.setData("inPool", true);
     this.disableBody(true, true);
   }
