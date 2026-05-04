@@ -55,11 +55,16 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // ── Top bar ──
     const coins = this.loadCoins();
+    const goBack = () => this.scene.start("MainMenuScene");
     this.topBar = createVSTopBar(this, {
       coins,
       showBack: true,
-      onBack: () => this.scene.start("MainMenuScene")
+      onBack: goBack
     });
+
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", goBack);
+    }
 
 //========== 角色选择面板尺寸 ==========
     // 面板宽度（默认700）

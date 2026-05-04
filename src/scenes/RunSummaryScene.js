@@ -116,6 +116,14 @@ export class RunSummaryScene extends Phaser.Scene {
       this.scene.stop("GameScene");
       this.scene.start("MainMenuScene");
     }, { variant: "secondary", width: secondaryButtonWidth, height: secondaryButtonHeight });
+
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", () => {
+        this.scene.stop("RunSummaryScene");
+        this.scene.stop("GameScene");
+        this.scene.start("MainMenuScene");
+      });
+    }
   }
 
   createActionButton(x, y, label, onClick, options = {}) {

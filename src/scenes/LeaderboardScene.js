@@ -37,7 +37,7 @@ const C = {
 const ROW_H = 28;
 const ROW_GAP = 1;
 const ROW_STEP = ROW_H + ROW_GAP;
-const VISIBLE_ROWS = 10;
+const VISIBLE_ROWS = 12;
 const ENTRY_LIMIT = 50;
 const TITLE_TOP_OFFSET = 24;
 const TAB_TOP_OFFSET = 60;
@@ -47,6 +47,8 @@ const LIST_BOTTOM_PAD = 46;
 const PAGE_CTRL_H = 34;
 const SCROLLBAR_W = 8;
 const SCROLLBAR_MIN_H = 30;
+const PANEL_W = 780;
+const PANEL_H = 560;
 
 function formatTime(ms) {
   if (!ms || ms <= 0) return "--:--";
@@ -79,17 +81,18 @@ export class LeaderboardScene extends Phaser.Scene {
 
     createVSBackground(this);
 
-    createVSBackButton(this, cam.width - 84, 36, () => {
+    const doClose = () => {
       const mainMenu = this.scene.get("MainMenuScene");
       if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
         mainMenu.closeSubMenu();
       } else {
         this.scene.stop("LeaderboardScene");
       }
-    });
+    };
+    createVSBackButton(this, cam.width - 84, 36, doClose);
 
-    this.panelW = 640;
-    this.panelH = 520;
+    this.panelW = PANEL_W;
+    this.panelH = PANEL_H;
     this.panelTop = this.cy - this.panelH / 2;
     this.panelBottom = this.cy + this.panelH / 2;
     this.panelLeft = this.cx - this.panelW / 2;
@@ -133,14 +136,7 @@ export class LeaderboardScene extends Phaser.Scene {
     this.input.keyboard.on("keydown-RIGHT", () => this._nextPage());
     this.input.keyboard.on("keydown-UP", () => this._prevPage());
     this.input.keyboard.on("keydown-DOWN", () => this._nextPage());
-    this.input.keyboard.on("keydown-ESC", () => {
-      const mainMenu = this.scene.get("MainMenuScene");
-      if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
-        mainMenu.closeSubMenu();
-      } else {
-        this.scene.stop("LeaderboardScene");
-      }
-    });
+    this.input.keyboard.on("keydown-ESC", () => doClose());
     this.input.on("wheel", (_pointer, _gameObjects, _dx, dy) => {
       this._scrollBy(dy > 0 ? ROW_STEP : -ROW_STEP);
     });
@@ -183,8 +179,8 @@ export class LeaderboardScene extends Phaser.Scene {
       { key: "totalKills", label: "最多击杀" },
       { key: "highestLevel", label: "最高等级" }
     ];
-    const tabW = 146;
-    const tabGap = 6;
+    const tabW = 180;
+    const tabGap = 10;
     const totalTabW = tabs.length * tabW + (tabs.length - 1) * tabGap;
     const tabStartX = this.cx - totalTabW / 2 + tabW / 2;
     const tabY = this.panelTop + TAB_TOP_OFFSET;

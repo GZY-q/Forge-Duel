@@ -866,6 +866,9 @@ export class GameScene extends Phaser.Scene {
     this.xpToNext = this.getXpRequirement(this.level);
     this.pendingLevelUps = 0;
     this.isLeveling = false;
+    this.rerollsRemaining = 2;
+    this._revivalUsed = false;
+    this._lastReaperIndex = -1;
     this.levelUpUi = [];
     this.spawnAccumulatorMs = 0;
     this.runTimeMs = 0;
@@ -1545,6 +1548,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.checkStageAnnouncements();
     this.updateBossApproachWarning();
+    this.updateReaperSpawning(delta);
 
     // Enemy spawning is host-authoritative in coop — only the host creates enemies.
     if (this.gameMode !== "coop" || this.isHost) {
@@ -1648,6 +1652,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.player.isDead()) {
+      if ((this.player.revivals || 0) > 0 && !this._revivalUsed) {
+        this.player.revivals -= 1;
+        this._revivalUsed = true;
+        this.player.hp = Math.round(this.player.maxHp * 0.5);
+        this.player.setAlpha(1);
+        this.player.setTint(0xffffff);
+        this.player.body?.setVelocity(0, 0);
+        if (this.player.body) { this.player.body.enable = true; }
+        this.showHudAlert("复活!", 2000);
+        this.shakeScreen(200, 0.006);
+        return;
+      }
       this.triggerGameOver();
       return;
     }
@@ -2583,8 +2599,8 @@ export class GameScene extends Phaser.Scene {
       position: "fixed", bottom: "64px", left: "64px",
       width: joystickSize + "px", height: joystickSize + "px",
       borderRadius: "50%",
-      background: "rgba(17,48,83,0.62)",
-      border: "2px solid rgba(127,184,255,0.85)",
+      background: "rgba(42,42,74,0.65)",
+      border: "2px solid rgba(196,160,64,0.85)",
       zIndex: zIdx,
       touchAction: "none"
     });
@@ -2594,8 +2610,8 @@ export class GameScene extends Phaser.Scene {
       width: thumbSize + "px", height: thumbSize + "px",
       marginTop: -(thumbSize / 2) + "px", marginLeft: -(thumbSize / 2) + "px",
       borderRadius: "50%",
-      background: "rgba(142,216,255,0.6)",
-      border: "2px solid rgba(198,236,255,0.9)",
+      background: "rgba(196,160,64,0.55)",
+      border: "2px solid rgba(254,240,138,0.9)",
       pointerEvents: "none"
     });
     this._domJoystickBase.appendChild(this._domJoystickThumb);
@@ -4065,6 +4081,44 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  updateReaperSpawning(_delta) {
+    const REAPER_FIRST_AT_SEC = 900; // 15 minutes
+    const REAPER_INTERVAL_SEC = 60;   // every 60s after first
+    if (this.runTimeMs < REAPER_FIRST_AT_SEC * 1000) return;
+
+    const elapsedSinceFirst = this.runTimeMs - REAPER_FIRST_AT_SEC * 1000;
+    const reaperIndex = Math.floor(elapsedSinceFirst / (REAPER_INTERVAL_SEC * 1000));
+    const lastSpawnedIndex = this._lastReaperIndex ?? -1;
+
+    if (reaperIndex > lastSpawnedIndex) {
+      this._lastReaperIndex = reaperIndex;
+      const spawnCount = reaperIndex + 1; // increasing reapers each wave
+      for (let i = 0; i < spawnCount; i++) {
+        this.time.delayedCall(i * 400, () => this.spawnReaper());
+      }
+      this.showHudAlert("死神降临!", 2000);
+      this.shakeScreen(300, 0.008);
+    }
+  }
+
+  spawnReaper() {
+    const spawn = this.getBossEntrySpawn(null);
+    const r = new BossEnemy(this, spawn.position.x, spawn.position.y, { variant: "reaper" });
+    r.hp = 99999;
+    r.maxHp = 99999;
+    r.speed = 200;
+    r.baseSpeed = 200;
+    r.damage = 99;
+    r.baseDamage = 99;
+    r.xpValue = 0;
+    r.setData("lastDashHitId", -1);
+    r.setData("archetype", "reaper");
+    r.setData("spawnLane", spawn.lane);
+    r.setTint(0xff0000);
+    r.setAlpha(0.85);
+    this.enemies.add(r);
+  }
+
   lerpColor(fromHex, toHex, t) {
     const blend = Phaser.Math.Clamp(t, 0, 1);
     const fromR = (fromHex >> 16) & 0xff;
@@ -5500,24 +5554,28 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const centerX = cam.width * 0.5;
     const centerY = cam.height * 0.5;
-    const panelWidth = 400;
+    const panelWidth = 300;
     const panelHeight = 400;
     const depth = RENDER_DEPTH.MENUS;
+    const ph = panelHeight / 2;
+    const pw = panelWidth / 2;
 
-    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.6)
-      .setScrollFactor(0).setDepth(depth);
-    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x0e1a2e, 0.97)
-      .setStrokeStyle(3, 0x5ca7ff, 0.95).setScrollFactor(0).setDepth(depth + 1);
-    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 14, panelHeight - 14, 0x132240, 0.95)
-      .setStrokeStyle(1, 0x3a7abf, 0.85).setScrollFactor(0).setDepth(depth + 1);
+    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.55).setScrollFactor(0).setDepth(depth);
+    const panelShadow = this.add.rectangle(centerX + 2, centerY + 4, panelWidth, panelHeight, 0x000000, 0.5).setScrollFactor(0).setDepth(depth + 1);
+    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x3a3a5a, 0.98)
+      .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(depth + 1);
+    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
+      .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(depth + 1);
 
-    const title = this.add.text(centerX, centerY - panelHeight / 2 + 30, "升级!", {
-      fontFamily: "ZpixOne", fontSize: "32px", color: "#f8fbff",
-      stroke: "#0e1a2e", strokeThickness: 5
+    // ── Title ──
+    const titleY = centerY - ph + 28;
+    const title = this.add.text(centerX, titleY, "升 级 !", {
+      fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
+      stroke: "#0a0a0a", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
-    const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 56, `Lv.${this.level}`, {
-      fontFamily: "ZpixOne", fontSize: "14px", color: "#7ab8e0"
+    const subtitle = this.add.text(centerX, titleY + 22, `Lv.${this.level}`, {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#8a8aaa"
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     // Filter out passives the player already has
@@ -5536,6 +5594,14 @@ export class GameScene extends Phaser.Scene {
       projectile_count: 0xffcc44,
       movement_speed: 0x44ff88,
       pickup_radius: 0xcc66ff,
+      lifesteal: 0xff4466,
+      max_hp_boost: 0xff8888,
+      xp_boost: 0x88ff88,
+      luck_boost: 0x44ff44,
+      crit_chance: 0xff4444,
+      duration_boost: 0x4488ff,
+      cooldown_reduction: 0x88ccff,
+      revival: 0xffdd44,
       passive_ember_core: 0xff4422,
       passive_blade_sigil: 0x88ccff,
       passive_iron_shell: 0xaaaaaa,
@@ -5544,7 +5610,11 @@ export class GameScene extends Phaser.Scene {
       passive_armor: 0xcccccc,
       passive_hollow_heart: 0xff8888,
       passive_attractorb: 0xaa66ff,
-      passive_frost_shard: 0x88ddff
+      passive_frost_shard: 0x88ddff,
+      passive_spellbinder: 0x4488ff,
+      passive_candelabrador: 0xffaa44,
+      passive_duplicator: 0xffcc88,
+      passive_bracer: 0x66ccff
     };
 
     const UPGRADE_ICONS = {
@@ -5553,28 +5623,42 @@ export class GameScene extends Phaser.Scene {
       projectile_count: "◎",
       movement_speed: "➣",
       pickup_radius: "⊕",
+      lifesteal: "🩸",
+      max_hp_boost: "❤",
+      xp_boost: "⭐",
+      luck_boost: "🍀",
+      crit_chance: "💥",
+      duration_boost: "⏳",
+      cooldown_reduction: "🕐",
+      revival: "💀",
       passive_ember_core: "🔥",
       passive_blade_sigil: "🗡",
       passive_iron_shell: "🛡",
       passive_swift_feet: "👟",
       passive_wings: "🪶",
       passive_armor: "🔰",
-      passive_hollow_heart: "❤",
+      passive_hollow_heart: "💖",
       passive_attractorb: "🧲",
-      passive_frost_shard: "❄"
+      passive_frost_shard: "❄",
+      passive_spellbinder: "📖",
+      passive_candelabrador: "🕯",
+      passive_duplicator: "📋",
+      passive_bracer: "🤲"
     };
 
-    const optStartY = centerY - 60;
-    const optHeight = 72;
-    const optGap = 10;
-    const optWidth = panelWidth - 60;
+    // ── Option cards ──
+    const optStartY = centerY - ph + 72;
+    const optHeight = 62;
+    const optGap = 6;
+    const optWidth = panelWidth - 36;
+    const optLeft = centerX - optWidth / 2;
 
     choices.forEach((upgrade, index) => {
       const y = optStartY + index * (optHeight + optGap);
-      const color = UPGRADE_COLORS[upgrade.id] || 0x5ca7ff;
+      if (y + optHeight / 2 > centerY + ph - 62) return;
+      const color = UPGRADE_COLORS[upgrade.id] || 0xc4a040;
       const icon = UPGRADE_ICONS[upgrade.id] || "?";
 
-      // Check if this is an evolution option
       let isEvolution = false;
       let evoName = "";
       if (upgrade.passiveKey) {
@@ -5588,71 +5672,46 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      // Option background
-      const bgColor = isEvolution ? 0x1a3050 : 0x1a2640;
-      const strokeColor = isEvolution ? 0xffdd44 : 0x3a6aaf;
+      const bgColor = isEvolution ? 0x2a3a2a : 0x2a2a4a;
+      const strokeColor = isEvolution ? 0xfef08a : 0xc4a040;
       const box = this.add.rectangle(centerX, y, optWidth, optHeight, bgColor, 0.96)
         .setStrokeStyle(isEvolution ? 2 : 1, strokeColor, 0.9)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0).setDepth(depth + 2);
 
-      // Color accent bar (left)
-      const accent = this.add.rectangle(centerX - optWidth / 2 + 4, y, 6, optHeight - 8, color, 1)
+      // Accent bar
+      const accent = this.add.rectangle(optLeft + 3, y, 4, optHeight - 8, color, 1)
         .setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
 
       // Icon
-      const iconText = this.add.text(centerX - optWidth / 2 + 22, y - 12, icon, {
-        fontFamily: "ZpixOne", fontSize: "22px"
-      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
+      const iconX = optLeft + 16;
+      const iconText = this.add.text(iconX, y, icon, {
+        fontFamily: "ZpixOne", fontSize: "20px"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
 
-      // Name + key hint
+      // Name
+      const textLeft = optLeft + 32;
       let nameStr = `[${index + 1}] ${upgrade.label}`;
-      if (upgrade.isPassive && this.player.hasPassive(upgrade.passiveKey)) {
-        nameStr += " [已拥有]";
-      }
-      const nameText = this.add.text(centerX - optWidth / 2 + 50, y - 18, nameStr, {
-        fontFamily: "ZpixOne", fontSize: "17px", color: "#f0f4ff",
-        stroke: "#0e1a2e", strokeThickness: 3
+      const nameText = this.add.text(textLeft, y - 12, nameStr, {
+        fontFamily: "ZpixOne", fontSize: "14px", color: "#f0f4ff",
+        stroke: "#0a0a0a", strokeThickness: 2
       }).setScrollFactor(0).setDepth(depth + 3);
 
       // Description
       let descStr = upgrade.description || "";
       if (isEvolution) {
-        descStr = `✨ 进化! → ${evoName}`;
+        descStr = `✦ ${evoName}`;
       }
-      const descText = this.add.text(centerX - optWidth / 2 + 50, y + 4, descStr, {
-        fontFamily: "ZpixOne", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
+      const descText = this.add.text(textLeft, y + 8, descStr, {
+        fontFamily: "ZpixOne", fontSize: "11px", color: isEvolution ? "#fef08a" : "#a0a0b0"
       }).setScrollFactor(0).setDepth(depth + 3);
 
-      // Weapon level info for weapon-related upgrades
-      let levelStr = "";
-      if (upgrade.id === "weapon_damage" || upgrade.id === "attack_speed" || upgrade.id === "projectile_count") {
-        const weapons = this.player.weapons || [];
-        if (weapons.length > 0) {
-          levelStr = weapons.map(w => `${w.type} Lv.${w.level}`).join("  ");
-        }
-      }
-      if (upgrade.passiveKey && !isEvolution) {
-        const matchingRule2 = WEAPON_EVOLUTION_RULES.find(r => r.requiredPassive === upgrade.passiveKey);
-        if (matchingRule2) {
-          const ownedW = this.player.weapons?.find(w => (w.baseType || w.type) === matchingRule2.weapon);
-          if (ownedW) {
-            levelStr = `${matchingRule2.weapon} Lv.${ownedW.level}/${matchingRule2.level} → ${matchingRule2.evolution}`;
-          }
-        }
-      }
-      if (levelStr) {
-        const levelText = this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
-          fontFamily: "ZpixOne", fontSize: "11px", color: "#6688aa"
-        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
-        optionObjects.push(levelText);
-      }
-
       // Evolution badge
+      const infoRight = centerX + pw - 14;
       if (isEvolution) {
-        const badge = this.add.text(centerX + optWidth / 2 - 16, y + 10, "进化!", {
-          fontFamily: "ZpixOne", fontSize: "12px", color: "#ffdd44",
-          stroke: "#2a1a10", strokeThickness: 2
+        const badge = this.add.text(infoRight, y - 12, "进化!", {
+          fontFamily: "ZpixOne", fontSize: "10px", color: "#fef08a",
+          stroke: "#0a0a0a", strokeThickness: 2
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(badge);
       }
@@ -5662,30 +5721,67 @@ export class GameScene extends Phaser.Scene {
         this.closeLevelUpChoices();
       };
       box.on("pointerdown", chooseUpgrade);
-      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x224060 : 0x223454, 1));
+      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x3a5a3a : 0x3a3a5a, 1));
       box.on("pointerout", () => box.setFillStyle(bgColor, 0.96));
       this.levelUpOptionActions.push(chooseUpgrade);
 
       optionObjects.push(box, accent, iconText, nameText, descText);
     });
 
-    // Bottom bar: current weapons
+    // ── Weapon bar ──
     const weapons = this.player.weapons || [];
+    const barY = centerY + ph - 44;
     if (weapons.length > 0) {
-      const barY = centerY + panelHeight / 2 - 30;
-      const barBg = this.add.rectangle(centerX, barY, panelWidth - 40, 28, 0x0a1520, 0.8)
-        .setStrokeStyle(1, 0x2a4a6f, 0.6).setScrollFactor(0).setDepth(depth + 2);
       const weaponStr = weapons.map(w => {
         const name = (w.baseType || w.type).replace(/_/g, " ");
         return `${name} Lv.${w.level}`;
-      }).join("  |  ");
+      }).join(" | ");
       const weaponBar = this.add.text(centerX, barY, weaponStr, {
-        fontFamily: "ZpixOne", fontSize: "12px", color: "#8ab8dd"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
-      optionObjects.push(barBg, weaponBar);
+        fontFamily: "ZpixOne", fontSize: "10px", color: "#8a8aaa"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
+      optionObjects.push(weaponBar);
     }
 
-    this.levelUpUi = [overlay, panel, panelInner, title, subtitle, ...optionObjects];
+    // ── Reroll & Skip ──
+    const btnRowY = centerY + ph - 22;
+    const rerollsLeft = this.rerollsRemaining ?? 0;
+
+    const rerollBtn = this.add.rectangle(centerX - 46, btnRowY, 80, 28, 0x3b5998, 1)
+      .setStrokeStyle(2, rerollsLeft > 0 ? 0xc4a040 : 0x4a4a5a, 0.8)
+      .setScrollFactor(0).setDepth(depth + 2)
+      .setInteractive({ useHandCursor: rerollsLeft > 0 });
+    const rerollText = this.add.text(centerX - 46, btnRowY, `重抽${rerollsLeft}`, {
+      fontFamily: "ZpixOne", fontSize: "11px", color: rerollsLeft > 0 ? "#ffffff" : "#6a6a7a"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+
+    if (rerollsLeft > 0) {
+      const doReroll = () => {
+        this.rerollsRemaining -= 1;
+        this.closeLevelUpChoices();
+        this.pendingLevelUps += 1;
+        this.time.delayedCall(50, () => this.openLevelUpChoices());
+      };
+      rerollBtn.on("pointerdown", doReroll);
+      rerollText.setInteractive({ useHandCursor: true });
+      rerollText.on("pointerdown", doReroll);
+    }
+
+    const skipBtn = this.add.rectangle(centerX + 46, btnRowY, 64, 28, 0xb03020, 1)
+      .setStrokeStyle(2, 0xc4a040, 1)
+      .setScrollFactor(0).setDepth(depth + 2)
+      .setInteractive({ useHandCursor: true });
+    const skipText = this.add.text(centerX + 46, btnRowY, "跳过", {
+      fontFamily: "ZpixOne", fontSize: "11px", color: "#ffffff"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+
+    const doSkip = () => this.closeLevelUpChoices();
+    skipBtn.on("pointerdown", doSkip);
+    skipText.on("pointerdown", doSkip);
+    skipText.setInteractive({ useHandCursor: true });
+
+    optionObjects.push(rerollBtn, rerollText, skipBtn, skipText);
+
+    this.levelUpUi = [overlay, panelShadow, panel, panelInner, title, subtitle, ...optionObjects];
   }
 
   handleLevelUpInput() {
@@ -5714,145 +5810,104 @@ export class GameScene extends Phaser.Scene {
 
     const cx = 640;
     const cy = 360;
-    const pw = 520;
-    const ph = 440;
+    const pw = 440;
+    const ph = 340;
     const d = RENDER_DEPTH.MENUS + 10;
     const uiObjs = [];
 
     const backdrop = this.add.rectangle(cx, cy, 1280, 720, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
-    const panel = this.add.rectangle(cx, cy, pw, ph, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96).setScrollFactor(0).setDepth(d + 1);
-    const panelInner = this.add.rectangle(cx, cy, pw - 14, ph - 14, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(d + 1);
+    const panelShadow = this.add.rectangle(cx + 2, cy + 4, pw, ph, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 1);
+    const panel = this.add.rectangle(cx, cy, pw, ph, 0x3a3a5a, 0.98).setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
+    const panelInner = this.add.rectangle(cx, cy, pw - 12, ph - 12, 0x2a2a4a, 0).setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
 
     const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
-      fontFamily: "ZpixOne", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
+      fontFamily: "ZpixOne", fontSize: "24px", color: "#f8fbff", stroke: "#0a0a0a", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-    // Stats section (left side)
-    const statsX = cx - pw / 2 + 20;
-    const statsW = pw / 2 - 30;
-    let sy = cy - ph / 2 + 58;
+    // Back button (top-right of panel)
+    const backBtnX = cx + pw / 2 - 58;
+    const backBtnY = cy - ph / 2 + 28;
+    const backBtnW = 96;
+    const backBtnH = 40;
+    const backShadow = this.add.rectangle(backBtnX, backBtnY + 2, backBtnW, backBtnH, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 2);
+    const backPlate = this.add.rectangle(backBtnX, backBtnY, backBtnW, backBtnH, 0xb03020, 1)
+      .setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const backText = this.add.text(backBtnX, backBtnY, "返回", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
-    const addStatLine = (label, value, color = "#c8ddef") => {
+    backPlate.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
+    backPlate.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
+    backText.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
+    backText.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
+
+    const onResume = () => this.closePauseMenu();
+    backPlate.on("pointerdown", onResume);
+    backText.on("pointerdown", onResume);
+
+    // ── Compact stats (single column) ──
+    const leftX = cx - pw / 2 + 24;
+    const rightX = cx + pw / 2 - 24;
+    let sy = cy - ph / 2 + 56;
+    const lineH = 17;
+
+    const addRow = (label, value, color = "#ffffff") => {
       uiObjs.push(
-        this.add.text(statsX, sy, label, { fontFamily: "ZpixOne", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "ZpixOne", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(leftX, sy, label, { fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(rightX, sy, String(value), { fontFamily: "ZpixOne", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
-      sy += 18;
+      sy += lineH;
     };
 
-    const addSectionHeader = (text) => {
-      uiObjs.push(
-        this.add.text(statsX, sy, text, { fontFamily: "ZpixOne", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
-      );
-      sy += 18;
-    };
-
-    // Run stats
-    addSectionHeader("— 运行数据 —");
     const totalSec = Math.floor(this.runTimeMs / 1000);
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
-    addStatLine("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
-    addStatLine("击杀数", this.totalKills);
-    addStatLine("当前等级", this.level);
-    addStatLine("最大连击", `x${this.maxKillCombo}`);
-    sy += 6;
-
-    // Player stats
-    addSectionHeader("— 玩家属性 —");
-    addStatLine("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
-    addStatLine("移动速度", this.player.speed, "#66ff88");
-    addStatLine("拾取范围", Math.round(this.player.pickupRadius + (this.level - 1) * 2), "#cc88ff");
-    if (this.player.damageReduction > 0) addStatLine("伤害减免", `${Math.round(this.player.damageReduction * 100)}%`, "#aaaaff");
-    if (this.player.armorFlat > 0) addStatLine("护甲", `-${this.player.armorFlat}`, "#ccccff");
-    sy += 6;
-
-    // Passives
-    const passives = Object.keys(this.player.passives || {});
-    if (passives.length > 0) {
-      addSectionHeader("— 被动道具 —");
-      passives.forEach(p => {
-        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === p);
-        addStatLine(info?.label || p, "✓", "#88ff88");
-      });
-    }
-
-    // Weapons section (right side)
-    const wx = cx + 10;
-    const ww = pw / 2 - 30;
-    let wy = cy - ph / 2 + 58;
+    addRow("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
+    addRow("击杀数", this.totalKills);
+    addRow("等级", this.level);
+    addRow("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
+    sy += 4;
 
     const weapons = this.player.weapons || [];
-    const addWeaponHeader = (text) => {
+    if (weapons.length > 0) {
       uiObjs.push(
-        this.add.text(wx, wy, text, { fontFamily: "ZpixOne", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(leftX, sy, "— 武器 —", { fontFamily: "ZpixOne", fontSize: "13px", color: "#fef08a" }).setScrollFactor(0).setDepth(d + 2)
       );
-      wy += 18;
-    };
-
-    addWeaponHeader("— 武器 —");
-    weapons.forEach(w => {
-      const name = (w.baseType || w.type).replace(/_/g, " ");
-      const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
-      const cd = this.weaponSystem?.getEffectiveCooldownMs?.(w) ?? w.cooldownMs;
-      const evoTag = w.evolved ? " ✦" : "";
-      uiObjs.push(
-        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "ZpixOne", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "ZpixOne", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
-      );
-      wy += 18;
-    });
-
-    // Evolution hints
-    const evoRules = WEAPON_EVOLUTION_RULES.filter(r => {
-      const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
-      return owned && !owned.evolved;
-    });
-    if (evoRules.length > 0) {
-      wy += 6;
-      addWeaponHeader("— 进化 —");
-      evoRules.forEach(r => {
-        const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
-        const hasPassive = this.player.hasPassive(r.requiredPassive);
-        const levelOk = owned.level >= r.level;
-        const status = hasPassive && levelOk ? "✓ 就绪" : `Lv.${owned.level}/${r.level} ${hasPassive ? "✓被动" : "✗被动"}`;
-        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === r.requiredPassive);
+      sy += lineH;
+      weapons.forEach(w => {
+        const name = (w.baseType || w.type).replace(/_/g, " ");
+        const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
+        const evoTag = w.evolved ? "✦" : "";
         uiObjs.push(
-          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "ZpixOne", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
-          this.add.text(wx + ww, wy, status, { fontFamily: "ZpixOne", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+          this.add.text(leftX + 8, sy, `${evoTag} ${name}`, { fontFamily: "ZpixOne", fontSize: "11px", color: w.evolved ? "#fef08a" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
+          this.add.text(rightX, sy, `Lv.${w.level}  DMG:${dmg}`, { fontFamily: "ZpixOne", fontSize: "11px", color: "#a0a0b0" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
         );
-        wy += 16;
+        sy += lineH;
       });
     }
 
-    // Buttons (bottom)
-    const btnY = cy + ph / 2 - 70;
-    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 44, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    // ── Buttons ──
+    const btnY = cy + ph / 2 - 52;
+    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 38, 0x2d8a3d, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
-      fontFamily: "ZpixOne", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
-    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 44, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 38, 0xb03020, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
-      fontFamily: "ZpixOne", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
-    const bgmBtn = this.add.rectangle(cx - 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0x5ca7ff, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const bgmText = this.add.text(cx - 80, btnY + 50, bgmLabel, {
-      fontFamily: "ZpixOne", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
+    const bgmBtn = this.add.rectangle(cx, btnY + 42, 100, 26, 0x2a2a4a, 1).setStrokeStyle(1, 0xc4a040, 0.5).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const bgmText = this.add.text(cx, btnY + 42, bgmLabel, {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0", stroke: "#0a0a0a", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
-    const settingsBtn = this.add.rectangle(cx + 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0xffd866, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const settingsLabel = this.add.text(cx + 80, btnY + 50, "设置", {
-      fontFamily: "ZpixOne", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
-
-    const escHint = this.add.text(cx, cy + ph / 2 - 12, "按 ESC / P 继续", {
-      fontFamily: "ZpixOne", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
+    const escHint = this.add.text(cx, cy + ph / 2 - 10, "ESC / P 继续", {
+      fontFamily: "ZpixOne", fontSize: "11px", color: "#8a7a3a", stroke: "#0a0a0a", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-    const onResume = () => this.closePauseMenu();
     resumeBtn.on("pointerdown", onResume);
     resumeLabel.on("pointerdown", onResume);
 
@@ -5873,16 +5928,7 @@ export class GameScene extends Phaser.Scene {
     bgmBtn.on("pointerdown", onBgmToggle);
     bgmText.on("pointerdown", onBgmToggle);
 
-    const onSettings = () => {
-      this.closePauseMenu();
-      if (typeof window !== "undefined" && window.__forgeduelOpenSettings) {
-        window.__forgeduelOpenSettings();
-      }
-    };
-    settingsBtn.on("pointerdown", onSettings);
-    settingsLabel.on("pointerdown", onSettings);
-
-    this.pauseUi = [backdrop, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, settingsBtn, settingsLabel, escHint, ...uiObjs];
+    this.pauseUi = [backdrop, panelShadow, panel, panelInner, title, backShadow, backPlate, backText, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, escHint, ...uiObjs];
   }
 
   closePauseMenu() {
@@ -6005,69 +6051,47 @@ export class GameScene extends Phaser.Scene {
       const canvasW = 1280;
       const canvasH = 720;
       const centerX = canvasW / 2;
-      const panelWidth = 400;
-      const panelHeight = 400;
+      const panelWidth = 440;
+      const panelHeight = 440;
       const panelTop = Math.max(10, (canvasH - panelHeight) / 2);
       const centerY = panelTop + panelHeight / 2;
-      const panel = this.add
-      .rectangle(centerX, centerY, panelWidth, panelHeight, 0x22150d, 0.96)
-      .setStrokeStyle(3, 0xb48855, 0.96)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 1);
-      const panelInset = this.add
-      .rectangle(centerX, centerY, panelWidth - 28, panelHeight - 30, 0x342214, 0.94)
-      .setStrokeStyle(1, 0x6d4a31, 0.88)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 2);
-      const headerBottom = panelTop + 100;
-      const { titleChip, title } = this.createModalTitle(
-      centerX,
-      panelTop + 38,
-      "选择初始武器",
-      {
-        fontSize: 22,
-        minWidth: 220,
-        badgeDepth: RENDER_DEPTH.MENUS + 3,
-        textDepth: RENDER_DEPTH.MENUS + 4
-      }
-    );
+      const d = RENDER_DEPTH.MENUS;
 
-      const coinText = this.add
-      .text(centerX, panelTop + 66, `金币: ${this.metaData.currency}`, {
-        fontFamily: "ZpixOne",
-        fontSize: "14px",
-        color: "#e2c388",
-        stroke: "#2e170d",
-        strokeThickness: 2
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      const overlay = this.add.rectangle(centerX, canvasH / 2, canvasW, canvasH, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
+      const panelShadow = this.add.rectangle(centerX + 2, centerY + 4, panelWidth, panelHeight, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 1);
+      const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x3a3a5a, 0.98)
+        .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
+      const panelInset = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
+        .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
 
-      const subtitle = this.add
-      .text(centerX, headerBottom, "选择一把武器开始游戏", {
-        fontFamily: "ZpixOne",
-        fontSize: "12px",
-        color: "#d8bf95",
-        stroke: "#2a1a10",
-        strokeThickness: 2
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      const title = this.add.text(centerX, panelTop + 32, "选择初始武器", {
+        fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
+        stroke: "#0a0a0a", strokeThickness: 5
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-      const statusTextY = centerY + panelHeight / 2 - 18;
+      const coinText = this.add.text(centerX, panelTop + 58, `金币: ${this.metaData.currency}`, {
+        fontFamily: "ZpixOne", fontSize: "13px", color: "#a0a0b0",
+        stroke: "#0a0a0a", strokeThickness: 2
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
+
+      const headerBottom = panelTop + 82;
+      const subtitle = this.add.text(centerX, headerBottom, "选择一把武器开始游戏", {
+        fontFamily: "ZpixOne", fontSize: "11px", color: "#8a8aaa",
+        stroke: "#0a0a0a", strokeThickness: 2
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
+
+      const statusTextY = centerY + panelHeight / 2 - 22;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
         fontFamily: "ZpixOne",
-        fontSize: "13px",
-        color: "#ebd7b7",
-        stroke: "#2e170d",
+        fontSize: "12px",
+        color: "#ffb4b4",
+        stroke: "#0a0a0a",
         strokeThickness: 3
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      .setDepth(d + 2);
 
       const optionRows = [];
       const optAreaTop = headerBottom + 14;
@@ -6082,54 +6106,52 @@ export class GameScene extends Phaser.Scene {
       const textOffsetX = iconOffsetX + 34;
       START_WEAPON_OPTIONS.forEach((option, index) => {
       const y = optionsStartY + index * optionSpacing;
-      const box = this.add
-        .rectangle(centerX, y, optBoxW, 44, 0x4a2f1d, 0.98)
-        .setStrokeStyle(2, 0xb48855, 0.92)
+      const box = this.add.rectangle(centerX, y, optBoxW, 44, 0x2a2a4a, 0.98)
+        .setStrokeStyle(2, 0xc4a040, 0.9)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 4);
-      const boxInlay = this.add
-        .rectangle(centerX, y, optInlayW, 34, 0xead7b7, 0.88)
-        .setStrokeStyle(1, 0x6d4a31, 0.6)
+        .setDepth(d + 3);
+      const boxInlay = this.add.rectangle(centerX, y, optInlayW, 34, 0x1a1a2a, 0.88)
+        .setStrokeStyle(1, 0x8a7a3a, 0.6)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 5);
+        .setDepth(d + 4);
       const weaponIcon = this.add
         .image(iconOffsetX, y, this.getWeaponIconKey(option.weaponType))
         .setDisplaySize(22, 22)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
       const heading = this.add
         .text(textOffsetX, y - 9, `[${index + 1}] ${option.label}`, {
           fontFamily: "ZpixOne",
           fontSize: "14px",
-          color: "#2e170d",
-          stroke: "#f7e8cc",
-          strokeThickness: 1
+          color: "#ffffff",
+          stroke: "#0a0a0a",
+          strokeThickness: 3
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
       const detail = this.add
         .text(textOffsetX, y + 9, "", {
           fontFamily: "ZpixOne",
           fontSize: "10px",
-          color: "#6a4d36",
-          stroke: "#f7e8cc",
+          color: "#a0a0b0",
+          stroke: "#0a0a0a",
           strokeThickness: 1
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
 
       const refreshOption = () => {
         const unlocked = Boolean(this.weaponUnlocks[option.id]);
         if (unlocked) {
           detail.setText(`已解锁 · 点击选择`);
-          detail.setColor("#56714b");
+          detail.setColor("#88ff88");
         } else {
           detail.setText(`锁定 · 解锁需要 ${option.unlockCost} 金币`);
-          detail.setColor("#8b5d37");
+          detail.setColor("#ff8888");
         }
       };
 
@@ -6160,7 +6182,7 @@ export class GameScene extends Phaser.Scene {
         this.weaponSelectionActions.push(choose);
       });
 
-      this.weaponSelectionUi = [panel, panelInset, titleChip, title, coinText, subtitle, statusText, ...optionRows];
+      this.weaponSelectionUi = [overlay, panelShadow, panel, panelInset, title, coinText, subtitle, statusText, ...optionRows];
     } catch (error) {
       console.error("[GameScene] Failed to open weapon selection modal, fallback to default weapon.", error);
       this.forceCloseWeaponSelectionWithFallback();
@@ -6260,6 +6282,18 @@ export class GameScene extends Phaser.Scene {
       } else if (upgrade.passiveKey === "frost_shard") {
         this.weaponSystem.addGlobalDamagePercent(upgrade.value, "frost");
         this.showHudAlert("FROST SHARD", 1200);
+      } else if (upgrade.passiveKey === "spellbinder") {
+        this.weaponSystem.addGlobalDurationPercent(upgrade.value);
+        this.showHudAlert("SPELLBINDER", 1200);
+      } else if (upgrade.passiveKey === "candelabrador") {
+        this.weaponSystem.addGlobalRangePercent(upgrade.value);
+        this.showHudAlert("CANDELABRADOR", 1200);
+      } else if (upgrade.passiveKey === "duplicator") {
+        this.weaponSystem.addProjectileCount(upgrade.value);
+        this.showHudAlert("DUPLICATOR", 1200);
+      } else if (upgrade.passiveKey === "bracer") {
+        this.weaponSystem.addAttackSpeedPercent(upgrade.value);
+        this.showHudAlert("BRACER", 1200);
       }
       return;
     }
@@ -6283,6 +6317,42 @@ export class GameScene extends Phaser.Scene {
     }
     if (upgrade.id === "pickup_radius") {
       this.player.pickupRadius += upgrade.value;
+      return;
+    }
+    if (upgrade.id === "lifesteal") {
+      this.player.lifestealChance = (this.player.lifestealChance || 0) + upgrade.value;
+      this.player.lifestealAmount = (this.player.lifestealAmount || 0) + 5;
+      return;
+    }
+    if (upgrade.id === "max_hp_boost") {
+      this.player.maxHp = Math.round(this.player.maxHp * (1 + upgrade.value));
+      this.player.hp = Math.min(this.player.hp + Math.round(this.player.maxHp * upgrade.value), this.player.maxHp);
+      return;
+    }
+    if (upgrade.id === "xp_boost") {
+      this.metaXpMultiplier += upgrade.value;
+      return;
+    }
+    if (upgrade.id === "luck_boost") {
+      this.player.luck = (this.player.luck || 0) + upgrade.value;
+      return;
+    }
+    if (upgrade.id === "crit_chance") {
+      this.player.critChance = (this.player.critChance || 0) + upgrade.value;
+      this.player.critMultiplier = 2;
+      return;
+    }
+    if (upgrade.id === "duration_boost") {
+      this.weaponSystem.addGlobalDurationPercent(upgrade.value);
+      return;
+    }
+    if (upgrade.id === "cooldown_reduction") {
+      this.weaponSystem.addAttackSpeedPercent(upgrade.value);
+      return;
+    }
+    if (upgrade.id === "revival") {
+      this.player.revivals = (this.player.revivals || 0) + 1;
+      this.showHudAlert("REVIVAL READY", 1500);
     }
   }
 

@@ -68,7 +68,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashSpeedMultiplier = 4;
     this.dashDamage = 20;
     this.currentDashId = 0;
-    this.maxWeaponSlots = 3;
+    this.maxWeaponSlots = 6;
     this.weapons = [];
     this.passives = {};
     this.pickupRadius = 140;

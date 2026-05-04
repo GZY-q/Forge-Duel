@@ -52,6 +52,32 @@ const BOSS_VARIANTS = {
     grenadeIntervalMs: 9000,
     grenadeDamage: 22,
     grenadeRadius: 70
+  },
+  reaper: {
+    hp: 99999,
+    speed: 200,
+    damage: 99,
+    xpValue: 0,
+    radius: 28,
+    scale: 2.8,
+    tint: 0xff2222,
+    shockwaveIntervalMs: 1800,
+    shockwaveRadius: 220,
+    rushIntervalMs: 3000,
+    rushDurationMs: 400,
+    rushSpeedMultiplier: 3.0,
+    radialBurstIntervalMs: 3500,
+    radialBurstWarningLeadMs: 600,
+    radialBurstBulletCount: 16,
+    radialBurstBulletSpeed: 280,
+    shotgunIntervalMs: 2500,
+    shotgunBulletCount: 10,
+    shotgunSpreadDeg: 60,
+    shotgunBulletSpeedMin: 200,
+    shotgunBulletSpeedMax: 300,
+    grenadeIntervalMs: 4000,
+    grenadeDamage: 50,
+    grenadeRadius: 130
   }
 };
 const MINI_BOSS_TEXTURE_KEY = "char_enemy_miniboss_davy_south";
@@ -77,7 +103,7 @@ function abilityScore(distance, config) {
 
 export class BossEnemy extends Enemy {
   constructor(scene, x, y, options = {}) {
-    const variant = options.variant === "mini" ? "mini" : "boss";
+    const variant = options.variant === "mini" ? "mini" : options.variant === "reaper" ? "reaper" : "boss";
     const config = BOSS_VARIANTS[variant];
 
     super(scene, x, y, {

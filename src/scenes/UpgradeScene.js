@@ -81,28 +81,26 @@ export class UpgradeScene extends Phaser.Scene {
     this.topBar = createVSTopBar(this, { coins: this.coins });
 
     // ── Back button (top-right) ──
-    createVSBackButton(this, cam.width - 84, 36, () => {
+    const doClose = () => {
       const mainMenu = this.scene.get("MainMenuScene");
       if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
         mainMenu.closeSubMenu();
       } else {
         this.scene.stop("UpgradeScene");
       }
-    });
+    };
+    createVSBackButton(this, cam.width - 84, 36, doClose);
 
-    // ── Dark overlay (not interactive) ──
-    this.add.rectangle(cx, cy, cam.width, cam.height, 0x000000, 0.3);
+    // ── ESC key closes ──
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", doClose);
+    }
 
     //========== 增强选择面板尺寸 ==========
-    // 面板宽度（默认780）
     const panelW = 780;
-    // 面板高度（默认560）
     const panelH = 560;
-    // 垂直位置（默认cy + 15）
     const panelCenterY = cy + 15;
-    // 面板顶部Y
     const panelTop = panelCenterY - panelH / 2;
-    // 面板底部Y
     const panelBottom = panelCenterY + panelH / 2;
     createVSPanel(this, cx, panelCenterY, panelW, panelH);
 

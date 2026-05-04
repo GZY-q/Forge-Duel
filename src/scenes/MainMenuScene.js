@@ -71,7 +71,7 @@ export class MainMenuScene extends Phaser.Scene {
     backBtn.container.setVisible(false);
     this.backButton = backBtn;
 
-    // ── Sub-menu overlay methods ──
+    // ── Sub-menu methods ──
     this.openSubMenu = (sceneKey, data) => {
       if (this.currentSubScene === sceneKey) return;
       if (this.currentSubScene) {
@@ -101,6 +101,13 @@ export class MainMenuScene extends Phaser.Scene {
         this.topBar.rightBtn.container.setVisible(true);
       }
     };
+
+    // ── ESC key closes sub-menu ──
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", () => {
+        this.closeSubMenu();
+      });
+    }
 
     // ── Title ──
     createVSTitle(this, cx, cy - 140, "FORGE", { fontSize: "72px", color: "#f8fbff" });

@@ -254,6 +254,12 @@
         settingsPanel.addEventListener('click', function(e) {
           if (e.target === settingsPanel) { e.preventDefault(); e.stopPropagation(); closeSettings(); }
         });
+        document.addEventListener('keydown', function(e) {
+          if (e.key === 'Escape' && settingsPanel.classList.contains('open')) {
+            e.preventDefault();
+            closeSettings();
+          }
+        });
 
         document.querySelectorAll('#settings-panel button, #settings-panel input, #settings-panel select').forEach(function(el) {
           el.addEventListener('click', function(e) { e.stopPropagation(); });

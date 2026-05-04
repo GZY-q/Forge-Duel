@@ -396,3 +396,7 @@ export function createVSFooter(scene) {
     fontFamily: "ZpixOne", fontSize: "12px", color: "#ffffff"
   }).setOrigin(0.5).setAlpha(0.35);
 }
+
+/* ── Standard Panel Dimensions ── */
+export const PANEL_WIDTH = 780;
+export const PANEL_HEIGHT = 560;

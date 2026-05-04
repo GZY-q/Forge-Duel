@@ -80,6 +80,7 @@ export class WeaponSystem {
     this.globalDamageMultiplier = 1;
     this.globalCooldownMultiplier = 1;
     this.globalRangeMultiplier = 1;
+    this.globalDurationMultiplier = 1;
     this.projectileCount = 1;
     this.projectileGlowGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
     this.projectileTrailRectsGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH - 1);
@@ -284,6 +285,15 @@ export class WeaponSystem {
     }
     this.globalRangeMultiplier *= 1 + safePercent;
     return this.globalRangeMultiplier;
+  }
+
+  addGlobalDurationPercent(percent) {
+    const safePercent = Number(percent) || 0;
+    if (safePercent <= 0) {
+      return this.globalDurationMultiplier;
+    }
+    this.globalDurationMultiplier *= 1 + safePercent;
+    return this.globalDurationMultiplier;
   }
 
   getScaledWeaponDamage(weapon) {

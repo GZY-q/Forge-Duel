@@ -52,6 +52,13 @@ export class AuthScene extends Phaser.Scene {
       this._cleanupDom();
       this.scene.start("MainMenuScene");
     });
+
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", () => {
+        this._cleanupDom();
+        this.scene.start("MainMenuScene");
+      });
+    }
   }
 
   _createTab(x, y, label, isActive) {

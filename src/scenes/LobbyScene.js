@@ -33,6 +33,11 @@ export class LobbyScene extends Phaser.Scene {
     // Register shutdown cleanup via Phaser's event system.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._onShutdown());
 
+    // ESC key returns
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", () => this._leaveAndReturn());
+    }
+
     if (this.mode === "select") {
       this._showRoomSelection(cx, cy);
     } else {

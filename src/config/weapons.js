@@ -325,6 +325,30 @@ export const WEAPON_EVOLUTION_RULES = [
     level: 5,
     requiredPassive: "attractorb",
     evolution: "singularity"
+  },
+  {
+    weapon: "laser",
+    level: 5,
+    requiredPassive: "spellbinder",
+    evolution: "prismatic_laser"
+  },
+  {
+    weapon: "scatter_shot",
+    level: 5,
+    requiredPassive: "candelabrador",
+    evolution: "gatling"
+  },
+  {
+    weapon: "boomerang",
+    level: 5,
+    requiredPassive: "duplicator",
+    evolution: "death_spiral"
+  },
+  {
+    weapon: "slash",
+    level: 5,
+    requiredPassive: "bracer",
+    evolution: "cyclone_slash"
   }
 ];
 
@@ -499,5 +523,90 @@ export const LEVEL_UP_UPGRADES = [
     passiveKey: "frost_shard",
     isPassive: true,
     rarity: "uncommon"
+  },
+  {
+    id: "max_hp_boost",
+    label: "生命强化",
+    description: "最大生命 +15%",
+    value: 0.15,
+    rarity: "common"
+  },
+  {
+    id: "xp_boost",
+    label: "经验加成",
+    description: "经验获取 +12%",
+    value: 0.12,
+    rarity: "common"
+  },
+  {
+    id: "luck_boost",
+    label: "幸运提升",
+    description: "幸运值 +12%，提高稀有掉落概率",
+    value: 0.12,
+    rarity: "uncommon"
+  },
+  {
+    id: "crit_chance",
+    label: "暴击概率",
+    description: "8% 概率造成 2x 伤害",
+    value: 0.08,
+    rarity: "rare"
+  },
+  {
+    id: "duration_boost",
+    label: "持续时间",
+    description: "武器效果持续时间 +15%",
+    value: 0.15,
+    rarity: "common"
+  },
+  {
+    id: "cooldown_reduction",
+    label: "冷却缩减",
+    description: "所有武器冷却 -8%",
+    value: 0.08,
+    rarity: "common"
+  },
+  {
+    id: "passive_spellbinder",
+    label: "法术书",
+    description: "武器持续时间 +20%，解锁激光进化",
+    value: 0.2,
+    passiveKey: "spellbinder",
+    isPassive: true,
+    rarity: "uncommon"
+  },
+  {
+    id: "passive_candelabrador",
+    label: "烛台",
+    description: "武器范围 +20%，解锁散射进化",
+    value: 0.2,
+    passiveKey: "candelabrador",
+    isPassive: true,
+    rarity: "uncommon"
+  },
+  {
+    id: "passive_duplicator",
+    label: "复制器",
+    description: "弹射物数量 +1，解锁回旋镖进化",
+    value: 1,
+    passiveKey: "duplicator",
+    isPassive: true,
+    rarity: "rare"
+  },
+  {
+    id: "passive_bracer",
+    label: "护腕",
+    description: "攻击速度 +12%，解锁斩击进化",
+    value: 0.12,
+    passiveKey: "bracer",
+    isPassive: true,
+    rarity: "uncommon"
+  },
+  {
+    id: "revival",
+    label: "复活",
+    description: "死亡时恢复 50% HP（每局一次）",
+    value: 1,
+    rarity: "legendary"
   }
 ];
