@@ -1,4 +1,4 @@
-import { createVSBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
+import { createMainMenuBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
@@ -8,13 +8,19 @@ export class AuthScene extends Phaser.Scene {
     super("AuthScene");
   }
 
+  preload() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+  }
+
   create() {
     const camera = this.cameras.main;
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    // ── VS Background ──
-    createVSBackground(this);
+    // ── Main Menu Background ──
+    createMainMenuBackground(this);
 
     // ── Panel ──
     createVSPanel(this, cx, cy, 420, 400);
@@ -146,7 +152,7 @@ export class AuthScene extends Phaser.Scene {
 
   _createButton(x, y, label, onClick) {
     return createVSButton(this, x, y, label, {
-      width: 280, height: 46, fontSize: "20px", onClick
+      width: 100, fontSize: "16px", onClick
     });
   }
 

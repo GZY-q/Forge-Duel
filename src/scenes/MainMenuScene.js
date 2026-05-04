@@ -7,6 +7,8 @@ import {
   createVSTitle,
   createVSFooter
 } from "../ui/vsUI.js";
+import { LOGO_TEXTURE_KEY, LOGO_ASSET_PATH } from "../config/assets.manifest.js";
+import { BUTTON_ASSET_PATHS } from "../ui/vsUI.js";
 
 const COIN_STORAGE_KEY = "forgeduel_coins";
 const BEST_TIME_STORAGE_KEY = "forgeduel_best_time_ms";
@@ -33,6 +35,19 @@ export class MainMenuScene extends Phaser.Scene {
       this.load.atlas(MENU_ATLAS_KEY, MENU_ATLAS_IMAGE, MENU_ATLAS_DATA);
     }
 
+    if (!this.textures.exists(LOGO_TEXTURE_KEY)) {
+      this.load.image(LOGO_TEXTURE_KEY, LOGO_ASSET_PATH);
+    }
+
+    this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+
+    Object.values(BUTTON_ASSET_PATHS).forEach(path => {
+      const key = Object.keys(BUTTON_ASSET_PATHS).find(k => BUTTON_ASSET_PATHS[k] === path);
+      if (!this.textures.exists(key)) {
+        this.load.image(key, path);
+      }
+    });
+
     Object.entries(SHARED_AUDIO_FILES).forEach(([key, path]) => {
       if (this.cache?.audio?.exists(key)) return;
       this.load.audio(key, path);
@@ -47,7 +62,7 @@ export class MainMenuScene extends Phaser.Scene {
     this.currentSubScene = null;
 
     // ── Background ──
-    createVSBackground(this);
+    this.add.image(cx, cy, "main_menu_bg").setDisplaySize(cam.width, cam.height);
 
     // ── Top bar ──
     const coins = this.loadCoins();
@@ -109,20 +124,23 @@ export class MainMenuScene extends Phaser.Scene {
       });
     }
 
-    // ── Title ──
-    createVSTitle(this, cx, cy - 140, "FORGE", { fontSize: "72px", color: "#f8fbff" });
-    createVSTitle(this, cx, cy - 70, "DUEL", { fontSize: "56px", color: "#d4af37" });
+    // ── Title Logo ──标题
+    const titleY = cy - 140;
+    const logoImg = this.add.image(cx, titleY, LOGO_TEXTURE_KEY).setDepth(100);
+    const logoBounds = logoImg.getBounds();
+    const desiredHeight = 200;
+    logoImg.setScale(desiredHeight / logoBounds.height);
+    logoImg.setAlpha(0.95);
 
     // ── Start button (large) ──
-    createVSStartButton(this, cx, cy + 30, "开始", () => {
+    createVSStartButton(this, cx, cy + 90, "开始", () => {
       this.scene.start("ShipSelectionScene", { mode: "solo" });
     });
 
     // ── Sub buttons row ──
-    const subY = cy + 120;
-    const subW = 160;
-    const subH = 50;
-    const subGap = 16;
+    const subY = cy + 200;
+    const subW = 120;
+    const subGap = 28;
     const totalSubW = 4 * subW + 3 * subGap;
     const subStartX = cx - totalSubW / 2 + subW / 2;
 
@@ -143,7 +161,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     subButtons.forEach((btn, i) => {
       createVSButton(this, subStartX + i * (subW + subGap), subY, btn.label, {
-        width: subW, height: subH, fontSize: "18px", onClick: btn.onClick
+        width: subW, fontSize: "16px", onClick: btn.onClick
       });
     });
 

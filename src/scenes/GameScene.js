@@ -7,6 +7,12 @@ import { ObjectPool } from "../systems/ObjectPool.js";
 import { SeededRNG } from "../utils/SeededRNG.js";
 import { PlayerSync } from "../networking/PlayerSync.js";
 import { EnemySync } from "../networking/EnemySync.js";
+import { LevelUpManager } from "../Systems/LevelUpManager.js";
+import { PauseManager } from "../Systems/PauseManager.js";
+import { DropManager } from "../Systems/DropManager.js";
+import { CombatManager } from "../Systems/CombatManager.js";
+import { SpawnManager } from "../Systems/SpawnManager.js";
+import { CoopSyncManager } from "../Systems/CoopSyncManager.js";
 import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC, RANGER_UNLOCK_TIME_SEC } from "../config/enemies.js";
 import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
@@ -324,18 +330,6 @@ const IMPORTED_PIXEL_ASSETS = Object.freeze({
   deckCannonBall: Object.freeze({
     key: "sprite_deck_cannonball",
     path: "assets/sprites/environment/ship/deck_cannonball.png"
-  }),
-  uiPanelBrown: Object.freeze({
-    key: "sprite_ui_panel_brown",
-    path: "assets/sprites/ui/ui_panel_brown.png"
-  }),
-  uiPanelBrownInlay: Object.freeze({
-    key: "sprite_ui_panel_brown_inlay",
-    path: "assets/sprites/ui/ui_panel_brown_inlay.png"
-  }),
-  uiPanelTanInlay: Object.freeze({
-    key: "sprite_ui_panel_tan_inlay",
-    path: "assets/sprites/ui/ui_panel_tan_inlay.png"
   }),
   enemyChaserBody: Object.freeze({
     key: "sprite_enemy_chaser_body",
@@ -720,7 +714,7 @@ export class GameScene extends Phaser.Scene {
 
     this.attackIntervalMs = 800;
     this.attackRange = 120;
-    this.attackDamage = 10;
+    this.attackDamage = 5;
     this.lastAttackAt = 0;
     this.totalXp = 0;
     this.level = 1;
@@ -853,7 +847,6 @@ export class GameScene extends Phaser.Scene {
     this.coopSeed = data?.seed ?? Date.now();
     this._hasSentPlayerDied = false;
     this._hasSentGameOver = false;
-    this.networkSyncAccumulator = 0;
     this.lastEnemySyncTime = 0;
   }
 
@@ -866,9 +859,14 @@ export class GameScene extends Phaser.Scene {
     this.xpToNext = this.getXpRequirement(this.level);
     this.pendingLevelUps = 0;
     this.isLeveling = false;
-    this.rerollsRemaining = 2;
+    this.levelUpManager = new LevelUpManager(this);
+    this.pauseManager = new PauseManager(this);
+    this.dropManager = new DropManager(this);
+    this.combatManager = new CombatManager(this);
+    this.spawnManager = new SpawnManager(this);
+    this.coopSync = new CoopSyncManager(this);
+    this.setupCoopMode();
     this._revivalUsed = false;
-    this._lastReaperIndex = -1;
     this.levelUpUi = [];
     this.spawnAccumulatorMs = 0;
     this.runTimeMs = 0;
@@ -1189,6 +1187,7 @@ export class GameScene extends Phaser.Scene {
       this.hudWeaponSlotLabels.push(label);
     }
     this.playerReadabilityGraphics = this.add.graphics().setDepth(5);
+    this.playerHpBarGraphics = this.add.graphics().setDepth(15);
     this.lowHealthVignetteGraphics = this.add.graphics().setScrollFactor(0).setDepth(21);
     this.createEdgeFogOverlay();
     this.dashCooldownRingGraphics = this.add.graphics().setDepth(9);
@@ -1322,143 +1321,9 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.load.image("game_bg", "assets/sprites/ui/bg.png");
-
-    this.setupCoopMode();
   }
 
-  setupCoopMode() {
-    if (this.gameMode !== "coop" || !this.networkManager) return;
-
-    this.playerSync = new PlayerSync(this);
-
-    for (const p of this.coopPlayers) {
-      if (p.playerId !== this.networkManager.playerId) {
-        this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
-      }
-    }
-
-    if (!this.isHost) {
-      this.enemySync = new EnemySync(this, this.enemyPool);
-    }
-
-    this.networkManager.onRemotePlayerUpdate = (data) => {
-      if (data.playerId === this.networkManager.playerId) return;
-      this.playerSync?.updatePlayerState(data.playerId, data);
-    };
-
-    this.networkManager.onEnemyStateUpdate = (data) => {
-      if (this.isHost) return;
-      this.enemySync?.applyEnemyState(data);
-    };
-
-    this.networkManager.onEnemyDamage = (data) => {
-      if (!this.isHost) return;
-      const enemy = this.enemies.getChildren().find(
-        (e) => e.active && e.serverId === data.enemyId && !e.getData("isDying")
-      );
-      if (enemy) {
-        enemy.takeDamage(data.damage);
-        if (this.spawnWeaponHitParticles) {
-          this.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
-        }
-        if (enemy.isDead()) {
-          this.handleEnemyDefeat(enemy);
-        }
-      }
-    };
-
-    this.networkManager.onEnemyKilled = (data) => {
-      if (this.isHost) return;
-      const enemy = this.enemySync?.getEnemyByServerId(data.enemyId);
-      if (enemy && enemy.active) {
-        this.handleEnemyDefeat(enemy);
-      }
-    };
-
-    this.networkManager.onXpDrop = (data) => {
-      if (this.isHost) return;
-      this.spawnXpOrb(data.x, data.y, data.value);
-    };
-
-    this.networkManager.onItemDrop = (data) => {
-      if (this.isHost) return;
-      if (this.itemPool && data.type) {
-        const item = this.itemPool.acquire(data.x, data.y, data.type);
-        if (item) this.activeItems.push(item);
-      }
-    };
-
-    this.networkManager.onPlayerDied = (data) => {
-      this.playerSync?.markPlayerDead(data.playerId);
-      const player = this.coopPlayers.find((p) => p.playerId === data.playerId);
-      const name = player?.username || "玩家";
-      this.showHudAlert(`${name} 已阵亡`, 2000);
-    };
-
-    this.networkManager.onGameOver = () => {
-      this.triggerGameOver(true);
-    };
-
-    this.networkManager.onHostMigrated = (data) => {
-      if (data.newHostId === this.networkManager.playerId) {
-        this.isHost = true;
-        this.showHudAlert("你已成为房主", 2000);
-      }
-    };
-
-    this.networkManager.onPlayerLeft = (data) => {
-      this.playerSync?.removeRemotePlayer(data.playerId);
-      this.showHudAlert("玩家已离开", 2000);
-    };
-
-    this.networkManager.onPlayerDisconnected = (data) => {
-      const rp = this.playerSync?.remotePlayers?.get(data.playerId);
-      if (rp) {
-        rp.disconnected = true;
-        this.showHudAlert("玩家断线，等待重连...", 2000);
-      }
-    };
-
-    this.networkManager.onPlayerReconnected = (data) => {
-      if (!this.playerSync?.remotePlayers) return;
-      const rp = this.playerSync.remotePlayers.get(data.oldPlayerId);
-      if (rp) {
-        rp.disconnected = false;
-        this.playerSync.remotePlayers.delete(data.oldPlayerId);
-        this.playerSync.remotePlayers.set(data.playerId, rp);
-        rp.playerId = data.playerId;
-        this.showHudAlert("玩家已重连", 2000);
-      }
-    };
-
-    this.networkManager.onConnectionRestored = (gameState) => {
-      if (!gameState) return;
-      this.isHost = gameState.hostId === this.networkManager.playerId;
-      this.showHudAlert("已重新连接", 2000);
-
-      if (gameState.playerStates) {
-        for (const ps of gameState.playerStates) {
-          if (ps.playerId === this.networkManager.playerId) {
-            this.player.setPosition(ps.x, ps.y);
-            this.player.hp = ps.hp;
-            this.player.maxHp = ps.maxHp;
-            this.player.facingDirection = ps.facing;
-            this.level = ps.level || 1;
-            if (ps.isDead) {
-              this.player.setHp(0);
-            }
-          } else {
-            if (!this.playerSync) continue;
-            this.playerSync.addRemotePlayer(ps.playerId, ps.fighterType, ps.username);
-            this.playerSync.updatePlayerState(ps.playerId, {
-              x: ps.x, y: ps.y, facing: ps.facing,
-              hp: ps.hp, maxHp: ps.maxHp, isDead: ps.isDead
-            });
-          }
-        }
-      }
-    };
-  }
+  setupCoopMode() { this.coopSync.setup(); }
 
   update(time, delta) {
     const isRunSummaryOpen = this.scene.isActive("RunSummaryScene");
@@ -1492,7 +1357,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (this.isLeveling) {
-      this.handleLevelUpInput();
+      this.levelUpManager.handleInput();
       this.updateBossProjectiles(time);
       this.player.body?.setVelocity(0, 0);
       this.updateEnemyHealthBars();
@@ -1548,29 +1413,12 @@ export class GameScene extends Phaser.Scene {
     }
     this.checkStageAnnouncements();
     this.updateBossApproachWarning();
-    this.updateReaperSpawning(delta);
+    this.spawnManager.updateReaperSpawning();
 
-    // Enemy spawning is host-authoritative in coop — only the host creates enemies.
     if (this.gameMode !== "coop" || this.isHost) {
-      this.spawnAccumulatorMs += delta;
-      this.processDirectorBossSpawns();
-      this.processDirectorMiniBossSpawns();
-      this.processDirectorSpawnBursts();
-      this.processDirectorLadderSpawns();
-      this.processDirectorHatchBreaches();
-
-      const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
-      const effectiveSpawnIntervalMs = this.baseSpawnCheckIntervalMs / Math.max(0.2, spawnRateMultiplier);
-      while (this.spawnAccumulatorMs >= effectiveSpawnIntervalMs) {
-        this.spawnAccumulatorMs -= effectiveSpawnIntervalMs;
-        this.maintainEnemyDensity();
-      }
+      this.spawnManager.updateSpawnTick(delta);
     } else {
-      this.director.consumeBossSpawnRequests();
-      this.director.consumeMiniBossSpawnRequests();
-      this.director.consumeSpawnBurstRequests();
-      this.director.consumeLadderSpawnRequests();
-      this.director.consumeHatchBreachSpawnRequests();
+      this.spawnManager.consumeDirectorRequests();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.dash) || this.consumeTouchDash()) {
@@ -1582,6 +1430,7 @@ export class GameScene extends Phaser.Scene {
     this.emitDashTrail(delta);
     this.player.moveFromInput(this.keys, this.getTouchMoveInput());
     this.updatePlayerReadabilityAura();
+    this.updatePlayerHpBar();
     this.pullXpOrbsToPlayer();
     this.updateActiveItems(delta);
     this.updateChests();
@@ -1591,59 +1440,11 @@ export class GameScene extends Phaser.Scene {
     this.statusEffectSystem?.update(time, delta);
     this.performAutoAttack(time);
 
-    const speedMultiplier = this.getEffectiveEnemySpeedMultiplier();
-    const damageMultiplier = this.director.getEnemyDamageMultiplier();
-
     if (this.gameMode !== "coop" || this.isHost) {
-      this.enemies.getChildren().forEach((enemy) => {
-        if (!enemy.active) {
-          return;
-        }
-        enemy.speed = enemy.baseSpeed * speedMultiplier;
-        enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
-        const target = this._getNearestPlayerForEnemy(enemy);
-        enemy.chase(target, delta, time);
-        enemy.tryApplyPoisonAura(target, time);
-        if (enemy.updateBossPattern) {
-          enemy.updateBossPattern(target, time);
-        }
-        this.applyEnemyAntiJam(enemy, time);
-      });
+      this.spawnManager.updateEnemyAI(delta, time);
     }
 
-    if (this.gameMode === "coop" && this.networkManager) {
-      this.networkSyncAccumulator += delta;
-
-      if (this.networkSyncAccumulator >= 50) {
-        this.networkSyncAccumulator = 0;
-        if (!this.player.isDead()) {
-          this.networkManager.sendPlayerState(this.player);
-        }
-
-        if (this.isHost) {
-          const activeEnemies = this.enemies.getChildren()
-            .filter((e) => e.active)
-            .map((e) => ({
-              id: e.serverId || `${Math.round(e.x)}_${Math.round(e.y)}`,
-              type: e.type,
-              x: Math.round(e.x),
-              y: Math.round(e.y),
-              hp: e.hp,
-              maxHp: e.maxHp,
-              facing: e.facingDirection,
-              isElite: e.isElite || false,
-              eliteType: e.eliteType,
-              damage: e.damage,
-              xpValue: e.xpValue,
-              archetype: e.getData("archetype"),
-              bossVariant: e.getData("bossVariant")
-            }));
-          this.networkManager.sendEnemyState(activeEnemies);
-        }
-      }
-
-      this.playerSync?.update(this.time.now);
-    }
+    this.coopSync.update(delta);
 
     // Infinite background parallax — tiles scroll at 30% of camera speed.
     if (this._bgTile) {
@@ -1982,25 +1783,32 @@ export class GameScene extends Phaser.Scene {
 
   playWeaponEvolutionFeedback(weapon) {
     this.ensureParticleEmitters();
-    const flashDurationMs = 170;
-    const slowScale = 0.26;
-    const slowDurationMs = 180;
+    const flashDurationMs = 200;
+    const slowScale = 0.22;
+    const slowDurationMs = 220;
 
     if (this.cameras?.main) {
-      this.cameras.main.flash(flashDurationMs, 255, 246, 197, true);
-      this.shakeScreen(110, 0.0019);
+      this.cameras.main.flash(flashDurationMs, 255, 230, 140, true);
+      this.shakeScreen(140, 0.0024);
     }
 
     if (this.evolutionEmitter && this.player && this.player.active) {
-      this.evolutionEmitter.explode(this.getScaledParticleCount(36, 14), this.player.x, this.player.y);
+      this.evolutionEmitter.explode(this.getScaledParticleCount(48, 20), this.player.x, this.player.y);
     }
 
-    if (!this.time || !this.tweens || !this.physics?.world) {
-      return;
+    // Expanding gold ring
+    if (this.add && this.tweens && this.player?.active) {
+      const ring = this.add.circle(this.player.x, this.player.y, 20, 0, 0).setStrokeStyle(4, 0xfef08a, 1).setDepth(999);
+      this.tweens.add({
+        targets: ring, radius: 200, alpha: 0,
+        duration: 500, ease: "Quad.easeOut",
+        onComplete: () => ring.destroy()
+      });
     }
+
+    if (!this.time || !this.tweens || !this.physics?.world) return;
 
     this.clearEvolutionSlowMoTimer();
-
     const previousTimeScale = this.time.timeScale;
     const previousTweenScale = this.tweens.timeScale;
     const previousPhysicsScale = this.physics.world.timeScale;
@@ -2011,9 +1819,7 @@ export class GameScene extends Phaser.Scene {
 
     this.evolutionSlowMoRestoreHandle = setTimeout(() => {
       this.evolutionSlowMoRestoreHandle = null;
-      if (!this.sys || !this.sys.isActive()) {
-        return;
-      }
+      if (!this.sys || !this.sys.isActive()) return;
       this.time.timeScale = previousTimeScale;
       this.tweens.timeScale = previousTweenScale;
       this.physics.world.timeScale = previousPhysicsScale;
@@ -2021,7 +1827,8 @@ export class GameScene extends Phaser.Scene {
     }, slowDurationMs);
 
     if (this.showHudAlert && weapon?.baseType) {
-      this.showHudAlert(`${weapon.baseType.toUpperCase()} POWER SPIKE`, 1000);
+      const evoName = weapon.evolved ? (weapon.type || weapon.baseType) : weapon.baseType;
+      this.showHudAlert(`${evoName.toUpperCase()} EVOLVED!`, 1500);
     }
   }
 
@@ -2756,6 +2563,7 @@ export class GameScene extends Phaser.Scene {
       this.cleanupTransientUiPools();
       this.teardownTouchControls();
       this.teardownDomHudOverlay();
+      if (this.playerHpBarGraphics) { this.playerHpBarGraphics.destroy(); this.playerHpBarGraphics = null; }
       this.clearEvolutionSlowMoTimer();
     });
   }
@@ -2899,55 +2707,28 @@ export class GameScene extends Phaser.Scene {
         <span class="hud-boss-bar-track"><span class="hud-boss-bar-fill" data-key="boss-hp-bar"></span></span>
         <span class="hud-boss-hp-text" data-key="boss-hp-text"></span>
       </div>
-      <div class="hud-top">
-        <div class="hud-run-strip" data-key="run-strip-track" aria-hidden="true">
-          <span class="hud-run-strip-fill" data-key="run-strip-fill"></span>
-          <span class="hud-run-strip-marker">BOSS</span>
-        </div>
-        <div class="hud-exp-track" data-key="exp-track">
-          <div class="hud-exp-fill" data-key="exp-bar"></div>
-          <span class="hud-exp-label"><span data-key="exp-level">LVL 1</span></span>
-        </div>
-        <div class="hud-stats-row">
-          <div class="hud-stats-kills"><span>&#x1F480;</span><span data-key="kills">0</span></div>
-          <div class="hud-stats-timer" data-key="time">00:00</div>
-        </div>
-      </div>
-      <div class="hud-coins" data-key="coins-container">
+      <div class="hud-info-bar">
+        <span data-key="exp-level">Lv.1</span>
+        <span class="hud-info-sep">|</span>
+        <span data-key="time">00:00</span>
+        <span class="hud-info-sep">|</span>
+        <span>&#x1F480;</span><span data-key="kills">0</span>
+        <span class="hud-info-sep">|</span>
         <span>&#x1FA99;</span><span data-key="coins">0</span>
-      </div>
-      <div class="hud-bottom">
-        <div class="hud-hp-header">
-          <span class="hud-hp-header-icon">&#x2764;</span>
-          <span>VITALITY</span>
-        </div>
-        <div class="hud-hp-track">
-          <div class="hud-hp-fill" data-key="hp-bar"></div>
-          <span class="hud-hp-text" data-key="hp">100/100</span>
-        </div>
       </div>
     `;
     appRoot.appendChild(hud);
     this.domHudElement = hud;
     this.domHudRefs = {
-      hpText: hud.querySelector('[data-key="hp"]'),
       timeText: hud.querySelector('[data-key="time"]'),
       loadout: hud.querySelector('[data-key="hud-loadout"]'),
       weaponRow: hud.querySelector('[data-key="hud-weapon-row"]'),
-      runStripTrack: hud.querySelector('[data-key="run-strip-track"]'),
-      runStripFill: hud.querySelector('[data-key="run-strip-fill"]'),
       killsText: hud.querySelector('[data-key="kills"]'),
       coinsText: hud.querySelector('[data-key="coins"]'),
-      coinsContainer: hud.querySelector('[data-key="coins-container"]'),
       expLevel: hud.querySelector('[data-key="exp-level"]'),
-      hpBar: hud.querySelector('[data-key="hp-bar"]'),
-      expBar: hud.querySelector('[data-key="exp-bar"]'),
       bossBar: hud.querySelector('[data-key="boss-bar"]'),
       bossHpBar: hud.querySelector('[data-key="boss-hp-bar"]'),
-      bossHpText: hud.querySelector('[data-key="boss-hp-text"]'),
-      hudTop: hud.querySelector('.hud-top'),
-      hudBottom: hud.querySelector('.hud-bottom'),
-      hudCoins: hud.querySelector('.hud-coins')
+      bossHpText: hud.querySelector('[data-key="boss-hp-text"]')
     };
     const loadout = this.domHudRefs.loadout;
     const weaponRow = this.domHudRefs.weaponRow;
@@ -3003,21 +2784,8 @@ export class GameScene extends Phaser.Scene {
 
   _applyMobileHudAdjustments() {
     if (!this.touchControlsEnabled || !this.domHudElement) return;
-    const hud = this.domHudElement;
-    const bottom = hud.querySelector(".hud-bottom");
-    if (bottom) {
-      bottom.style.bottom = "8px";
-    }
-    const hpTrack = hud.querySelector(".hud-hp-track");
-    if (hpTrack) {
-      hpTrack.style.width = "200px";
-      hpTrack.style.height = "14px";
-    }
     const loadout = this.domHudRefs?.loadout;
-    if (loadout) {
-      loadout.style.left = "10px";
-      loadout.style.top = "10px";
-    }
+    if (loadout) { loadout.style.left = "10px"; loadout.style.top = "10px"; }
     this.domHudWeaponSlots?.forEach(({ slot }) => {
       slot.style.width = "38px";
       slot.style.height = "38px";
@@ -3047,62 +2815,16 @@ export class GameScene extends Phaser.Scene {
     this.domHudWeaponSlots = [];
   }
 
-  updateDomHudOverlay(levelValue, xpPercent, elapsedMs, xpRatio) {
-    if (!this.domHudElement || !this.player || !this.domHudRefs) {
-      return;
-    }
-    const hpText = this.domHudRefs.hpText;
-    const timeText = this.domHudRefs.timeText;
-    const killsText = this.domHudRefs.killsText;
-    const coinsText = this.domHudRefs.coinsText;
-    const expLevel = this.domHudRefs.expLevel;
-    const hpBar = this.domHudRefs.hpBar;
-    const expBar = this.domHudRefs.expBar;
-    const loadout = this.domHudRefs.loadout;
-    const runStripTrack = this.domHudRefs.runStripTrack;
-    const runStripFill = this.domHudRefs.runStripFill;
-    const formatInt = (value) => Math.max(0, Math.floor(Number(value) || 0)).toLocaleString("en-US");
-    const hpRatio = this.player.maxHp > 0 ? Phaser.Math.Clamp(this.player.hp / this.player.maxHp, 0, 1) : 0;
-    const bossCycleMs = Math.max(1, DIRECTOR_BOSS_SPAWN.intervalMs || 180000);
-    const bossCycleProgress = Phaser.Math.Clamp((elapsedMs % bossCycleMs) / bossCycleMs, 0, 1);
-    const directorState = this.director?.getState?.() ?? DIRECTOR_STATE.BUILD;
-    if (hpText) {
-      hpText.textContent = `${Math.floor(this.player.hp)}/${this.player.maxHp}`;
-    }
-    if (expLevel) {
-      expLevel.textContent = `LVL ${levelValue}`;
-    }
-    if (timeText) {
-      timeText.textContent = this.formatRunTime(elapsedMs);
-    }
-    if (killsText) {
-      killsText.textContent = formatInt(this.totalKills);
-    }
-    if (coinsText) {
-      coinsText.textContent = formatInt(this.runMetaCurrency);
-    }
-    if (hpBar) {
-      hpBar.style.width = `${Math.round(hpRatio * 100)}%`;
-    }
-    if (expBar) {
-      expBar.style.width = `${Math.round(Phaser.Math.Clamp(xpRatio, 0, 1) * 100)}%`;
-    }
-    if (loadout) {
-      loadout.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.42" : "1";
-    }
-    if (runStripTrack) {
-      runStripTrack.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.38" : "1";
-    }
-    if (runStripFill) {
-      runStripFill.style.width = `${Math.round(bossCycleProgress * 100)}%`;
-      if (directorState === DIRECTOR_STATE.PEAK) {
-        runStripFill.style.background = "linear-gradient(90deg, rgba(206, 82, 49, 0.92) 0%, rgba(255, 128, 82, 1) 100%)";
-      } else if (directorState === DIRECTOR_STATE.RELIEF) {
-        runStripFill.style.background = "linear-gradient(90deg, rgba(148, 124, 92, 0.72) 0%, rgba(198, 171, 132, 0.9) 100%)";
-      } else {
-        runStripFill.style.background = "linear-gradient(90deg, rgba(210, 141, 73, 0.78) 0%, rgba(234, 181, 89, 0.96) 100%)";
-      }
-    }
+  updateDomHudOverlay(levelValue, _xpPercent, elapsedMs, _xpRatio) {
+    if (!this.domHudElement || !this.player || !this.domHudRefs) return;
+    const { timeText, killsText, coinsText, expLevel, loadout } = this.domHudRefs;
+    const formatInt = (v) => Math.max(0, Math.floor(Number(v) || 0)).toLocaleString("en-US");
+
+    if (expLevel) expLevel.textContent = `Lv.${levelValue}`;
+    if (timeText) timeText.textContent = this.formatRunTime(elapsedMs);
+    if (killsText) killsText.textContent = formatInt(this.totalKills);
+    if (coinsText) coinsText.textContent = formatInt(this.runMetaCurrency);
+    if (loadout) loadout.style.opacity = this.isLeveling || this.isWeaponSelecting ? "0.42" : "1";
     const equippedWeapons = this.player?.weapons ?? [];
     if (Array.isArray(this.domHudWeaponSlots)) {
       this.domHudWeaponSlots.forEach(({ slot, icon, levelBadge }, index) => {
@@ -3187,6 +2909,30 @@ export class GameScene extends Phaser.Scene {
     this.playerReadabilityGraphics.fillEllipse(x, y + 8, 42, 18);
     this.playerReadabilityGraphics.lineStyle(2, 0xe7e1c4, 0.16);
     this.playerReadabilityGraphics.strokeCircle(x, y, 19);
+  }
+
+  updatePlayerHpBar() {
+    if (!this.playerHpBarGraphics || !this.player?.active) return;
+    const g = this.playerHpBarGraphics;
+    g.clear();
+
+    const px = this.player.x;
+    const py = this.player.y + 24;
+    const barW = 40;
+    const barH = 5;
+    const hpRatio = this.player.maxHp > 0 ? Math.max(0, Math.min(1, this.player.hp / this.player.maxHp)) : 1;
+
+    // Background
+    g.fillStyle(0x000000, 0.55);
+    g.fillRect(px - barW / 2, py, barW, barH);
+    // HP fill — color based on ratio
+    const fillColor = hpRatio > 0.5 ? 0x44ff44 : hpRatio > 0.25 ? 0xffcc44 : 0xff4444;
+    g.fillStyle(fillColor, 0.9);
+    g.fillRect(px - barW / 2, py, Math.round(barW * hpRatio), barH);
+    // Border
+    g.lineStyle(1, 0xffffff, 0.3);
+    g.strokeRect(px - barW / 2, py, barW, barH);
+
   }
 
   getTouchMoveInput() {
@@ -3439,8 +3185,8 @@ export class GameScene extends Phaser.Scene {
   _getNearestPlayerForEnemy(enemy) {
     let nearest = this.player;
     let nearestDist = Phaser.Math.Distance.Between(enemy.x, enemy.y, nearest.x, nearest.y);
-    if (this.playerSync) {
-      for (const rp of this.playerSync.getAllRemotePlayers()) {
+    if (this.coopSync.playerSync) {
+      for (const rp of this.coopSync.playerSync.getAllRemotePlayers()) {
         if (rp.isDead || rp.disconnected) continue;
         const dist = Phaser.Math.Distance.Between(enemy.x, enemy.y, rp.sprite.x, rp.sprite.y);
         if (dist < nearestDist) { nearestDist = dist; nearest = rp.sprite; }
@@ -3505,15 +3251,7 @@ export class GameScene extends Phaser.Scene {
     return TARGET_ENEMY_FALLBACK + postWaveCount * TARGET_ENEMY_WAVE_INCREMENT;
   }
 
-  getSpawnBurst(seconds, deficit) {
-    let burst = SPAWN_BURST_CONFIG.defaultBurst;
-    for (let i = 0; i < SPAWN_BURST_CONFIG.steps.length; i += 1) {
-      if (seconds >= SPAWN_BURST_CONFIG.steps[i].atSec) {
-        burst = SPAWN_BURST_CONFIG.steps[i].burst;
-      }
-    }
-    return Math.min(deficit, burst);
-  }
+  getSpawnBurst(seconds, deficit) { return this.spawnManager.getSpawnBurst(seconds, deficit); }
 
   getEffectiveSpawnRateMultiplier() {
     return this.director.getSpawnRateMultiplier();
@@ -3523,72 +3261,8 @@ export class GameScene extends Phaser.Scene {
     return this.director.getEnemySpeedMultiplier();
   }
 
-  maintainEnemyDensity() {
-    if (this.isGameOver || this.isLeveling || this.isWeaponSelecting) {
-      return;
-    }
-
-    const seconds = this.runTimeMs / 1000;
-    const pacingTargetScale = Math.max(0.5, Number(this.spawnPacingPreset?.targetCountScale) || 1);
-    const baseTarget = this.getTargetEnemyCount(seconds) * pacingTargetScale;
-    const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
-    const scaledTarget = baseTarget * spawnRateMultiplier;
-    const performance = this.getPerformanceMetrics();
-    const adaptiveOffset = this.director.getAdaptiveTargetOffset(scaledTarget, performance.dps, performance.killRate);
-    this.targetEnemies = Math.min(PERFORMANCE_MAX_ACTIVE_ENEMIES, Math.round(scaledTarget + adaptiveOffset));
-
-    const aliveEnemies = this.getAliveEnemyCount();
-    if (aliveEnemies >= this.targetEnemies) {
-      return;
-    }
-
-    const deficit = this.targetEnemies - aliveEnemies;
-    const spawnCount = this.getSpawnBurst(seconds, deficit);
-    for (let i = 0; i < spawnCount; i += 1) {
-      this.spawnEnemyFromEdge();
-    }
-  }
-
-  spawnEnemyFromEdge(preferredLane = null) {
-    if (this.isGameOver || this.isLeveling || this.isWeaponSelecting) {
-      return;
-    }
-    if (this.getAliveEnemyCount() >= PERFORMANCE_MAX_ACTIVE_ENEMIES) {
-      return;
-    }
-
-    const type = this.pickEnemyArchetype();
-    const hpMultiplier = this.director.getEnemyHpMultiplier();
-    const baseHp = ENEMY_ARCHETYPE_CONFIGS[type]?.hp ?? ENEMY_ARCHETYPE_CONFIGS.chaser.hp;
-    const scaledHp = Math.max(1, Math.round(baseHp * hpMultiplier));
-    const groupCount = type === "swarm" ? Phaser.Math.Between(3, 5) : 1;
-    const lane = this.director?.chooseSpawnLane?.(preferredLane) ?? null;
-    const anchor = this.getSpawnPosition(lane);
-
-    for (let i = 0; i < groupCount; i += 1) {
-      if (this.getAliveEnemyCount() >= PERFORMANCE_MAX_ACTIVE_ENEMIES) {
-        break;
-      }
-      const jitter = type === "swarm" ? Phaser.Math.Between(12, 48) : 0;
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      let spawnX = Phaser.Math.Clamp(anchor.x + Math.cos(angle) * jitter, 12, WORLD_WIDTH - 12);
-      let spawnY = Phaser.Math.Clamp(anchor.y + Math.sin(angle) * jitter, 12, WORLD_HEIGHT - 12);
-
-      if (!this.isValidSpawnPoint(spawnX, spawnY)) {
-        const fallback = this.getSpawnPosition(lane);
-        spawnX = fallback.x;
-        spawnY = fallback.y;
-      }
-      if (!this.isValidSpawnPoint(spawnX, spawnY)) {
-        continue;
-      }
-
-      const enemy = this.spawnEnemyAtPosition(type, spawnX, spawnY, lane);
-      if (!enemy) {
-        continue;
-      }
-    }
-  }
+  maintainEnemyDensity() { this.spawnManager.maintainEnemyDensity(); }
+  spawnEnemyFromEdge(lane) { this.spawnManager.spawnEnemyFromEdge(lane); }
 
   getParticleLoadScale() {
     const aliveEnemies = this.getAliveEnemyCount();
@@ -3609,55 +3283,11 @@ export class GameScene extends Phaser.Scene {
     return Phaser.Math.Clamp(scaled, minCount, maxCount);
   }
 
-  processDirectorBossSpawns() {
-    const pendingBossSpawns = this.director.consumeBossSpawnRequests();
-    for (let i = 0; i < pendingBossSpawns; i += 1) {
-      this.spawnBossEnemy();
-    }
-  }
-
-  processDirectorMiniBossSpawns() {
-    if (this.hasActiveMiniBoss()) {
-      return;
-    }
-    const pendingMiniBossSpawns = this.director.consumeMiniBossSpawnRequests();
-    for (let i = 0; i < Math.min(1, pendingMiniBossSpawns); i += 1) {
-      this.spawnMiniBossEnemy();
-    }
-  }
-
-  processDirectorSpawnBursts() {
-    const pendingBurstSpawns = this.director.consumeSpawnBurstRequests();
-    for (let i = 0; i < pendingBurstSpawns; i += 1) {
-      this.spawnEnemyFromEdge();
-    }
-  }
-
-  processDirectorLadderSpawns() {
-    const pendingLadderSpawns = this.director.consumeLadderSpawnRequests();
-    if (pendingLadderSpawns <= 0) {
-      return;
-    }
-    this.logSpawnEventPressure("LADDER", pendingLadderSpawns);
-
-    for (let i = 0; i < pendingLadderSpawns; i += 1) {
-      const lane = this.director.chooseLadderLane();
-      this.spawnEnemyFromEventPoint(lane, this.getLadderSpawnPoint(lane), "ladder");
-    }
-  }
-
-  processDirectorHatchBreaches() {
-    const pendingHatchSpawns = this.director.consumeHatchBreachSpawnRequests();
-    if (pendingHatchSpawns <= 0) {
-      return;
-    }
-    this.logSpawnEventPressure("HATCH", pendingHatchSpawns);
-
-    this.showHudAlert("HATCH BREACH", 1000);
-    for (let i = 0; i < pendingHatchSpawns; i += 1) {
-      this.spawnEnemyFromEventPoint(SPAWN_LANES.STERN, HATCH_BREACH_POINT, "hatch");
-    }
-  }
+  processDirectorBossSpawns() { this.spawnManager.processDirectorBossSpawns(); }
+  processDirectorMiniBossSpawns() { this.spawnManager.processDirectorMiniBossSpawns(); }
+  processDirectorSpawnBursts() { this.spawnManager.processDirectorSpawnBursts(); }
+  processDirectorLadderSpawns() { this.spawnManager.processDirectorLadderSpawns(); }
+  processDirectorHatchBreaches() { this.spawnManager.processDirectorHatchBreaches(); }
 
   logSpawnEventPressure(eventType, requestedCount) {
     if (!this.debugOverlayEnabled) {
@@ -3756,62 +3386,9 @@ export class GameScene extends Phaser.Scene {
     return SPAWN_LANES.BOW;
   }
 
-  getBossEntrySpawn(preferredLane = null) {
-    const safePreferredLane = BOSS_ENTRY_LANES.includes(preferredLane) ? preferredLane : Phaser.Utils.Array.GetRandom(BOSS_ENTRY_LANES);
-    const fallbackLane = this.getOppositeBossEntryLane(safePreferredLane);
-    const primary = this.getSpawnPosition(safePreferredLane);
-    if (this.isValidSpawnPoint(primary.x, primary.y)) {
-      return { lane: safePreferredLane, position: primary };
-    }
-
-    const fallback = this.getSpawnPosition(fallbackLane);
-    return {
-      lane: fallbackLane,
-      position: fallback
-    };
-  }
-
-  spawnBossEnemy(preferredLane = null) {
-    const spawn = this.getBossEntrySpawn(preferredLane);
-    const lane = spawn.lane;
-    const spawnPosition = spawn.position;
-    const boss = new BossEnemy(this, spawnPosition.x, spawnPosition.y);
-    const hpMultiplier = this.director.getEnemyHpMultiplier();
-    boss.hp = Math.max(1, Math.round(boss.hp * hpMultiplier));
-    boss.maxHp = boss.hp;
-    boss.setData("lastDashHitId", -1);
-    boss.setData("archetype", "boss");
-    boss.setData("spawnLane", lane);
-    this.enemies.add(boss);
-
-    this.shakeScreen(210, 0.0048);
-    this.playSfx("boss_warning");
-    this.showWarningBanner("BOSS INCOMING", {
-      tone: "boss",
-      durationMs: 1500
-    });
-  }
-
-  spawnMiniBossEnemy(preferredLane = null) {
-    const spawn = this.getBossEntrySpawn(preferredLane);
-    const lane = spawn.lane;
-    const spawnPosition = spawn.position;
-    const miniBoss = new BossEnemy(this, spawnPosition.x, spawnPosition.y, { variant: "mini" });
-    const hpMultiplier = this.director.getEnemyHpMultiplier();
-    miniBoss.hp = Math.max(1, Math.round(miniBoss.hp * hpMultiplier));
-    miniBoss.maxHp = miniBoss.hp;
-    miniBoss.setData("lastDashHitId", -1);
-    miniBoss.setData("archetype", "mini_boss");
-    miniBoss.setData("spawnLane", lane);
-    this.enemies.add(miniBoss);
-
-    this.shakeScreen(160, 0.0036);
-    this.playSfx("boss_warning");
-    this.showWarningBanner("MINI BOSS", {
-      tone: "mini",
-      durationMs: 1180
-    });
-  }
+  getBossEntrySpawn(lane) { return this.spawnManager.getBossEntrySpawn(lane); }
+  spawnBossEnemy(lane) { this.spawnManager.spawnBossEnemy(lane); }
+  spawnMiniBossEnemy(lane) { this.spawnManager.spawnMiniBossEnemy(lane); }
 
   clearWarningBanner() {
     const banner = this.activeWarningBanner;
@@ -4057,67 +3634,9 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  updateBossApproachWarning() {
-    const intervalMs = DIRECTOR_BOSS_SPAWN.intervalMs;
-    if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
-      return;
-    }
-
-    const nextBossCycleIndex = Math.floor(this.runTimeMs / intervalMs) + 1;
-    const nextBossAtMs = nextBossCycleIndex * intervalMs;
-    const remainingMs = nextBossAtMs - this.runTimeMs;
-    if (remainingMs > BOSS_WARNING_LEAD_MS || remainingMs <= 0) {
-      return;
-    }
-    if (this.bossApproachWarnedCycleIndex === nextBossCycleIndex) {
-      return;
-    }
-
-    this.bossApproachWarnedCycleIndex = nextBossCycleIndex;
-    this.playSfx("boss_warning");
-    this.showWarningBanner("BOSS APPROACHING", {
-      tone: "approach",
-      durationMs: 1500
-    });
-  }
-
-  updateReaperSpawning(_delta) {
-    const REAPER_FIRST_AT_SEC = 900; // 15 minutes
-    const REAPER_INTERVAL_SEC = 60;   // every 60s after first
-    if (this.runTimeMs < REAPER_FIRST_AT_SEC * 1000) return;
-
-    const elapsedSinceFirst = this.runTimeMs - REAPER_FIRST_AT_SEC * 1000;
-    const reaperIndex = Math.floor(elapsedSinceFirst / (REAPER_INTERVAL_SEC * 1000));
-    const lastSpawnedIndex = this._lastReaperIndex ?? -1;
-
-    if (reaperIndex > lastSpawnedIndex) {
-      this._lastReaperIndex = reaperIndex;
-      const spawnCount = reaperIndex + 1; // increasing reapers each wave
-      for (let i = 0; i < spawnCount; i++) {
-        this.time.delayedCall(i * 400, () => this.spawnReaper());
-      }
-      this.showHudAlert("死神降临!", 2000);
-      this.shakeScreen(300, 0.008);
-    }
-  }
-
-  spawnReaper() {
-    const spawn = this.getBossEntrySpawn(null);
-    const r = new BossEnemy(this, spawn.position.x, spawn.position.y, { variant: "reaper" });
-    r.hp = 99999;
-    r.maxHp = 99999;
-    r.speed = 200;
-    r.baseSpeed = 200;
-    r.damage = 99;
-    r.baseDamage = 99;
-    r.xpValue = 0;
-    r.setData("lastDashHitId", -1);
-    r.setData("archetype", "reaper");
-    r.setData("spawnLane", spawn.lane);
-    r.setTint(0xff0000);
-    r.setAlpha(0.85);
-    this.enemies.add(r);
-  }
+  updateBossApproachWarning() { this.spawnManager.updateBossApproachWarning(); }
+  updateReaperSpawning() { this.spawnManager.updateReaperSpawning(); }
+  spawnReaper() { this.spawnManager.spawnReaper(); }
 
   lerpColor(fromHex, toHex, t) {
     const blend = Phaser.Math.Clamp(t, 0, 1);
@@ -4703,71 +4222,8 @@ export class GameScene extends Phaser.Scene {
     return "poison_aura";
   }
 
-  handlePlayerEnemyCollision(player, enemy) {
-    if (!enemy || typeof enemy.takeDamage !== "function" || typeof enemy.applyKnockbackFrom !== "function") {
-      return;
-    }
-
-    if (player.isDashing()) {
-      const lastDashHitId = enemy.getData("lastDashHitId") ?? -1;
-      if (lastDashHitId !== player.currentDashId) {
-        enemy.setData("lastDashHitId", player.currentDashId);
-
-        if (this.gameMode === "coop" && !this.isHost) {
-          const enemyId = enemy.serverId;
-          if (enemyId && enemy.active && !enemy.getData("isDying")) {
-            this.networkManager?.sendEnemyDamage(enemyId, player.dashDamage, "dash");
-          }
-        } else {
-          enemy.takeDamage(player.dashDamage);
-          enemy.applyKnockbackFrom(player.x, player.y, 360);
-          this.shakeScreen(80, 0.003);
-
-          if (enemy.isDead()) {
-            this.handleEnemyDefeat(enemy);
-          }
-        }
-      }
-
-      if (player.isDashInvulnerable()) {
-        return;
-      }
-    }
-
-    const damaged = player.takeDamage(enemy.damage, this.time.now);
-    if (!damaged) {
-      return;
-    }
-    this.triggerPlayerHurtFeedback(player);
-
-    if (!player.isDead()) {
-      return;
-    }
-    this.triggerGameOver();
-  }
-
-  handleBossProjectileHit(player, projectile) {
-    if (!projectile?.active || !player?.active) {
-      return;
-    }
-
-    const damage = Math.max(1, Math.round(projectile.getData("damage") ?? 12));
-    this.releaseBossProjectile(projectile);
-
-    if (player.isDashInvulnerable()) {
-      return;
-    }
-
-    const damaged = player.takeDamage(damage, this.time.now);
-    if (!damaged) {
-      return;
-    }
-    this.triggerPlayerHurtFeedback(player);
-
-    if (player.isDead()) {
-      this.triggerGameOver();
-    }
-  }
+  handlePlayerEnemyCollision(p, e) { this.combatManager.handlePlayerEnemyCollision(p, e); }
+  handleBossProjectileHit(p, proj) { this.combatManager.handleBossProjectileHit(p, proj); }
 
   triggerPlayerHurtFeedback(player) {
     if (!player?.active || this.isGameOver || this.isLeveling || this.isWeaponSelecting) {
@@ -4906,164 +4362,14 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  performAutoAttack(now) {
-    if (now - this.lastAttackAt < this.attackIntervalMs) {
-      return;
-    }
+  performAutoAttack(now) { this.combatManager.performAutoAttack(now); }
 
-    let nearestEnemy = null;
-    let nearestDistance = Number.POSITIVE_INFINITY;
+  spawnXpOrb(x, y, value, config = {}) { this.dropManager.spawnXpOrb(x, y, value, config); }
 
-    this.enemies.getChildren().forEach((enemy) => {
-      if (!enemy.active) {
-        return;
-      }
-      if (enemy.getData("isDying") || enemy.isDead?.()) {
-        return;
-      }
-
-      const distance = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
-      if (distance > this.attackRange || distance >= nearestDistance) {
-        return;
-      }
-
-      nearestDistance = distance;
-      nearestEnemy = enemy;
-    });
-
-    if (!nearestEnemy) {
-      return;
-    }
-
-    this.lastAttackAt = now;
-
-    // Visual flash — shown on all clients.
-    const flash = this.add.graphics();
-    flash.lineStyle(2, 0x89e8ff, 1);
-    flash.lineBetween(this.player.x, this.player.y, nearestEnemy.x, nearestEnemy.y);
-    this.tweens.add({
-      targets: flash,
-      alpha: 0,
-      duration: 90,
-      onComplete: () => flash.destroy()
-    });
-
-    // Damage is host-authoritative in coop.
-    if (this.gameMode === "coop" && !this.isHost) {
-      const enemyId = nearestEnemy.serverId;
-      if (enemyId && nearestEnemy.active && !nearestEnemy.getData("isDying")) {
-        this.networkManager?.sendEnemyDamage(enemyId, this.attackDamage, "autoAttack");
-      }
-      return;
-    }
-
-    if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
-      return;
-    }
-    nearestEnemy.takeDamage(this.attackDamage);
-    nearestEnemy.applyKnockbackFrom(this.player.x, this.player.y, 140);
-
-    if (nearestEnemy.isDead()) {
-      this.handleEnemyDefeat(nearestEnemy);
-    }
-  }
-
-  spawnXpOrb(x, y, value, config = {}) {
-    // Select texture based on XP value
-    let texture = config.texture;
-    if (!texture) {
-      if (value >= 50) texture = "xp_orb_gold";
-      else if (value >= 25) texture = "xp_orb_purple";
-      else if (value >= 10) texture = "xp_orb_blue";
-      else texture = "xp_orb";
-    }
-    const orb = this.xpOrbs.create(x, y, texture);
-    if (!orb) {
-      return;
-    }
-    const isSpecialPickup = config.pickupType === "elite_upgrade" || config.pickupType === "mini_boss_gold";
-    const isHighValue = value >= 20;
-    const isUltraValue = value >= 50;
-    const baseScale =
-      config.scale ??
-      (isSpecialPickup ? XP_ORB_SPECIAL_SCALE : isUltraValue ? 1.4 : isHighValue ? XP_ORB_HIGH_VALUE_SCALE : XP_ORB_BASE_SCALE);
-    const baseAlpha = isSpecialPickup ? XP_ORB_SPECIAL_ALPHA : isHighValue ? XP_ORB_HIGH_VALUE_ALPHA : XP_ORB_BASE_ALPHA;
-    const radius = config.radius ?? (config.pickupType === "elite_upgrade" ? 8 : 6);
-    orb.setCircle?.(radius, 0, 0);
-    orb.setDepth(config.pickupType === "elite_upgrade" ? 7 : 5);
-    orb.setScale(baseScale);
-    orb.setAlpha(baseAlpha);
-    orb.xpValue = value;
-    orb.setData("baseScale", baseScale);
-    orb.setData("baseAlpha", baseAlpha);
-    orb.setData("magnetScaleBoost", isSpecialPickup ? XP_ORB_MAGNET_SCALE_BOOST + 0.05 : XP_ORB_MAGNET_SCALE_BOOST);
-    if (config.pickupType) {
-      orb.setData("pickupType", config.pickupType);
-    } else {
-      orb.setData("pickupType", null);
-    }
-    orb.setData("rewardUpgradeId", config.rewardUpgradeId ?? null);
-    orb.setData("rewardCoins", Math.max(0, Math.floor(Number(config.rewardCoins) || 0)));
-  }
-
-  spawnEliteBonusXpOrbs(enemy) {
-    const orbCount = Phaser.Math.Between(ELITE_BONUS_XP_ORB_MIN, ELITE_BONUS_XP_ORB_MAX);
-    const perOrbValue = Math.max(3, Math.round((enemy.xpValue ?? 10) * ELITE_BONUS_XP_ORB_VALUE_FACTOR));
-    for (let i = 0; i < orbCount; i += 1) {
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const distance = Phaser.Math.Between(10, 26);
-      const x = enemy.x + Math.cos(angle) * distance;
-      const y = enemy.y + Math.sin(angle) * distance;
-      this.spawnXpOrb(x, y, perOrbValue);
-    }
-  }
-
-  spawnEliteUpgradePickup(x, y) {
-    if (Math.random() >= ELITE_UPGRADE_DROP_CHANCE) {
-      return false;
-    }
-
-    const rewardUpgradeId = Phaser.Utils.Array.GetRandom(ELITE_BONUS_UPGRADE_IDS);
-    this.spawnXpOrb(x, y, 0, {
-      texture: "upgrade_orb",
-      pickupType: "elite_upgrade",
-      rewardUpgradeId,
-      radius: 8
-    });
-    return true;
-  }
-
-  spawnMiniBossRewardDrops(enemy) {
-    const goldBundle = MINI_BOSS_GOLD_BUNDLE;
-    const xpBase = Math.max(4, Math.round(enemy.xpValue ?? 20));
-    const centerX = enemy.x;
-    const centerY = enemy.y;
-
-    this.spawnXpOrb(centerX, centerY, 0, {
-      texture: "upgrade_orb",
-      pickupType: "mini_boss_gold",
-      rewardCoins: goldBundle,
-      radius: 8
-    });
-
-    for (let i = 0; i < MINI_BOSS_XP_BURST_COUNT; i += 1) {
-      const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const distance = Phaser.Math.Between(14, 42);
-      const xpFactor = Phaser.Math.FloatBetween(MINI_BOSS_XP_BURST_MIN_FACTOR, MINI_BOSS_XP_BURST_MAX_FACTOR);
-      const xpValue = Math.max(3, Math.round(xpBase * xpFactor));
-      this.spawnXpOrb(centerX + Math.cos(angle) * distance, centerY + Math.sin(angle) * distance, xpValue);
-    }
-  }
-
-  applyEliteUpgradeReward(rewardUpgradeId) {
-    const rewardUpgrade = LEVEL_UP_UPGRADES.find((upgrade) => upgrade.id === rewardUpgradeId);
-    if (!rewardUpgrade) {
-      return false;
-    }
-    this.applyLevelUpUpgrade(rewardUpgrade);
-    this.showHudAlert(`ELITE ${rewardUpgrade.label.toUpperCase()}`, 1200);
-    return true;
-  }
+  spawnEliteBonusXpOrbs(enemy) { this.dropManager.spawnEliteBonusXpOrbs(enemy); }
+  spawnEliteUpgradePickup(x, y) { return this.dropManager.spawnEliteUpgradePickup(x, y); }
+  spawnMiniBossRewardDrops(enemy) { this.dropManager.spawnMiniBossRewardDrops(enemy); }
+  applyEliteUpgradeReward(id) { return this.dropManager.applyEliteUpgradeReward(id); }
 
   updateKillCombo() {
     const nowMs = this.time?.now ?? 0;
@@ -5109,130 +4415,10 @@ export class GameScene extends Phaser.Scene {
     comboText.setData("alertTween", tween);
   }
 
-  handleEnemyDefeat(enemy) {
-    if (!enemy || !enemy.active) {
-      return;
-    }
-    if (enemy.getData("isDying")) {
-      return;
-    }
-    enemy.setData("isDying", true);
-    this.statusEffectSystem?.removeAllForEnemy(enemy);
-    if (enemy.body) {
-      enemy.body.setVelocity(0, 0);
-      enemy.body.enable = false;
-    }
-    this.totalKills += 1;
-    this.playKillCounterPulse();
-    this.recordKillEvent();
-
-    this.updateKillCombo();
-
-    this.playSfx("enemy_death", { elite: enemy.isElite });
-    if (enemy.isElite) {
-      this.spawnEliteKillParticles(enemy.x, enemy.y, 20);
-    }
-    this.spawnKillParticles(enemy.x, enemy.y, enemy.isElite ? 14 : 10);
-    const archetype = enemy.getData("archetype");
-    if (archetype === "mini_boss" || enemy.getData("bossVariant") === "mini") {
-      this.spawnMiniBossRewardDrops(enemy);
-      this.showHudAlert("MINI BOSS LOOT", 1200);
-    } else {
-      this.spawnXpOrb(enemy.x, enemy.y, enemy.xpValue);
-    }
-    if (enemy.isElite) {
-      this.spawnEliteBonusXpOrbs(enemy);
-      const droppedUpgrade = this.spawnEliteUpgradePickup(enemy.x, enemy.y);
-      if (droppedUpgrade) {
-        this.showHudAlert("ELITE LOOT", 1000);
-      }
-    }
-
-    // Item drops from regular enemies
-    this.trySpawnItemDrop(enemy.x, enemy.y);
-
-    // Treasure chest drops
-    const isBoss = archetype === "boss" || enemy.getData("bossVariant") === "full";
-    if (isBoss) {
-      this.spawnChest(enemy.x, enemy.y);
-    } else if (enemy.isElite && Math.random() < 0.15) {
-      this.spawnChest(enemy.x, enemy.y);
-    } else if (!enemy.isElite && Math.random() < 0.015) {
-      this.spawnChest(enemy.x, enemy.y);
-    }
-
-    if (this.gameMode === "coop" && this.isHost && this.networkManager) {
-      this.networkManager.sendEnemyKilled(enemy.serverId || "unknown", {
-        x: Math.round(enemy.x),
-        y: Math.round(enemy.y),
-        xpValue: enemy.xpValue
-      });
-    }
-
-    this.tweens.add({
-      targets: enemy,
-      scaleX: enemy.scaleX * 1.3,
-      scaleY: enemy.scaleY * 1.3,
-      alpha: 0,
-      duration: 120,
-      ease: "Quad.easeOut",
-      onComplete: () => {
-        enemy.setData("isDying", false);
-        enemy.setAlpha(1);
-        if (enemy.getData("pooledEnemy") === true) {
-          this.enemyPool.release(enemy);
-          return;
-        }
-        enemy.destroy();
-      }
-    });
-  }
-
-  handleXpOrbPickup(_, orb) {
-    if (!orb.active) {
-      return;
-    }
-
-    const xpValue = orb.xpValue ?? 0;
-    if (xpValue > 0) {
-      this.gainXp(xpValue);
-    }
-
-    const pickupType = orb.getData("pickupType");
-    if (pickupType === "elite_upgrade") {
-      this.applyEliteUpgradeReward(orb.getData("rewardUpgradeId"));
-    } else if (pickupType === "mini_boss_gold") {
-      const rewardCoins = Math.max(0, Math.floor(Number(orb.getData("rewardCoins")) || 0));
-      this.runMetaCurrency += rewardCoins;
-      this.showHudAlert(`+${rewardCoins} GOLD`, 900);
-    }
-    orb.destroy();
-  }
-
-  trySpawnItemDrop(x, y) {
-    if (!this.itemPool) {
-      return;
-    }
-    const itemKeys = Object.keys(ITEM_DROP_CONFIGS);
-    for (let i = 0; i < itemKeys.length; i++) {
-      const config = ITEM_DROP_CONFIGS[itemKeys[i]];
-      if (Math.random() < config.dropChance) {
-        const offsetX = (Math.random() - 0.5) * 30;
-        const offsetY = (Math.random() - 0.5) * 30;
-        const item = this.itemPool.acquire(x + offsetX, y + offsetY, config.id);
-        if (item) {
-          this.activeItems.push(item);
-        }
-        break; // Only one item drop per enemy
-      }
-    }
-  }
-
-  spawnChest(x, y) {
-    const chest = new TreasureChest(this, x, y);
-    this.chests.push(chest);
-    this.playSfx("item_spawn");
-  }
+  handleEnemyDefeat(enemy) { this.dropManager.handleEnemyDefeat(enemy); }
+  handleXpOrbPickup(p, orb) { this.dropManager.handleXpOrbPickup(p, orb); }
+  trySpawnItemDrop(x, y) { this.dropManager.trySpawnItemDrop(x, y); }
+  spawnChest(x, y) { this.dropManager.spawnChest(x, y); }
 
   updateChests() {
     if (!this.chests || this.chests.length === 0) return;
@@ -5440,7 +4626,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!this.isLeveling && this.pendingLevelUps > 0) {
-      this.openLevelUpChoices();
+      this.levelUpManager.open();
     }
   }
 
@@ -5537,421 +4723,12 @@ export class GameScene extends Phaser.Scene {
     return { titleChip, title };
   }
 
-  openLevelUpChoices() {
-    if (this.pendingLevelUps <= 0) {
-      return;
-    }
+  openLevelUpChoices() { this.levelUpManager.open(); }
+  handleLevelUpInput() { this.levelUpManager.handleInput(); }
 
-    this.pendingLevelUps -= 1;
-    this.isLeveling = true;
-    this.levelUpOptionActions = [];
-    this.physics.pause();
-    this.director?.pause?.();
-    this.weaponSystem?.pause?.();
-    this.player.body?.setVelocity(0, 0);
-    this.applyHudModalFocus(true);
-
-    const cam = this.cameras.main;
-    const centerX = cam.width * 0.5;
-    const centerY = cam.height * 0.5;
-    const panelWidth = 300;
-    const panelHeight = 400;
-    const depth = RENDER_DEPTH.MENUS;
-    const ph = panelHeight / 2;
-    const pw = panelWidth / 2;
-
-    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.55).setScrollFactor(0).setDepth(depth);
-    const panelShadow = this.add.rectangle(centerX + 2, centerY + 4, panelWidth, panelHeight, 0x000000, 0.5).setScrollFactor(0).setDepth(depth + 1);
-    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x3a3a5a, 0.98)
-      .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(depth + 1);
-    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
-      .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(depth + 1);
-
-    // ── Title ──
-    const titleY = centerY - ph + 28;
-    const title = this.add.text(centerX, titleY, "升 级 !", {
-      fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
-      stroke: "#0a0a0a", strokeThickness: 4
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
-
-    const subtitle = this.add.text(centerX, titleY + 22, `Lv.${this.level}`, {
-      fontFamily: "ZpixOne", fontSize: "12px", color: "#8a8aaa"
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
-
-    // Filter out passives the player already has
-    const availableUpgrades = LEVEL_UP_UPGRADES.filter((upgrade) => {
-      if (upgrade.isPassive && upgrade.passiveKey) {
-        return !this.player.hasPassive(upgrade.passiveKey);
-      }
-      return true;
-    });
-    const choices = Phaser.Utils.Array.Shuffle([...availableUpgrades]).slice(0, 3);
-    const optionObjects = [];
-
-    const UPGRADE_COLORS = {
-      weapon_damage: 0xff6644,
-      attack_speed: 0x44ccff,
-      projectile_count: 0xffcc44,
-      movement_speed: 0x44ff88,
-      pickup_radius: 0xcc66ff,
-      lifesteal: 0xff4466,
-      max_hp_boost: 0xff8888,
-      xp_boost: 0x88ff88,
-      luck_boost: 0x44ff44,
-      crit_chance: 0xff4444,
-      duration_boost: 0x4488ff,
-      cooldown_reduction: 0x88ccff,
-      revival: 0xffdd44,
-      passive_ember_core: 0xff4422,
-      passive_blade_sigil: 0x88ccff,
-      passive_iron_shell: 0xaaaaaa,
-      passive_swift_feet: 0x66ff66,
-      passive_wings: 0x88eeff,
-      passive_armor: 0xcccccc,
-      passive_hollow_heart: 0xff8888,
-      passive_attractorb: 0xaa66ff,
-      passive_frost_shard: 0x88ddff,
-      passive_spellbinder: 0x4488ff,
-      passive_candelabrador: 0xffaa44,
-      passive_duplicator: 0xffcc88,
-      passive_bracer: 0x66ccff
-    };
-
-    const UPGRADE_ICONS = {
-      weapon_damage: "⚔",
-      attack_speed: "⚡",
-      projectile_count: "◎",
-      movement_speed: "➣",
-      pickup_radius: "⊕",
-      lifesteal: "🩸",
-      max_hp_boost: "❤",
-      xp_boost: "⭐",
-      luck_boost: "🍀",
-      crit_chance: "💥",
-      duration_boost: "⏳",
-      cooldown_reduction: "🕐",
-      revival: "💀",
-      passive_ember_core: "🔥",
-      passive_blade_sigil: "🗡",
-      passive_iron_shell: "🛡",
-      passive_swift_feet: "👟",
-      passive_wings: "🪶",
-      passive_armor: "🔰",
-      passive_hollow_heart: "💖",
-      passive_attractorb: "🧲",
-      passive_frost_shard: "❄",
-      passive_spellbinder: "📖",
-      passive_candelabrador: "🕯",
-      passive_duplicator: "📋",
-      passive_bracer: "🤲"
-    };
-
-    // ── Option cards ──
-    const optStartY = centerY - ph + 72;
-    const optHeight = 62;
-    const optGap = 6;
-    const optWidth = panelWidth - 36;
-    const optLeft = centerX - optWidth / 2;
-
-    choices.forEach((upgrade, index) => {
-      const y = optStartY + index * (optHeight + optGap);
-      if (y + optHeight / 2 > centerY + ph - 62) return;
-      const color = UPGRADE_COLORS[upgrade.id] || 0xc4a040;
-      const icon = UPGRADE_ICONS[upgrade.id] || "?";
-
-      let isEvolution = false;
-      let evoName = "";
-      if (upgrade.passiveKey) {
-        const matchingRule = WEAPON_EVOLUTION_RULES.find(r => r.requiredPassive === upgrade.passiveKey);
-        if (matchingRule) {
-          const ownedWeapon = this.player.weapons?.find(w => (w.baseType || w.type) === matchingRule.weapon);
-          if (ownedWeapon && ownedWeapon.level >= matchingRule.level) {
-            isEvolution = true;
-            evoName = matchingRule.evolution;
-          }
-        }
-      }
-
-      const bgColor = isEvolution ? 0x2a3a2a : 0x2a2a4a;
-      const strokeColor = isEvolution ? 0xfef08a : 0xc4a040;
-      const box = this.add.rectangle(centerX, y, optWidth, optHeight, bgColor, 0.96)
-        .setStrokeStyle(isEvolution ? 2 : 1, strokeColor, 0.9)
-        .setInteractive({ useHandCursor: true })
-        .setScrollFactor(0).setDepth(depth + 2);
-
-      // Accent bar
-      const accent = this.add.rectangle(optLeft + 3, y, 4, optHeight - 8, color, 1)
-        .setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
-
-      // Icon
-      const iconX = optLeft + 16;
-      const iconText = this.add.text(iconX, y, icon, {
-        fontFamily: "ZpixOne", fontSize: "20px"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
-
-      // Name
-      const textLeft = optLeft + 32;
-      let nameStr = `[${index + 1}] ${upgrade.label}`;
-      const nameText = this.add.text(textLeft, y - 12, nameStr, {
-        fontFamily: "ZpixOne", fontSize: "14px", color: "#f0f4ff",
-        stroke: "#0a0a0a", strokeThickness: 2
-      }).setScrollFactor(0).setDepth(depth + 3);
-
-      // Description
-      let descStr = upgrade.description || "";
-      if (isEvolution) {
-        descStr = `✦ ${evoName}`;
-      }
-      const descText = this.add.text(textLeft, y + 8, descStr, {
-        fontFamily: "ZpixOne", fontSize: "11px", color: isEvolution ? "#fef08a" : "#a0a0b0"
-      }).setScrollFactor(0).setDepth(depth + 3);
-
-      // Evolution badge
-      const infoRight = centerX + pw - 14;
-      if (isEvolution) {
-        const badge = this.add.text(infoRight, y - 12, "进化!", {
-          fontFamily: "ZpixOne", fontSize: "10px", color: "#fef08a",
-          stroke: "#0a0a0a", strokeThickness: 2
-        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
-        optionObjects.push(badge);
-      }
-
-      const chooseUpgrade = () => {
-        this.applyLevelUpUpgrade(upgrade);
-        this.closeLevelUpChoices();
-      };
-      box.on("pointerdown", chooseUpgrade);
-      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x3a5a3a : 0x3a3a5a, 1));
-      box.on("pointerout", () => box.setFillStyle(bgColor, 0.96));
-      this.levelUpOptionActions.push(chooseUpgrade);
-
-      optionObjects.push(box, accent, iconText, nameText, descText);
-    });
-
-    // ── Weapon bar ──
-    const weapons = this.player.weapons || [];
-    const barY = centerY + ph - 44;
-    if (weapons.length > 0) {
-      const weaponStr = weapons.map(w => {
-        const name = (w.baseType || w.type).replace(/_/g, " ");
-        return `${name} Lv.${w.level}`;
-      }).join(" | ");
-      const weaponBar = this.add.text(centerX, barY, weaponStr, {
-        fontFamily: "ZpixOne", fontSize: "10px", color: "#8a8aaa"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
-      optionObjects.push(weaponBar);
-    }
-
-    // ── Reroll & Skip ──
-    const btnRowY = centerY + ph - 22;
-    const rerollsLeft = this.rerollsRemaining ?? 0;
-
-    const rerollBtn = this.add.rectangle(centerX - 46, btnRowY, 80, 28, 0x3b5998, 1)
-      .setStrokeStyle(2, rerollsLeft > 0 ? 0xc4a040 : 0x4a4a5a, 0.8)
-      .setScrollFactor(0).setDepth(depth + 2)
-      .setInteractive({ useHandCursor: rerollsLeft > 0 });
-    const rerollText = this.add.text(centerX - 46, btnRowY, `重抽${rerollsLeft}`, {
-      fontFamily: "ZpixOne", fontSize: "11px", color: rerollsLeft > 0 ? "#ffffff" : "#6a6a7a"
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
-
-    if (rerollsLeft > 0) {
-      const doReroll = () => {
-        this.rerollsRemaining -= 1;
-        this.closeLevelUpChoices();
-        this.pendingLevelUps += 1;
-        this.time.delayedCall(50, () => this.openLevelUpChoices());
-      };
-      rerollBtn.on("pointerdown", doReroll);
-      rerollText.setInteractive({ useHandCursor: true });
-      rerollText.on("pointerdown", doReroll);
-    }
-
-    const skipBtn = this.add.rectangle(centerX + 46, btnRowY, 64, 28, 0xb03020, 1)
-      .setStrokeStyle(2, 0xc4a040, 1)
-      .setScrollFactor(0).setDepth(depth + 2)
-      .setInteractive({ useHandCursor: true });
-    const skipText = this.add.text(centerX + 46, btnRowY, "跳过", {
-      fontFamily: "ZpixOne", fontSize: "11px", color: "#ffffff"
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
-
-    const doSkip = () => this.closeLevelUpChoices();
-    skipBtn.on("pointerdown", doSkip);
-    skipText.on("pointerdown", doSkip);
-    skipText.setInteractive({ useHandCursor: true });
-
-    optionObjects.push(rerollBtn, rerollText, skipBtn, skipText);
-
-    this.levelUpUi = [overlay, panelShadow, panel, panelInner, title, subtitle, ...optionObjects];
-  }
-
-  handleLevelUpInput() {
-    const indexes = [this.keys.meta1, this.keys.meta2, this.keys.meta3];
-    for (let i = 0; i < indexes.length; i += 1) {
-      if (Phaser.Input.Keyboard.JustDown(indexes[i])) {
-        const action = this.levelUpOptionActions[i];
-        if (action) {
-          action();
-        }
-      }
-    }
-  }
-
-  openPauseMenu() {
-    if (this.isPaused || this.isGameOver || this.isLeveling || this.isWeaponSelecting) {
-      return;
-    }
-    this.isPaused = true;
-    this.setDomHudVisible(false);
-    this.setDomTouchControlsVisible(false);
-    this.physics.pause();
-    this.weaponSystem?.pause?.();
-    this.director?.pause?.();
-    this.player.body?.setVelocity(0, 0);
-
-    const cx = 640;
-    const cy = 360;
-    const pw = 440;
-    const ph = 340;
-    const d = RENDER_DEPTH.MENUS + 10;
-    const uiObjs = [];
-
-    const backdrop = this.add.rectangle(cx, cy, 1280, 720, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
-    const panelShadow = this.add.rectangle(cx + 2, cy + 4, pw, ph, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 1);
-    const panel = this.add.rectangle(cx, cy, pw, ph, 0x3a3a5a, 0.98).setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
-    const panelInner = this.add.rectangle(cx, cy, pw - 12, ph - 12, 0x2a2a4a, 0).setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
-
-    const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
-      fontFamily: "ZpixOne", fontSize: "24px", color: "#f8fbff", stroke: "#0a0a0a", strokeThickness: 5
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
-
-    // Back button (top-right of panel)
-    const backBtnX = cx + pw / 2 - 58;
-    const backBtnY = cy - ph / 2 + 28;
-    const backBtnW = 96;
-    const backBtnH = 40;
-    const backShadow = this.add.rectangle(backBtnX, backBtnY + 2, backBtnW, backBtnH, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 2);
-    const backPlate = this.add.rectangle(backBtnX, backBtnY, backBtnW, backBtnH, 0xb03020, 1)
-      .setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const backText = this.add.text(backBtnX, backBtnY, "返回", {
-      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
-
-    backPlate.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
-    backPlate.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
-    backText.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
-    backText.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
-
-    const onResume = () => this.closePauseMenu();
-    backPlate.on("pointerdown", onResume);
-    backText.on("pointerdown", onResume);
-
-    // ── Compact stats (single column) ──
-    const leftX = cx - pw / 2 + 24;
-    const rightX = cx + pw / 2 - 24;
-    let sy = cy - ph / 2 + 56;
-    const lineH = 17;
-
-    const addRow = (label, value, color = "#ffffff") => {
-      uiObjs.push(
-        this.add.text(leftX, sy, label, { fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(rightX, sy, String(value), { fontFamily: "ZpixOne", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
-      );
-      sy += lineH;
-    };
-
-    const totalSec = Math.floor(this.runTimeMs / 1000);
-    const min = Math.floor(totalSec / 60);
-    const sec = totalSec % 60;
-    addRow("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
-    addRow("击杀数", this.totalKills);
-    addRow("等级", this.level);
-    addRow("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
-    sy += 4;
-
-    const weapons = this.player.weapons || [];
-    if (weapons.length > 0) {
-      uiObjs.push(
-        this.add.text(leftX, sy, "— 武器 —", { fontFamily: "ZpixOne", fontSize: "13px", color: "#fef08a" }).setScrollFactor(0).setDepth(d + 2)
-      );
-      sy += lineH;
-      weapons.forEach(w => {
-        const name = (w.baseType || w.type).replace(/_/g, " ");
-        const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
-        const evoTag = w.evolved ? "✦" : "";
-        uiObjs.push(
-          this.add.text(leftX + 8, sy, `${evoTag} ${name}`, { fontFamily: "ZpixOne", fontSize: "11px", color: w.evolved ? "#fef08a" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
-          this.add.text(rightX, sy, `Lv.${w.level}  DMG:${dmg}`, { fontFamily: "ZpixOne", fontSize: "11px", color: "#a0a0b0" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
-        );
-        sy += lineH;
-      });
-    }
-
-    // ── Buttons ──
-    const btnY = cy + ph / 2 - 52;
-    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 38, 0x2d8a3d, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
-      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
-
-    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 38, 0xb03020, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
-      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
-
-    const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
-    const bgmBtn = this.add.rectangle(cx, btnY + 42, 100, 26, 0x2a2a4a, 1).setStrokeStyle(1, 0xc4a040, 0.5).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const bgmText = this.add.text(cx, btnY + 42, bgmLabel, {
-      fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0", stroke: "#0a0a0a", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
-
-    const escHint = this.add.text(cx, cy + ph / 2 - 10, "ESC / P 继续", {
-      fontFamily: "ZpixOne", fontSize: "11px", color: "#8a7a3a", stroke: "#0a0a0a", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
-
-    resumeBtn.on("pointerdown", onResume);
-    resumeLabel.on("pointerdown", onResume);
-
-    const onQuit = () => {
-      this.closePauseMenu();
-      this.finalizeMetaRun();
-      this.scene.stop();
-      this.scene.start("MainMenuScene");
-    };
-    quitBtn.on("pointerdown", onQuit);
-    quitLabel.on("pointerdown", onQuit);
-
-    const onBgmToggle = () => {
-      this.bgmEnabled = !this.bgmEnabled;
-      bgmText.setText(this.bgmEnabled ? "BGM: ON" : "BGM: OFF");
-      if (this.bgmEnabled) { this.startBgm(); } else { this.stopBgm(); }
-    };
-    bgmBtn.on("pointerdown", onBgmToggle);
-    bgmText.on("pointerdown", onBgmToggle);
-
-    this.pauseUi = [backdrop, panelShadow, panel, panelInner, title, backShadow, backPlate, backText, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, escHint, ...uiObjs];
-  }
-
-  closePauseMenu() {
-    if (!this.isPaused) {
-      return;
-    }
-    this.isPaused = false;
-    this.pauseUi.forEach((obj) => obj?.destroy?.());
-    this.pauseUi = [];
-    this.setDomHudVisible(true);
-    this.setDomTouchControlsVisible(true);
-    if (!this.isGameOver && !this.isLeveling && !this.isWeaponSelecting) {
-      this.physics.resume();
-      this.weaponSystem?.resume?.();
-      this.director?.resume?.();
-    }
-  }
-
-  handlePauseInput() {
-    if (Phaser.Input.Keyboard.JustDown(this.keys.pause) || Phaser.Input.Keyboard.JustDown(this.keys.pauseAlt)) {
-      this.closePauseMenu();
-    }
-  }
+  openPauseMenu() { this.pauseManager.open(); }
+  closePauseMenu() { this.pauseManager.close(); }
+  handlePauseInput() { this.pauseManager.handleInput(); }
 
   startBgm() {
     if (!this.bgmEnabled || !this.sound || !this.sound.context) {
@@ -6052,7 +4829,7 @@ export class GameScene extends Phaser.Scene {
       const canvasH = 720;
       const centerX = canvasW / 2;
       const panelWidth = 440;
-      const panelHeight = 440;
+      const panelHeight = 380;
       const panelTop = Math.max(10, (canvasH - panelHeight) / 2);
       const centerY = panelTop + panelHeight / 2;
       const d = RENDER_DEPTH.MENUS;
@@ -6063,24 +4840,24 @@ export class GameScene extends Phaser.Scene {
         .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
       const panelInset = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
         .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
-
-      const title = this.add.text(centerX, panelTop + 32, "选择初始武器", {
-        fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
+      //初始武器面板
+      const title = this.add.text(centerX, panelTop + 24, "选择初始武器", {
+        fontFamily: "ZpixOne", fontSize: "22px", color: "#fef08a",
         stroke: "#0a0a0a", strokeThickness: 5
       }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-      const coinText = this.add.text(centerX, panelTop + 58, `金币: ${this.metaData.currency}`, {
-        fontFamily: "ZpixOne", fontSize: "13px", color: "#a0a0b0",
+      const coinText = this.add.text(centerX, panelTop + 48, `金币: ${this.metaData.currency}`, {
+        fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0",
         stroke: "#0a0a0a", strokeThickness: 2
       }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-      const headerBottom = panelTop + 82;
+      const headerBottom = panelTop + 66;
       const subtitle = this.add.text(centerX, headerBottom, "选择一把武器开始游戏", {
         fontFamily: "ZpixOne", fontSize: "11px", color: "#8a8aaa",
         stroke: "#0a0a0a", strokeThickness: 2
       }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-      const statusTextY = centerY + panelHeight / 2 - 22;
+      const statusTextY = centerY + panelHeight / 2 - 20;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
         fontFamily: "ZpixOne",
@@ -6094,37 +4871,37 @@ export class GameScene extends Phaser.Scene {
       .setDepth(d + 2);
 
       const optionRows = [];
-      const optAreaTop = headerBottom + 14;
-      const optAreaBottom = statusTextY - 14;
+      const optAreaTop = headerBottom + 10;
+      const optAreaBottom = statusTextY - 12;
       const optAreaHeight = optAreaBottom - optAreaTop;
       const optionCount = START_WEAPON_OPTIONS.length;
-      const optionSpacing = Math.min(54, (optAreaHeight - 44) / Math.max(1, optionCount - 1));
-      const optionsStartY = optAreaTop + 22;
+      const optionSpacing = Math.min(50, (optAreaHeight - 36) / Math.max(1, optionCount - 1));
+      const optionsStartY = optAreaTop + 20;
       const optBoxW = panelWidth - 48;
-      const optInlayW = optBoxW - 12;
-      const iconOffsetX = centerX - optBoxW / 2 + 22;
-      const textOffsetX = iconOffsetX + 34;
+      const optInlayW = optBoxW - 10;
+      const iconOffsetX = centerX - optBoxW / 2 + 20;
+      const textOffsetX = iconOffsetX + 32;
       START_WEAPON_OPTIONS.forEach((option, index) => {
       const y = optionsStartY + index * optionSpacing;
-      const box = this.add.rectangle(centerX, y, optBoxW, 44, 0x2a2a4a, 0.98)
+      const box = this.add.rectangle(centerX, y, optBoxW, 42, 0x2a2a4a, 0.98)
         .setStrokeStyle(2, 0xc4a040, 0.9)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
         .setDepth(d + 3);
-      const boxInlay = this.add.rectangle(centerX, y, optInlayW, 34, 0x1a1a2a, 0.88)
+      const boxInlay = this.add.rectangle(centerX, y, optInlayW, 32, 0x1a1a2a, 0.88)
         .setStrokeStyle(1, 0x8a7a3a, 0.6)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
         .setDepth(d + 4);
       const weaponIcon = this.add
         .image(iconOffsetX, y, this.getWeaponIconKey(option.weaponType))
-        .setDisplaySize(22, 22)
+        .setDisplaySize(20, 20)
         .setScrollFactor(0)
         .setDepth(d + 5);
       const heading = this.add
-        .text(textOffsetX, y - 9, `[${index + 1}] ${option.label}`, {
+        .text(textOffsetX, y - 8, `[${index + 1}] ${option.label}`, {
           fontFamily: "ZpixOne",
-          fontSize: "14px",
+          fontSize: "13px",
           color: "#ffffff",
           stroke: "#0a0a0a",
           strokeThickness: 3
@@ -6133,7 +4910,7 @@ export class GameScene extends Phaser.Scene {
         .setScrollFactor(0)
         .setDepth(d + 5);
       const detail = this.add
-        .text(textOffsetX, y + 9, "", {
+        .text(textOffsetX, y + 8, "", {
           fontFamily: "ZpixOne",
           fontSize: "10px",
           color: "#a0a0b0",
@@ -6241,120 +5018,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  applyLevelUpUpgrade(upgrade) {
-    if (!upgrade) {
-      return;
-    }
-
-    // Passive cards
-    if (upgrade.isPassive && upgrade.passiveKey) {
-      if (this.player.hasPassive(upgrade.passiveKey)) {
-        return; // Already have this passive
-      }
-      this.player.addPassive(upgrade.passiveKey);
-
-      // Apply passive effects
-      if (upgrade.passiveKey === "ember_core") {
-        this.weaponSystem.addGlobalDamagePercent(upgrade.value, "fireball");
-        this.showHudAlert("EMBER CORE", 1200);
-      } else if (upgrade.passiveKey === "blade_sigil") {
-        this.weaponSystem.addGlobalDamagePercent(upgrade.value, "dagger");
-        this.showHudAlert("BLADE SIGIL", 1200);
-      } else if (upgrade.passiveKey === "iron_shell") {
-        this.player.damageReduction = (this.player.damageReduction || 0) + upgrade.value;
-        this.showHudAlert("IRON SHELL", 1200);
-      } else if (upgrade.passiveKey === "swift_feet") {
-        this.player.speed = Math.round(this.player.speed * (1 + upgrade.value));
-        this.showHudAlert("SWIFT FEET", 1200);
-      } else if (upgrade.passiveKey === "wings") {
-        this.weaponSystem.addGlobalRangePercent(upgrade.value);
-        this.showHudAlert("WINGS", 1200);
-      } else if (upgrade.passiveKey === "armor") {
-        this.player.armorFlat += upgrade.value;
-        this.showHudAlert("ARMOR", 1200);
-      } else if (upgrade.passiveKey === "hollow_heart") {
-        this.player.maxHp = Math.round(this.player.maxHp * (1 + upgrade.value));
-        this.player.hp = this.player.maxHp;
-        this.showHudAlert("HOLLOW HEART", 1200);
-      } else if (upgrade.passiveKey === "attractorb") {
-        this.player.pickupRadius = Math.round(this.player.pickupRadius * (1 + upgrade.value));
-        this.showHudAlert("ATTRACTORB", 1200);
-      } else if (upgrade.passiveKey === "frost_shard") {
-        this.weaponSystem.addGlobalDamagePercent(upgrade.value, "frost");
-        this.showHudAlert("FROST SHARD", 1200);
-      } else if (upgrade.passiveKey === "spellbinder") {
-        this.weaponSystem.addGlobalDurationPercent(upgrade.value);
-        this.showHudAlert("SPELLBINDER", 1200);
-      } else if (upgrade.passiveKey === "candelabrador") {
-        this.weaponSystem.addGlobalRangePercent(upgrade.value);
-        this.showHudAlert("CANDELABRADOR", 1200);
-      } else if (upgrade.passiveKey === "duplicator") {
-        this.weaponSystem.addProjectileCount(upgrade.value);
-        this.showHudAlert("DUPLICATOR", 1200);
-      } else if (upgrade.passiveKey === "bracer") {
-        this.weaponSystem.addAttackSpeedPercent(upgrade.value);
-        this.showHudAlert("BRACER", 1200);
-      }
-      return;
-    }
-
-    if (upgrade.id === "weapon_damage") {
-      this.weaponSystem.addGlobalDamagePercent(upgrade.value);
-      return;
-    }
-    if (upgrade.id === "attack_speed") {
-      this.attackIntervalMs = Math.max(180, Math.floor(this.attackIntervalMs * (1 - upgrade.value)));
-      this.weaponSystem.addAttackSpeedPercent(upgrade.value);
-      return;
-    }
-    if (upgrade.id === "projectile_count") {
-      this.weaponSystem.addProjectileCount(upgrade.value);
-      return;
-    }
-    if (upgrade.id === "movement_speed") {
-      this.player.speed += upgrade.value;
-      return;
-    }
-    if (upgrade.id === "pickup_radius") {
-      this.player.pickupRadius += upgrade.value;
-      return;
-    }
-    if (upgrade.id === "lifesteal") {
-      this.player.lifestealChance = (this.player.lifestealChance || 0) + upgrade.value;
-      this.player.lifestealAmount = (this.player.lifestealAmount || 0) + 5;
-      return;
-    }
-    if (upgrade.id === "max_hp_boost") {
-      this.player.maxHp = Math.round(this.player.maxHp * (1 + upgrade.value));
-      this.player.hp = Math.min(this.player.hp + Math.round(this.player.maxHp * upgrade.value), this.player.maxHp);
-      return;
-    }
-    if (upgrade.id === "xp_boost") {
-      this.metaXpMultiplier += upgrade.value;
-      return;
-    }
-    if (upgrade.id === "luck_boost") {
-      this.player.luck = (this.player.luck || 0) + upgrade.value;
-      return;
-    }
-    if (upgrade.id === "crit_chance") {
-      this.player.critChance = (this.player.critChance || 0) + upgrade.value;
-      this.player.critMultiplier = 2;
-      return;
-    }
-    if (upgrade.id === "duration_boost") {
-      this.weaponSystem.addGlobalDurationPercent(upgrade.value);
-      return;
-    }
-    if (upgrade.id === "cooldown_reduction") {
-      this.weaponSystem.addAttackSpeedPercent(upgrade.value);
-      return;
-    }
-    if (upgrade.id === "revival") {
-      this.player.revivals = (this.player.revivals || 0) + 1;
-      this.showHudAlert("REVIVAL READY", 1500);
-    }
-  }
+  applyLevelUpUpgrade(upgrade) { this.levelUpManager.apply(upgrade); }
 
   pullXpOrbsToPlayer() {
     const basePickupRadius = Math.max(0, this.player.pickupRadius || 0);
@@ -6400,21 +5064,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  closeLevelUpChoices() {
-    this.levelUpUi.forEach((obj) => obj.destroy());
-    this.levelUpUi = [];
-    this.levelUpOptionActions = [];
-
-    this.isLeveling = false;
-    this.applyHudModalFocus(false);
-    this.director?.resume?.();
-    this.weaponSystem?.resume?.();
-    this.physics.resume();
-
-    if (this.pendingLevelUps > 0) {
-      this.openLevelUpChoices();
-    }
-  }
+  closeLevelUpChoices() { this.levelUpManager.close(); }
 
   resolveShipKey() {
     if (typeof window !== "undefined" && window.localStorage) {
@@ -6566,7 +5216,7 @@ export class GameScene extends Phaser.Scene {
       }
       if (!force) {
         const allDead = this.player.isDead() &&
-          (!this.playerSync || this.playerSync.isAllDead());
+          (!this.coopSync.playerSync || this.coopSync.playerSync.isAllDead());
         if (!allDead) {
           this.player.body?.setVelocity(0, 0);
           this.showHudAlert("等待队友救援...", 3000);
@@ -7043,10 +5693,6 @@ export class GameScene extends Phaser.Scene {
       strokeThickness: 1
     };
 
-    this.hpText = this.add
-      .text(margin, margin + lineSpacing * 0, "生命: 100/100", style)
-      .setOrigin(0, 0)
-      .setDepth(RENDER_DEPTH.HUD);
     this.expText = this.add
       .text(margin, margin + lineSpacing * 1, "等级 1 | 经验 0%", style)
       .setOrigin(0, 0)
@@ -7101,7 +5747,7 @@ export class GameScene extends Phaser.Scene {
         .setOrigin(0, 0.5).setDepth(RENDER_DEPTH.HUD);
       this.hudWeaponSlotIcons.push({ frame, icon, cdBarBg, cdBarFill });
     }
-    this.hudObjects = [this.hpText, this.expText, this.expBarBg, this.expBarFill, this.timeText, this.killText, this.hudWeaponLabel];
+    this.hudObjects = [this.expText, this.expBarBg, this.expBarFill, this.timeText, this.killText, this.hudWeaponLabel];
     this.hudWeaponSlotIcons.forEach(({ frame, icon, cdBarBg, cdBarFill }) => this.hudObjects.push(frame, icon, cdBarBg, cdBarFill));
     this.layoutHUDToCamera();
 
@@ -7166,7 +5812,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   layoutHUDToCamera() {
-    if (!this.hpText || !this.expText || !this.timeText || !this.killText || !this.expBarBg || !this.expBarFill) {
+    if (!this.expText || !this.timeText || !this.killText || !this.expBarBg || !this.expBarFill) {
       return;
     }
     const cam = this.cameras?.main;
@@ -7177,7 +5823,6 @@ export class GameScene extends Phaser.Scene {
     const lineSpacing = 16 * scale;
     const anchorX = (cam.scrollX ?? 0) + margin;
     const anchorY = (cam.scrollY ?? 0) + margin;
-    this.hpText.setPosition(anchorX, anchorY);
     this.expText.setPosition(anchorX, anchorY + lineSpacing);
     const barY = anchorY + 32 * scale;
     const barWidth = 100 * scale;
@@ -7219,14 +5864,13 @@ export class GameScene extends Phaser.Scene {
     const xpPercent = Math.round(xpRatio * 100);
     const elapsedMs = Math.max(0, Number.isFinite(this.playTime) ? this.playTime : this.runTimeMs);
     const elapsedSeconds = Math.floor(elapsedMs / 1000);
-    if (this.hpText && this.expText && this.timeText && this.killText && this.expBarFill) {
+    if (this.expText && this.timeText && this.killText && this.expBarFill) {
       this.hudObjects.forEach((obj) => {
         obj?.setVisible?.(true);
         obj?.setActive?.(true);
         obj?.setDepth?.(RENDER_DEPTH.HUD);
       });
       this.layoutHUDToCamera();
-      this.hpText.setText(`HP: ${this.player.hp}/${this.player.maxHp}`);
       this.expText.setText(`LV ${levelValue} | EXP ${xpPercent}%`);
       this.expBarFill.displayWidth = 120 * xpRatio;
       this.timeText.setText(`TIME: ${this.formatRunTime(elapsedMs)}`);

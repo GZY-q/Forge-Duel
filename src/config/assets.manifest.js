@@ -35,3 +35,6 @@ export const CHARACTER_ASSET_MANIFEST = Object.freeze([
     basePath: "assets/sprites/enemies/miniboss_davy"
   })
 ]);
+
+export const LOGO_TEXTURE_KEY = "main_menu_logo";
+export const LOGO_ASSET_PATH = "assets/sprites/ui/Logo.png";

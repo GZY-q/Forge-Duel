@@ -3,7 +3,38 @@
  * Consistent top bar, panels, buttons, backgrounds across all menu scenes
  */
 
-/* ── Colors (VS palette) ── */
+export const BUTTON_TEXTURES = {
+  blue: "btn_blue",
+  green: "btn_green",
+  red: "btn_red",
+  purple: "btn_purple",
+  start: "btn_start"
+};
+
+export const BUTTON_ASSET_PATHS = {
+  btn_blue: "assets/sprites/button/btn_blue.png",
+  btn_green: "assets/sprites/button/btn_green.png",
+  btn_red: "assets/sprites/button/btn_red.png",
+  btn_purple: "assets/sprites/button/btn_purple.png",
+  btn_start: "assets/sprites/button/btn_start.png"
+};
+
+const BUTTON_NATURAL_SIZE = {
+  btn_blue: { w: 188, h: 100 },
+  btn_green: { w: 188, h: 100 },
+  btn_red: { w: 188, h: 100 },
+  btn_purple: { w: 188, h: 100 },
+  btn_start: { w: 188, h: 100 }
+};
+
+export function getButtonSize(textureKey, targetWidth) {
+  const natural = BUTTON_NATURAL_SIZE[textureKey] || { w: 188, h: 56 };
+  return {
+    w: targetWidth,
+    h: Math.round(targetWidth * natural.h / natural.w)
+  };
+}
+
 const C = {
   bgRedDark: 0x1a0508,
   bgRedGlow: 0x4a0a12,
@@ -28,7 +59,21 @@ const C = {
   squareBorder: 0x4a4a5a,
 };
 
-/* ── Background ── */
+/* ── Main Menu Background (Image) ── */
+export function createMainMenuBackground(scene) {
+  const cam = scene.cameras.main;
+  const cx = cam.width * 0.5;
+  const cy = cam.height * 0.5;
+
+  if (!scene.textures.exists("main_menu_bg")) {
+    return createVSBackground(scene);
+  }
+
+  const bg = scene.add.image(cx, cy, "main_menu_bg").setDisplaySize(cam.width, cam.height);
+  return { bg };
+}
+
+/* ── Background (VS style) ── */
 export function createVSBackground(scene) {
   const cam = scene.cameras.main;
   const cx = cam.width * 0.5;
@@ -109,35 +154,20 @@ export function createVSTopBar(scene, options = {}) {
 /* ── Back Button (red, top-right) ── */
 export function createVSBackButton(scene, x, y, onClick) {
   const w = 100;
-  const h = 42;
+  const { h } = getButtonSize(BUTTON_TEXTURES.red, w);
   const container = scene.add.container(x, y).setDepth(9999);
 
-  const shadow = scene.add.rectangle(0, 3, w, h, 0x000000, 0.5).setOrigin(0.5);
-  const plate = scene.add.rectangle(0, 0, w, h, C.btnRed, 1)
-    .setStrokeStyle(3, C.btnBorder, 1)
-    .setOrigin(0.5)
+  const img = scene.add.image(0, 0, BUTTON_TEXTURES.red)
+    .setDisplaySize(w, h)
     .setInteractive({ useHandCursor: true });
-  const bevel = scene.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
-    .setStrokeStyle(1, 0xffffff, 0.1)
-    .setOrigin(0.5);
 
-  const text = scene.add.text(0, 0, "返回", {
-    fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
-    stroke: "#0a0a0a", strokeThickness: 4
+  const text = scene.add.text(0, 1, "返回", {
+    fontFamily: "ZpixOne", fontSize: "14px", color: "#ffffff",
+    stroke: "#000000", strokeThickness: 3
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  container.add([shadow, plate, bevel, text]);
+  container.add([img, text]);
 
-  const onOver = () => {
-    plate.setFillStyle(C.btnRedHover, 1);
-    plate.setStrokeStyle(3, C.textGold, 1);
-    text.setColor("#fef08a");
-  };
-  const onOut = () => {
-    plate.setFillStyle(C.btnRed, 1);
-    plate.setStrokeStyle(3, C.btnBorder, 1);
-    text.setColor("#ffffff");
-  };
   const trigger = () => {
     scene.tweens.add({
       targets: container, scaleX: 0.92, scaleY: 0.92,
@@ -146,49 +176,29 @@ export function createVSBackButton(scene, x, y, onClick) {
     });
   };
 
-  plate.on("pointerover", onOver);
-  plate.on("pointerout", onOut);
-  text.on("pointerover", onOver);
-  text.on("pointerout", onOut);
-  plate.on("pointerdown", trigger);
+  img.on("pointerdown", trigger);
   text.on("pointerdown", trigger);
 
-  return { container, plate, text };
+  return { container, img, text };
 }
 
 /* ── Options Button (blue, top-right) ── */
 export function createVSOptionsButton(scene, x, y, onClick) {
   const w = 100;
-  const h = 42;
+  const { h } = getButtonSize(BUTTON_TEXTURES.blue, w);
   const container = scene.add.container(x, y).setDepth(9999);
 
-  const shadow = scene.add.rectangle(0, 3, w, h, 0x000000, 0.5).setOrigin(0.5);
-  const plate = scene.add.rectangle(0, 0, w, h, C.btnBlue, 1)
-    .setStrokeStyle(3, C.btnBorder, 1)
-    .setOrigin(0.5)
+  const img = scene.add.image(0, 0, BUTTON_TEXTURES.blue)
+    .setDisplaySize(w, h)
     .setInteractive({ useHandCursor: true });
-  const bevel = scene.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
-    .setStrokeStyle(1, 0xffffff, 0.1)
-    .setOrigin(0.5);
 
-
-  const text = scene.add.text(0, 0, "选项", {
-    fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
-    stroke: "#0a0a0a", strokeThickness: 4
+  const text = scene.add.text(0, 1, "选项", {
+    fontFamily: "ZpixOne", fontSize: "14px", color: "#ffffff",
+    stroke: "#000000", strokeThickness: 3
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  container.add([shadow, plate, bevel, text]);
+  container.add([img, text]);
 
-  const onOver = () => {
-    plate.setFillStyle(C.btnBlueHover, 1);
-    plate.setStrokeStyle(3, C.textGold, 1);
-    text.setColor("#fef08a");
-  };
-  const onOut = () => {
-    plate.setFillStyle(C.btnBlue, 1);
-    plate.setStrokeStyle(3, C.btnBorder, 1);
-    text.setColor("#ffffff");
-  };
   const trigger = () => {
     scene.tweens.add({
       targets: container, scaleX: 0.92, scaleY: 0.92,
@@ -197,14 +207,10 @@ export function createVSOptionsButton(scene, x, y, onClick) {
     });
   };
 
-  plate.on("pointerover", onOver);
-  plate.on("pointerout", onOut);
-  text.on("pointerover", onOver);
-  text.on("pointerout", onOut);
-  plate.on("pointerdown", trigger);
+  img.on("pointerdown", trigger);
   text.on("pointerdown", trigger);
 
-  return { container, plate, text };
+  return { container, img, text };
 }
 
 /* ── Central Panel ── */
@@ -232,39 +238,23 @@ export function createVSPanel(scene, x, y, w, h) {
 /* ── Standard Button (blue with gold border) ── */
 export function createVSButton(scene, x, y, label, options = {}) {
   const w = options.width ?? 180;
-  const h = options.height ?? 46;
-  const fontSize = options.fontSize ?? "18px";
-  const color = options.color ?? C.btnBlue;
-  const hoverColor = options.hoverColor ?? C.btnBlueHover;
+  const fontSize = options.fontSize ?? "16px";
+  const textureKey = options.textureKey ?? BUTTON_TEXTURES.blue;
+  const { h } = getButtonSize(textureKey, w);
 
   const container = scene.add.container(x, y);
 
-  const shadow = scene.add.rectangle(0, 3, w, h, 0x000000, 0.5).setOrigin(0.5);
-  const plate = scene.add.rectangle(0, 0, w, h, color, 1)
-    .setStrokeStyle(3, C.btnBorder, 1)
-    .setOrigin(0.5)
+  const img = scene.add.image(0, 0, textureKey)
+    .setDisplaySize(w, h)
     .setInteractive({ useHandCursor: true });
-  const bevel = scene.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
-    .setStrokeStyle(1, 0xffffff, 0.1)
-    .setOrigin(0.5);
 
-  const text = scene.add.text(0, 0, label, {
+  const text = scene.add.text(0, 1, label, {
     fontFamily: "ZpixOne", fontSize, color: "#ffffff",
-    stroke: "#0a0a0a", strokeThickness: 4
+    stroke: "#000000", strokeThickness: 3
   }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
-  container.add([shadow, plate, bevel, text]);
+  container.add([img, text]);
 
-  const onOver = () => {
-    plate.setFillStyle(hoverColor, 1);
-    plate.setStrokeStyle(3, C.textGold, 1);
-    text.setColor("#fef08a");
-  };
-  const onOut = () => {
-    plate.setFillStyle(color, 1);
-    plate.setStrokeStyle(3, C.btnBorder, 1);
-    text.setColor("#ffffff");
-  };
   const trigger = () => {
     scene.tweens.add({
       targets: container, scaleX: 0.92, scaleY: 0.92,
@@ -273,28 +263,27 @@ export function createVSButton(scene, x, y, label, options = {}) {
     });
   };
 
-  plate.on("pointerover", onOver);
-  plate.on("pointerout", onOut);
-  text.on("pointerover", onOver);
-  text.on("pointerout", onOut);
-  plate.on("pointerdown", trigger);
+  img.on("pointerdown", trigger);
   text.on("pointerdown", trigger);
 
-  return { container, plate, text };
+  return { container, img, text };
 }
 
 /* ── Large Start Button ── */
 export function createVSStartButton(scene, x, y, label, onClick) {
   return createVSButton(scene, x, y, label, {
-    width: 320, height: 64, fontSize: "28px", onClick
+    width: 170, fontSize: "28px",
+    textureKey: BUTTON_TEXTURES.start,
+    onClick
   });
 }
 
 /* ── Green Confirm Button ── */
 export function createVSConfirmButton(scene, x, y, label, onClick) {
   return createVSButton(scene, x, y, label, {
-    width: 140, height: 48, fontSize: "20px",
-    color: C.btnGreen, hoverColor: C.btnGreenHover, onClick
+    width: 140, fontSize: "18px",
+    textureKey: BUTTON_TEXTURES.green,
+    onClick
   });
 }
 
