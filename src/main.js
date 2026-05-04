@@ -3,6 +3,7 @@ import { GameScene } from "./scenes/GameScene.js";
 import { RunSummaryScene } from "./scenes/RunSummaryScene.js";
 import { UpgradeScene } from "./scenes/UpgradeScene.js";
 import { MainMenuScene } from "./scenes/MainMenuScene.js";
+import { IntroScene } from "./scenes/IntroScene.js";
 import { AuthScene } from "./scenes/AuthScene.js";
 import { LobbyScene } from "./scenes/LobbyScene.js";
 import { LeaderboardScene } from "./scenes/LeaderboardScene.js";
@@ -19,7 +20,8 @@ const config = {
   roundPixels: true,
   render: {
     powerPreference: "high-performance",
-    antialias: false
+    antialias: false,
+    generateMipmaps: false
   },
   fps: {
     target: 60,
@@ -46,7 +48,7 @@ const config = {
     height: 720,
     fullscreenTarget: "game-root"
   },
-  scene: [MainMenuScene, ShipSelectionScene, GameScene, RunSummaryScene, UpgradeScene, AuthScene, LobbyScene, LeaderboardScene]
+  scene: [MainMenuScene, IntroScene, ShipSelectionScene, GameScene, RunSummaryScene, UpgradeScene, AuthScene, LobbyScene, LeaderboardScene]
 };
 
 document.fonts.load('16px ZpixOne').then(function() {

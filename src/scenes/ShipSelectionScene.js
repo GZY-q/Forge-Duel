@@ -61,7 +61,7 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // ── Top bar ──
     const coins = this.loadCoins();
-    const goBack = () => this.scene.start("MainMenuScene");
+    const goBack = () => this.scene.start("MainMenuScene", { fromShipSelection: true });
     this.topBar = createVSTopBar(this, {
       coins,
       showBack: true,

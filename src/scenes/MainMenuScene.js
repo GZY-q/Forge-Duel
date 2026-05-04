@@ -10,6 +10,8 @@ import {
 import { LOGO_TEXTURE_KEY, LOGO_ASSET_PATH } from "../config/assets.manifest.js";
 import { BUTTON_ASSET_PATHS } from "../ui/vsUI.js";
 
+import { BUTTON_TEXTURES } from "../ui/vsUI.js";
+
 const COIN_STORAGE_KEY = "forgeduel_coins";
 const BEST_TIME_STORAGE_KEY = "forgeduel_best_time_ms";
 const MENU_ATLAS_KEY = "ui_atlas";
@@ -133,8 +135,8 @@ export class MainMenuScene extends Phaser.Scene {
     logoImg.setAlpha(0.95);
 
     // ── Start button (large) ──
-    createVSStartButton(this, cx, cy + 90, "开始", () => {
-      this.scene.start("ShipSelectionScene", { mode: "solo" });
+    createVSStartButton(this, cx, cy + 100, "开始", () => {
+      this.scene.start("IntroScene");
     });
 
     // ── Sub buttons row ──
@@ -149,7 +151,9 @@ export class MainMenuScene extends Phaser.Scene {
         const token = typeof window !== "undefined" && window.localStorage
           ? window.localStorage.getItem("forgeduel_token") : null;
         if (!token) {
-          this.scene.start("AuthScene");
+          this.scene.launch("AuthScene");
+          this.topBar.rightBtn.container.setVisible(false);
+          this.backButton.container.setVisible(true);
         } else {
           this.scene.start("ShipSelectionScene", { mode: "coop" });
         }
@@ -160,8 +164,9 @@ export class MainMenuScene extends Phaser.Scene {
     ];
 
     subButtons.forEach((btn, i) => {
+      const textureKey = btn.label === "增强" ? BUTTON_TEXTURES.green : BUTTON_TEXTURES.blue;
       createVSButton(this, subStartX + i * (subW + subGap), subY, btn.label, {
-        width: subW, fontSize: "16px", onClick: btn.onClick
+        width: subW, fontSize: "16px", textureKey, onClick: btn.onClick
       });
     });
 

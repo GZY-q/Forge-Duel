@@ -65,7 +65,16 @@ export function createMainMenuBackground(scene) {
   const cx = cam.width * 0.5;
   const cy = cam.height * 0.5;
 
-  if (!scene.textures.exists("main_menu_bg")) {
+  let textureReady = false;
+  if (scene.textures.exists("main_menu_bg")) {
+    const tex = scene.textures.get("main_menu_bg");
+    const source = tex.getSourceImage();
+    if (source && source.complete && source.width > 0) {
+      textureReady = true;
+    }
+  }
+
+  if (!textureReady) {
     return createVSBackground(scene);
   }
 

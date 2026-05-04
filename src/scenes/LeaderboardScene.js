@@ -1,4 +1,4 @@
-import { createMainMenuBackground, createVSPanel, createVSBackButton } from "../ui/vsUI.js";
+import { createMainMenuBackground, createVSPanel, createVSBackButton, createVSTopBar } from "../ui/vsUI.js";
 
 const API_BASE = window.location.origin;
 
@@ -49,6 +49,7 @@ const SCROLLBAR_W = 8;
 const SCROLLBAR_MIN_H = 30;
 const PANEL_W = 700;
 const PANEL_H = 500;
+const COIN_STORAGE_KEY = "forgeduel_coins";
 
 function formatTime(ms) {
   if (!ms || ms <= 0) return "--:--";
@@ -78,6 +79,13 @@ export class LeaderboardScene extends Phaser.Scene {
     }
   }
 
+  loadCoins() {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  }
+
   create() {
     const cam = this.cameras.main;
     this.camW = cam.width;
@@ -85,17 +93,27 @@ export class LeaderboardScene extends Phaser.Scene {
     this.cx = cam.width * 0.5;
     this.cy = cam.height * 0.5;
 
+    // ── Background ──
     createMainMenuBackground(this);
+
+    // ── Top bar (coins only) ──
+    const coins = this.loadCoins();
+    this.topBar = createVSTopBar(this, { coins });
 
     const doClose = () => {
       const mainMenu = this.scene.get("MainMenuScene");
       if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+        mainMenu.showBackButton(false);
         mainMenu.closeSubMenu();
       } else {
         this.scene.stop("LeaderboardScene");
       }
     };
     createVSBackButton(this, cam.width - 84, 36, doClose);
+
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", doClose);
+    }
 
     this.panelW = PANEL_W;
     this.panelH = PANEL_H;

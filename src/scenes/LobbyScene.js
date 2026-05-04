@@ -87,7 +87,7 @@ export class LobbyScene extends Phaser.Scene {
     this.selectionObjects.push(joinBtn.plate, joinBtn.text);
 
     this._selectionBackBtn = createBackButton(this, () => {
-      this.scene.start("ShipSelectionScene", { mode: "coop" });
+      this.scene.start("ShipSelectionScene", { mode: "coop", fromLobby: true });
     });
   }
 
@@ -580,6 +580,7 @@ export class LobbyScene extends Phaser.Scene {
 
   _leaveAndReturn() {
     this._destroyCodeInput();
+    this._destroySelectionUI();
     this.scene.start("MainMenuScene");
   }
 

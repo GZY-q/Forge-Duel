@@ -62,3 +62,5 @@ coverage/
 .nyc_output/
 playwright-report/
 
+assets/sprites/ui/Logo.gif
+assets/sprites/ui/logo_spritesheet.png

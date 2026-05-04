@@ -442,6 +442,32 @@ canvas {
   color: transparent;
 }
 
+.settings-logout-btn {
+  display: block;
+  width: 445px;
+  margin: 12px auto 0;
+  padding: 8px 0;
+  border-radius: 2px;
+  border: 2px solid #c4a040;
+  background: rgba(176, 48, 32, 0.95);
+  color: #ffffff;
+  font-family: 'ZpixOne', sans-serif;
+  font-size: 18px;
+  cursor: pointer;
+  letter-spacing: 0.05em;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+
+.settings-logout-btn:hover {
+  border-color: #fef08a;
+}
+
+.settings-logout-btn:active {
+  background: rgba(140, 30, 20, 0.95);
+}
+
 /* Buttons */
 #settings-close {
   display: block;
