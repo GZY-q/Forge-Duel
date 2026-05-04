@@ -4,13 +4,41 @@ import {
   SHIP_STORAGE_KEY,
   loadShipStats,
   isShipUnlocked,
-  getUnlockConditionText
+  getUnlockConditionText,
+  getUnlockProgress
 } from "../config/ships.js";
-import { createBackButton } from "../ui/createBackButton.js";
+import {
+  createVSBackground,
+  createVSTopBar,
+  createVSBackButton,
+  createVSPanel,
+  createVSCard,
+  createVSConfirmButton,
+  createVSButton
+} from "../ui/vsUI.js";
+
+const COIN_STORAGE_KEY = "forgeduel_coins";
 
 export class ShipSelectionScene extends Phaser.Scene {
   constructor() {
     super("ShipSelectionScene");
+  }
+
+  showToast(message) {
+    const cx = 640;
+    const cy = 360;
+    const toast = this.add.rectangle(cx, cy, 300, 60, 0x2a2a4a, 0.98)
+      .setStrokeStyle(2, 0xc4a040, 1)
+      .setDepth(9999);
+    const text = this.add.text(cx, cy, message, {
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5).setDepth(9999);
+
+    this.time.delayedCall(1500, () => {
+      toast.destroy();
+      text.destroy();
+    });
   }
 
   init(data) {
@@ -19,53 +47,68 @@ export class ShipSelectionScene extends Phaser.Scene {
 
   create() {
     const cam = this.cameras.main;
-    const centerX = cam.width * 0.5;
-    const centerY = cam.height * 0.5;
+    const cx = cam.width * 0.5;
+    const cy = cam.height * 0.5;
 
-    // Background
-    this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x071120, 1);
-    for (let y = 0; y < cam.height; y += 32) {
-      const color = Math.floor(y / 32) % 2 === 0 ? 0x0d1a31 : 0x11213d;
-      this.add.rectangle(centerX, y + 16, cam.width, 30, color, 1).setOrigin(0.5);
+    // ── Background ──
+    createVSBackground(this);
+
+    // ── Top bar ──
+    const coins = this.loadCoins();
+    const goBack = () => this.scene.start("MainMenuScene");
+    this.topBar = createVSTopBar(this, {
+      coins,
+      showBack: true,
+      onBack: goBack
+    });
+
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", goBack);
     }
 
-    // Panel
-    const panelW = 900;
-    const panelH = 600;
-    this.add.rectangle(centerX, centerY, panelW, panelH, 0x10203a, 0.96)
-      .setStrokeStyle(4, 0x5ca7ff, 1);
-    this.add.rectangle(centerX, centerY, panelW - 16, panelH - 16, 0x0b1830, 0)
-      .setStrokeStyle(2, 0x9bd3ff, 0.9);
+//========== 角色选择面板尺寸 ==========
+    // 面板宽度（默认700）
+    const panelW = 700;
+    // 面板高度（默认500）
+    const panelH = 500;
+    // 垂直位置（默认cy + 20）
+    const panelCenterY = cy + 20;
+    // 面板顶部Y
+    const panelTop = panelCenterY - panelH / 2;
+    // 面板底部Y
+    const panelBottom = panelCenterY + panelH / 2;
+    createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    // Title
-    this.add.text(centerX, centerY - panelH / 2 + 40, "选择你的战机", {
-      fontFamily: "Zpix", fontSize: "36px", color: "#f8fbff",
-      stroke: "#102640", strokeThickness: 6
+    //========== 标题 ==========
+    // Y偏移42（面板顶部往下42px）| 字号28px
+    this.add.text(cx, panelTop + 42, "角色选择", {
+      fontFamily: "ZpixOne", fontSize: "28px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5);
 
-    // Subtitle
-    this.add.text(centerX, centerY - panelH / 2 + 72, "每种战机拥有不同属性和特殊能力", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#8ab8e0",
-      stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5);
-
-    // Load stats for unlock checks
+    // ── Load stats ──
     this.shipStats = loadShipStats();
     this.selectedShipId = null;
     this.shipCards = [];
-    this.confirmBtn = null;
-    this.confirmLabel = null;
-    this.statusText = null;
+    this.detailObjects = null;
 
-    // Ship cards grid: 4 columns x 2 rows
+    //========== 飞船卡片网格 ==========
+    // 列数（默认4列）
     const cols = 4;
-    const cardW = 190;
-    const cardH = 200;
-    const gapX = 14;
-    const gapY = 14;
+    // 卡片宽度（默认148）
+    const cardW = 148;
+    // 卡片高度（默认120）
+    const cardH = 120;
+    // 水平间距（默认10）
+    const gapX = 10;
+    // 垂直间距（默认8）
+    const gapY = 8;
+    // 网格总宽度
     const gridW = cols * cardW + (cols - 1) * gapX;
-    const startX = centerX - gridW / 2 + cardW / 2;
-    const startY = centerY - 40;
+    // 网格起始X（居中）
+    const startX = cx - gridW / 2 + cardW / 2;
+    // 网格起始Y（默认panelTop + 128）
+    const startY = panelTop + 128;
 
     SHIP_KEYS.forEach((key, index) => {
       const config = SHIP_CONFIGS[key];
@@ -76,157 +119,23 @@ export class ShipSelectionScene extends Phaser.Scene {
       this.createShipCard(x, y, cardW, cardH, config);
     });
 
-    // Status text
-    this.statusText = this.add.text(centerX, centerY + panelH / 2 - 80, "", {
-      fontFamily: "Zpix", fontSize: "16px", color: "#ff8888",
-      stroke: "#0d1a2d", strokeThickness: 3
-    }).setOrigin(0.5);
+    //========== 详情面板 ==========
+    // 高度88 | Y位置panelBottom - 52
+    this.createDetailPanel(cx, panelBottom - 52, panelW - 30, 88);
 
-    // Confirm button
-    this.createConfirmButton(centerX, centerY + panelH / 2 - 45);
-
-    // Back button (unified, top-left)
-    createBackButton(this, () => this.scene.start("MainMenuScene"));
-  }
-
-  createShipCard(x, y, w, h, config) {
-    const unlocked = isShipUnlocked(config.id, this.shipStats);
-    const tint = config.tint;
-
-    // Card background
-    const card = this.add.rectangle(x, y, w, h, 0x1a324f, 0.95)
-      .setStrokeStyle(2, 0x5ca7ff, 0.9)
-      .setInteractive({ useHandCursor: unlocked });
-
-    // Inner
-    const cardInner = this.add.rectangle(x, y, w - 10, h - 10, 0x0f2440, 0.9)
-      .setStrokeStyle(1, 0x3a7abf, 0.6);
-
-    // Ship icon area (colored circle as placeholder)
-    const iconCircle = this.add.circle(x, y - 50, 28, tint, unlocked ? 0.85 : 0.25)
-      .setStrokeStyle(2, tint, unlocked ? 1 : 0.3);
-
-    // Ship name
-    const nameColor = unlocked ? "#ffffff" : "#667788";
-    const nameText = this.add.text(x, y - 14, config.name, {
-      fontFamily: "Zpix", fontSize: "20px", color: nameColor,
-      stroke: "#0f1c2f", strokeThickness: 4
-    }).setOrigin(0.5);
-
-    // Difficulty stars
-    const stars = "★".repeat(config.difficulty) + "☆".repeat(5 - config.difficulty);
-    const starsText = this.add.text(x, y + 8, stars, {
-      fontFamily: "Zpix", fontSize: "14px", color: unlocked ? "#ffd866" : "#556666"
-    }).setOrigin(0.5);
-
-    // Stats
-    const statsStr = `HP:${config.stats.maxHp} SPD:${config.stats.speed}`;
-    const statsText = this.add.text(x, y + 28, statsStr, {
-      fontFamily: "Zpix", fontSize: "12px", color: unlocked ? "#cfe9ff" : "#556666"
-    }).setOrigin(0.5);
-
-    // Weapon
-    const weaponLabels = { dagger: "匕首", fireball: "火球", lightning: "闪电", orbit_blades: "轨道刃" };
-    const wepName = config.initialWeapons
-      ? config.initialWeapons.map(w => weaponLabels[w] || w).join("+")
-      : (weaponLabels[config.initialWeapon] || config.initialWeapon);
-    const wepText = this.add.text(x, y + 44, `武器: ${wepName}`, {
-      fontFamily: "Zpix", fontSize: "11px", color: unlocked ? "#8ab8dd" : "#556666"
-    }).setOrigin(0.5);
-
-    // Lock overlay / unlock condition
-    let lockOverlay = null;
-    let lockText = null;
-    if (!unlocked) {
-      lockOverlay = this.add.rectangle(x, y, w, h, 0x000000, 0.55);
-      const condText = getUnlockConditionText(config.id);
-      lockText = this.add.text(x, y + 64, `🔒 ${condText}`, {
-        fontFamily: "Zpix", fontSize: "11px", color: "#ffaa66",
-        stroke: "#0d1a2d", strokeThickness: 2,
-        wordWrap: { width: w - 20 },
-        align: "center"
-      }).setOrigin(0.5);
-    }
-
-    // Click handler
-    const onSelect = () => {
-      if (!unlocked) {
-        this.statusText.setText("此战机尚未解锁");
-        this.statusText.setColor("#ff8888");
-        return;
-      }
-      this.selectShip(config.id);
-    };
-
-    card.on("pointerdown", onSelect);
-    cardInner.on("pointerdown", onSelect);
-    iconCircle.on("pointerdown", onSelect);
-    nameText.on("pointerdown", onSelect);
-
-    if (unlocked) {
-      card.on("pointerover", () => {
-        if (this.selectedShipId !== config.id) {
-          card.setStrokeStyle(3, 0x9bd3ff, 1);
-        }
-      });
-      card.on("pointerout", () => {
-        if (this.selectedShipId !== config.id) {
-          card.setStrokeStyle(2, 0x5ca7ff, 0.9);
-        }
-      });
-    }
-
-    this.shipCards.push({
-      id: config.id,
-      card,
-      cardInner,
-      iconCircle,
-      unlocked
-    });
-  }
-
-  selectShip(shipId) {
-    this.selectedShipId = shipId;
-
-    // Update card highlights
-    this.shipCards.forEach((entry) => {
-      if (entry.id === shipId) {
-        entry.card.setStrokeStyle(3, 0xffdd44, 1);
-      } else {
-        entry.card.setStrokeStyle(2, 0x5ca7ff, entry.unlocked ? 0.9 : 0.5);
-      }
-    });
-
-    const config = SHIP_CONFIGS[shipId];
-    this.statusText.setText(`已选择: ${config.name}`);
-    this.statusText.setColor("#88ff88");
-  }
-
-  createConfirmButton(x, y) {
-    const btn = this.add.rectangle(x, y, 200, 48, 0x255283, 1)
-      .setStrokeStyle(3, 0x6ab8ff, 1)
-      .setInteractive({ useHandCursor: true });
-    const label = this.add.text(x, y, "开始游戏", {
-      fontFamily: "Zpix", fontSize: "24px", color: "#ffffff",
-      stroke: "#0f1c2f", strokeThickness: 5
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-    const trigger = () => {
+    createVSConfirmButton(this, cx + 250, panelBottom - 70, "确认", () => {
       if (!this.selectedShipId) {
-        this.statusText.setText("请先选择一架战机");
-        this.statusText.setColor("#ff8888");
+        this.updateDetailPanel(null, "请先选择一个角色", true);
         return;
       }
-      // Save selection
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(SHIP_STORAGE_KEY, this.selectedShipId);
       }
-
       if (this.pendingMode === "coop") {
         const token = window.localStorage.getItem("forgeduel_token") || "";
         const user = JSON.parse(window.localStorage.getItem("forgeduel_user") || "null");
         this.scene.start("LobbyScene", {
-          mode: "create",
+          mode: "select",
           selectedShip: this.selectedShipId,
           fighterType: this.selectedShipId,
           authToken: token,
@@ -235,14 +144,247 @@ export class ShipSelectionScene extends Phaser.Scene {
       } else {
         this.scene.start("GameScene", { selectedShip: this.selectedShipId });
       }
-    };
+    });
+  }
 
-    btn.on("pointerdown", trigger);
-    label.on("pointerdown", trigger);
-    btn.on("pointerover", () => btn.setFillStyle(0x3a7abf, 1));
-    btn.on("pointerout", () => btn.setFillStyle(0x255283, 1));
+  createShipCard(x, y, w, h, config) {
+    const unlocked = isShipUnlocked(config.id, this.shipStats);
+    const tint = config.tint;
 
-    this.confirmBtn = btn;
-    this.confirmLabel = label;
+    const { container, bg } = createVSCard(this, x, y, w, h, {
+      onClick: () => {
+        if (!unlocked) {
+          const unlockText = getUnlockConditionText(config.id);
+          this.showToast(`解锁条件: ${unlockText}`);
+          return;
+        }
+        this.selectShip(config.id);
+      }
+    });
+
+    const iconSize = 48;
+    const iconBg = this.add.rectangle(0, 0, iconSize + 4, iconSize + 4, 0x1a1a2a, 1)
+      .setStrokeStyle(2, unlocked ? tint : 0x555555, unlocked ? 1 : 0.4);
+    const icon = this.add.rectangle(0, 0, iconSize, iconSize, tint, unlocked ? 0.8 : 0.2);
+    container.add([iconBg, icon]);
+
+    const weaponLabels = { dagger: "🗡️", fireball: "🔥", lightning: "⚡", orbit_blades: "🌀" };
+    const wepIcon = this.add.text(w / 2 - 18, h / 2 - 18,
+      weaponLabels[config.initialWeapon] || "⚔️", {
+      fontFamily: "ZpixOne", fontSize: "16px"
+    }).setOrigin(0.5);
+    if (!unlocked) wepIcon.setAlpha(0.3);
+    container.add(wepIcon);
+    //选择界面位置（x，y）
+    const nameColor = unlocked ? "#ffffff" : "#667788";
+    const nameText = this.add.text(0, 40, config.name, {
+      fontFamily: "ZpixOne", fontSize: "16px", color: nameColor,
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
+    container.add(nameText);
+
+    if (!unlocked) {
+      const lockOverlay = this.add.rectangle(0, 0, w, h, 0x000000, 0.5).setOrigin(0.5);
+      const lockText = this.add.text(0, -4, "🔒", {
+        fontFamily: "ZpixOne", fontSize: "20px"
+      }).setOrigin(0.5);
+      container.add([lockOverlay, lockText]);
+    //进度条未解锁
+      const progress = getUnlockProgress(config.id, this.shipStats);
+      if (progress) {
+        const ratio = Math.min(1, progress.current / progress.target);
+        const barW = w - 16;
+        const barH = 6;
+        const barY = h / 2 - 110;
+        const barBg = this.add.rectangle(0, barY, barW, barH, 0x1a1a2a, 0.8).setOrigin(0.5);
+        const barFill = this.add.rectangle(-barW / 2, barY, barW * ratio, barH, 0xc4a040, 1).setOrigin(0, 0.5);
+        const progText = this.add.text(0, barY + 8, `${progress.current}/${progress.target}`, {
+          fontFamily: "ZpixOne", fontSize: "8px", color: "#a0a0b0",
+          stroke: "#000000", strokeThickness: 2
+        }).setOrigin(0.5);
+        container.add([barBg, barFill, progText]);
+      }
+    }
+
+    this.shipCards.push({ id: config.id, bg, container, unlocked, config });
+  }
+
+  selectShip(shipId) {
+    this.selectedShipId = shipId;
+
+    // Update card highlights
+    this.shipCards.forEach((entry) => {
+      if (entry.id === shipId) {
+        entry.bg.setStrokeStyle(3, 0xffffff, 1);
+      } else {
+        entry.bg.setStrokeStyle(2, 0xc4a040, entry.unlocked ? 0.9 : 0.4);
+      }
+    });
+
+    const config = SHIP_CONFIGS[shipId];
+    this.updateDetailPanel(config, null, false);
+  }
+  //============================================
+  // 飞船详情面板 - 创建
+  //============================================
+  createDetailPanel(x, y, w, h) {
+    // x,y: 面板中心坐标 | w,h: 面板宽高
+    const container = this.add.container(x, y);
+
+    // 面板背景 - 深灰底色 + 金色边框
+    const bg = this.add.rectangle(0, 0, w, h, 0x4a4a5a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1)
+      .setOrigin(0.5);
+    // 面板内嵌 - 内边框装饰
+    const inner = this.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
+      .setStrokeStyle(1, 0x8a7a3a, 0.6)
+      .setOrigin(0.5);
+
+    container.add([bg, inner]);
+
+    // 左侧元素起始X坐标（相对面板中心）
+    const leftX = -w / 2 + 10;
+    // 右侧元素X偏移
+    const rightX = 16;
+
+    // 飞船图标 - 48x48 尺寸
+    const iconBg = this.add.rectangle(leftX + 24, 0, 48, 48, 0x1a1a2a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1).setOrigin(0.5);
+    const icon = this.add.rectangle(leftX + 24, 0, 42, 42, 0x888888, 0.5).setOrigin(0.5);
+    container.add([iconBg, icon]);
+
+    // 飞船名称 - Y偏移-22（图标的右上方）
+    const nameText = this.add.text(leftX + 52, -22, "", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 3
+    }).setOrigin(0, 0.5);
+    container.add(nameText);
+
+    // 飞船描述 - Y偏移-24（名称下方）
+    const descText = this.add.text(leftX + 52, -6, "", {
+      fontFamily: "ZpixOne", fontSize: "10px", color: "#8898b0",
+      stroke: "#1a1a2a", strokeThickness: 1
+    }).setOrigin(0, 0.5);
+    container.add(descText);
+
+    // 解锁状态 - Y偏移-2（面板右下角）
+    const statusText = this.add.text(w / 2 - 450, -22, "", {
+      fontFamily: "ZpixOne", fontSize: "9px", color: "#c4a040",
+      stroke: "#1a1a2a", strokeThickness: 1
+    }).setOrigin(1, 0.5);
+    container.add(statusText);
+
+    this.detailObjects = { container, icon, nameText, descText, statusText, statBars: [], panelW: w };
+  }
+
+  //============================================
+  // 飞船详情面板 - 更新
+  //============================================
+  updateDetailPanel(config, errorMsg, isError) {
+    const detail = this.detailObjects;
+    if (!detail) return;
+
+    // 错误状态显示
+    if (errorMsg) {
+      detail.nameText.setText("");
+      detail.descText.setText("");
+      detail.statusText.setText(errorMsg);
+      detail.statusText.setColor(isError ? "#ff8888" : "#88ff88");
+      detail.icon.setFillStyle(0x888888, 0.5);
+      if (detail.statBars) {
+        detail.statBars.forEach((obj) => { if (obj && obj.destroy) obj.destroy(); });
+        detail.statBars = [];
+      }
+      return;
+    }
+
+    if (!config) return;
+
+    // 更新名称和图标颜色
+    detail.nameText.setText(config.name);
+    detail.icon.setFillStyle(config.tint, 0.8);
+
+    // 清除旧的统计条
+    if (detail.statBars) {
+      detail.statBars.forEach((obj) => { if (obj && obj.destroy) obj.destroy(); });
+    }
+    detail.statBars = [];
+
+    //========== 属性条 ==========
+    // X坐标: 面板左侧 + 偏移 | 宽度120 | 高度8
+    const barX = -detail.panelW / 2 + 90;
+    const barW = 120;
+    const barH = 8;
+
+    const stats = config.stats;
+    const bars = [
+      { label: "HP", value: stats.maxHp, max: 160, color: 0x44cc44 },      // 生命值
+      { label: "SPD", value: stats.speed, max: 360, color: 0x44aaff },    // 速度
+      { label: "DASH", value: +((6000 - stats.dashCooldown) / 60).toFixed(1), max: 50, color: 0xffaa44 }, // 冲刺冷却
+    ];
+    // 初始Y = 8，每条间隔14
+    let infoY = 8;
+    bars.forEach((b) => {
+      const ratio = Math.min(1, Math.max(0, b.value / b.max));
+      const bg = this.add.rectangle(barX, infoY, barW, barH, 0x1a1a2a, 0.9).setOrigin(0, 0.5);
+      const fill = this.add.rectangle(barX, infoY, Math.max(barH, barW * ratio), barH - 2, b.color, 0.9).setOrigin(0, 0.5);
+      const lbl = this.add.text(barX - 2, infoY, b.label, {
+        fontFamily: "ZpixOne", fontSize: "8px", color: "#a0a0b0",
+        stroke: "#000000", strokeThickness: 1
+      }).setOrigin(1, 0.5);
+      detail.statBars.push(bg, fill, lbl);
+      detail.container.add([bg, fill, lbl]);
+      infoY += 14;  // 下一条Y + 14
+    });
+
+    //========== 武器信息 ==========
+    const weaponLabel = config.initialWeapons
+      ? config.initialWeapons.join("+")
+      : (config.initialWeapon || "?");
+    const weaponText = this.add.text(barX, infoY, `武器:${weaponLabel}`, {
+      fontFamily: "ZpixOne", fontSize: "9px", color: "#c4a040",
+      stroke: "#000000", strokeThickness: 1
+    }).setOrigin(0, 1);
+    detail.statBars.push(weaponText);
+    detail.container.add(weaponText);
+
+    //========== 难度星级 - 面板右下角 ==========
+    const diffY = -23;  // Y偏移（负数=往上）
+    if (config.difficulty) {
+      const stars = "★".repeat(config.difficulty) + "☆".repeat(5 - config.difficulty);
+      const diffText = this.add.text(detail.panelW / 2 - 500, diffY, stars, {
+        fontFamily: "ZpixOne", fontSize: "8px", color: "#fef08a",
+        stroke: "#000000", strokeThickness: 1
+      }).setOrigin(1, 0.5);
+      detail.statBars.push(diffText);
+      detail.container.add(diffText);
+    }
+
+    // 更新描述文字
+    const descLine = config.description + (config.difficulty ? `  难度${config.difficulty}/5` : "");
+    detail.descText.setText(descLine);
+
+    // 更新解锁状态
+    const unlocked = isShipUnlocked(config.id, this.shipStats);
+    if (!unlocked) {
+      const progress = getUnlockProgress(config.id, this.shipStats);
+      const unlockText = getUnlockConditionText(config.id);
+      let progressStr = "";
+      if (progress) {
+        progressStr = ` (${progress.current}/${progress.target})`;
+      }
+      detail.statusText.setColor("#c4a040");
+      detail.statusText.setText(`${unlockText}${progressStr}`);
+    } else {
+      detail.statusText.setColor("#88ff88");
+      detail.statusText.setText("已解锁 ✓");
+    }
+  }
+
+  loadCoins() {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
   }
 }

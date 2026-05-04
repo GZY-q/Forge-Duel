@@ -88,19 +88,20 @@ export const SHIP_STATS_STORAGE_KEY = "forgeduel_ship_stats";
 
 export function loadShipStats() {
   if (typeof window === "undefined" || !window.localStorage) {
-    return { totalTimeSec: 0, totalKills: 0, maxLevel: 0 };
+    return { totalTimeSec: 0, totalKills: 0, maxLevel: 0, bestTimeSec: 0 };
   }
   try {
     const raw = window.localStorage.getItem(SHIP_STATS_STORAGE_KEY);
-    if (!raw) return { totalTimeSec: 0, totalKills: 0, maxLevel: 0 };
+    if (!raw) return { totalTimeSec: 0, totalKills: 0, maxLevel: 0, bestTimeSec: 0 };
     const parsed = JSON.parse(raw);
     return {
       totalTimeSec: Math.max(0, Number(parsed.totalTimeSec) || 0),
       totalKills: Math.max(0, Number(parsed.totalKills) || 0),
-      maxLevel: Math.max(0, Number(parsed.maxLevel) || 0)
+      maxLevel: Math.max(0, Number(parsed.maxLevel) || 0),
+      bestTimeSec: Math.max(0, Number(parsed.bestTimeSec) || 0)
     };
   } catch {
-    return { totalTimeSec: 0, totalKills: 0, maxLevel: 0 };
+    return { totalTimeSec: 0, totalKills: 0, maxLevel: 0, bestTimeSec: 0 };
   }
 }
 
@@ -113,9 +114,11 @@ export function saveShipStats(stats) {
 
 export function updateShipStats(runData) {
   const stats = loadShipStats();
-  stats.totalTimeSec += Math.max(0, Math.floor((runData.timeSurvivedMs || 0) / 1000));
+  const runSec = Math.max(0, Math.floor((runData.timeSurvivedMs || 0) / 1000));
+  stats.totalTimeSec += runSec;
   stats.totalKills += Math.max(0, runData.enemiesKilled || 0);
   stats.maxLevel = Math.max(stats.maxLevel, runData.levelReached || 0);
+  stats.bestTimeSec = Math.max(stats.bestTimeSec, runSec);
   saveShipStats(stats);
   return stats;
 }
@@ -134,7 +137,7 @@ export function isShipUnlocked(shipId, stats) {
     case "kills":
       return s.totalKills >= cond.value;
     case "survive":
-      return s.totalTimeSec >= cond.value;
+      return s.bestTimeSec >= cond.value;
     case "level":
       return s.maxLevel >= cond.value;
     default:
@@ -158,5 +161,25 @@ export function getUnlockConditionText(shipId) {
       return `达到${cond.value}级`;
     default:
       return "未知条件";
+  }
+}
+
+export function getUnlockProgress(shipId, stats) {
+  const config = SHIP_CONFIGS[shipId];
+  if (!config || !config.unlockCondition) return null;
+  const cond = config.unlockCondition;
+  const s = stats || loadShipStats();
+
+  switch (cond.type) {
+    case "time":
+      return { current: s.totalTimeSec, target: cond.value };
+    case "kills":
+      return { current: s.totalKills, target: cond.value };
+    case "survive":
+      return { current: s.bestTimeSec, target: cond.value };
+    case "level":
+      return { current: s.maxLevel, target: cond.value };
+    default:
+      return null;
   }
 }

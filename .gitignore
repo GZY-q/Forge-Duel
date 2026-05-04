@@ -52,10 +52,13 @@ SETUP_GUIDE.md
 # assets/sprites/*.xcf
 
 # 构建输出
-dist/*.map
+dist/
 *.backup
 
-# 测试覆盖
+# 测试
+tests/
+test-results/
 coverage/
 .nyc_output/
+playwright-report/
 

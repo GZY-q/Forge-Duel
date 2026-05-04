@@ -4,6 +4,9 @@ import { DirectorSystem, DIRECTOR_STATE } from "../systems/DirectorSystem.js";
 import { WeaponSystem } from "../systems/WeaponSystem.js";
 import { MetaProgressionSystem } from "../systems/MetaProgressionSystem.js";
 import { ObjectPool } from "../systems/ObjectPool.js";
+import { SeededRNG } from "../utils/SeededRNG.js";
+import { PlayerSync } from "../networking/PlayerSync.js";
+import { EnemySync } from "../networking/EnemySync.js";
 import { ENEMY_ARCHETYPE_CONFIGS, ENEMY_TYPE_WEIGHTS, HUNTER_UNLOCK_TIME_SEC, RANGER_UNLOCK_TIME_SEC } from "../config/enemies.js";
 import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
 import { DIRECTOR_BOSS_SPAWN } from "../config/director.js";
@@ -163,21 +166,21 @@ const HUD_EXP_PULSE_SCALE = 1.3;
 const HUD_EXP_PULSE_DURATION_MS = 120;
 const HUD_ALERT_POOL_SIZE = 3;
 const HUD_ALERT_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "34px",
   color: "#ffd76c",
   stroke: "#2e1b08",
   strokeThickness: 6
 });
 const HUD_COMBO_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "18px",
   color: "#fff0b6",
   stroke: "#2d1f08",
   strokeThickness: 4
 });
 const WARNING_BANNER_STYLE = Object.freeze({
-  fontFamily: "Zpix",
+  fontFamily: "ZpixOne",
   fontSize: "28px",
   color: "#fff0c6",
   stroke: "#281206",
@@ -847,6 +850,9 @@ export class GameScene extends Phaser.Scene {
     this.voiceManager = data?.voiceManager || null;
     this.isHost = data?.isHost ?? true;
     this.coopPlayers = data?.players || [];
+    this.coopSeed = data?.seed ?? Date.now();
+    this._hasSentPlayerDied = false;
+    this._hasSentGameOver = false;
     this.networkSyncAccumulator = 0;
     this.lastEnemySyncTime = 0;
   }
@@ -860,6 +866,9 @@ export class GameScene extends Phaser.Scene {
     this.xpToNext = this.getXpRequirement(this.level);
     this.pendingLevelUps = 0;
     this.isLeveling = false;
+    this.rerollsRemaining = 2;
+    this._revivalUsed = false;
+    this._lastReaperIndex = -1;
     this.levelUpUi = [];
     this.spawnAccumulatorMs = 0;
     this.runTimeMs = 0;
@@ -884,7 +893,8 @@ export class GameScene extends Phaser.Scene {
     this.runMetaCurrency = 0;
     this.lastRunMetaCurrency = 0;
     this.metaSettled = false;
-    this.director = new DirectorSystem();
+    this.coopRNG = this.gameMode === "coop" ? new SeededRNG(this.coopSeed) : null;
+    this.director = new DirectorSystem({ rng: this.coopRNG });
     this.dashTrailTickMs = 0;
     this.sfxLastPlayedAt = {};
     this.clearEvolutionSlowMoTimer();
@@ -915,7 +925,7 @@ export class GameScene extends Phaser.Scene {
     this.devAntiJamEnabled = this.resolveDevAntiJamEnabled();
 
     this.createTextures();
-    this.drawArena();
+    this._createInfiniteBackground();
 
     this.physics.world.setBounds(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
 
@@ -1028,7 +1038,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hudLevelText = this.add
       .text(20, 24, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "21px",
         color: "#fff0cf",
         stroke: "#28170f",
@@ -1038,7 +1048,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudStatsText = this.add
       .text(20, 58, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#cdb28a",
         stroke: "#28170f",
@@ -1048,7 +1058,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudTimerText = this.add
       .text(20, 74, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#f0dfbe",
         stroke: "#28170f",
@@ -1058,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudGoldText = this.add
       .text(20, 90, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#e6cc86",
         stroke: "#28170f",
@@ -1068,7 +1078,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudXpLabelText = this.add
       .text(20, 44, "EXP", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "9px",
         color: "#e7d6b4",
         stroke: "#28170f",
@@ -1078,7 +1088,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryText = this.add
       .text(1032, 22, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color: "#ddc69e",
         stroke: "#28170f",
@@ -1133,7 +1143,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.hudCoreLabelText = this.add
       .text(76, 18, "SURVIVAL LOG", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1142,7 +1152,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(10);
     this.hudSecondaryLabelText = this.add
       .text(1104, 18, "CREW KIT", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "11px",
         color: "#2e170d"
       })
@@ -1166,7 +1176,7 @@ export class GameScene extends Phaser.Scene {
         .setDepth(10);
       const label = this.add
         .text(slotX, slotY, "", {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "15px",
           color: "#f4e5c8",
           stroke: "#2a170f",
@@ -1200,7 +1210,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.debugDirectorText = this.add
       .text(1024, 108, "", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "13px",
         color: "#baa27d",
         stroke: "#22150d",
@@ -1216,7 +1226,7 @@ export class GameScene extends Phaser.Scene {
 
     this.gameOverText = this.add
       .text(640, 360, "GAME OVER", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "28px",
         color: "#ffdad7",
         align: "center",
@@ -1237,7 +1247,7 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
     this.gameOverRestartLabel = this.add
       .text(640, 540, "Restart Run", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "26px",
         color: "#eaf6ff",
         stroke: "#0d1628",
@@ -1257,25 +1267,15 @@ export class GameScene extends Phaser.Scene {
     this.ensureDomHudOverlay();
     this._applyMobileHudAdjustments();
     this.registerSceneShutdownCleanup();
-    // Auto-equip starting weapon(s), then show weapon selection for additional slot
+    // Auto-equip starting weapon(s), then immediately show weapon selection
     if (this.shipConfig) {
       const weapons = this.shipConfig.initialWeapons || [this.shipConfig.initialWeapon];
       weapons.forEach((w) => this.weaponSystem.addWeapon(w));
-      this.showHudAlert(`${this.shipConfig.name} READY`, 1200);
-      this.time.delayedCall(800, () => {
-        if (!this.isGameOver) {
-          this.openWeaponSelection();
-        }
-      });
+      this.openWeaponSelection();
     } else if (this.fighterConfig) {
       const startWeapon = this.fighterConfig.startingWeapon;
       this.weaponSystem.addWeapon(startWeapon);
-      this.showHudAlert(`${this.fighterConfig.label} READY`, 1200);
-      this.time.delayedCall(800, () => {
-        if (!this.isGameOver) {
-          this.openWeaponSelection();
-        }
-      });
+      this.openWeaponSelection();
     } else {
       this.openWeaponSelection();
     }
@@ -1321,27 +1321,25 @@ export class GameScene extends Phaser.Scene {
       this.load.image(key, path);
     });
 
+    this.load.image("game_bg", "assets/sprites/ui/bg.png");
+
     this.setupCoopMode();
   }
 
   setupCoopMode() {
     if (this.gameMode !== "coop" || !this.networkManager) return;
 
-    import("../networking/PlayerSync.js").then(({ PlayerSync }) => {
-      this.playerSync = new PlayerSync(this);
+    this.playerSync = new PlayerSync(this);
 
-      for (const p of this.coopPlayers) {
-        if (p.playerId !== this.networkManager.playerId) {
-          this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
-        }
+    for (const p of this.coopPlayers) {
+      if (p.playerId !== this.networkManager.playerId) {
+        this.playerSync.addRemotePlayer(p.playerId, p.fighterType, p.username);
       }
-    });
+    }
 
-    import("../networking/EnemySync.js").then(({ EnemySync }) => {
-      if (!this.isHost) {
-        this.enemySync = new EnemySync(this, null);
-      }
-    });
+    if (!this.isHost) {
+      this.enemySync = new EnemySync(this, this.enemyPool);
+    }
 
     this.networkManager.onRemotePlayerUpdate = (data) => {
       if (data.playerId === this.networkManager.playerId) return;
@@ -1351,6 +1349,22 @@ export class GameScene extends Phaser.Scene {
     this.networkManager.onEnemyStateUpdate = (data) => {
       if (this.isHost) return;
       this.enemySync?.applyEnemyState(data);
+    };
+
+    this.networkManager.onEnemyDamage = (data) => {
+      if (!this.isHost) return;
+      const enemy = this.enemies.getChildren().find(
+        (e) => e.active && e.serverId === data.enemyId && !e.getData("isDying")
+      );
+      if (enemy) {
+        enemy.takeDamage(data.damage);
+        if (this.spawnWeaponHitParticles) {
+          this.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
+        }
+        if (enemy.isDead()) {
+          this.handleEnemyDefeat(enemy);
+        }
+      }
     };
 
     this.networkManager.onEnemyKilled = (data) => {
@@ -1376,19 +1390,72 @@ export class GameScene extends Phaser.Scene {
 
     this.networkManager.onPlayerDied = (data) => {
       this.playerSync?.markPlayerDead(data.playerId);
-      this.showHudAlert(`${data.playerId} 已阵亡`, 2000);
+      const player = this.coopPlayers.find((p) => p.playerId === data.playerId);
+      const name = player?.username || "玩家";
+      this.showHudAlert(`${name} 已阵亡`, 2000);
     };
 
-    this.networkManager.onGameOver = (data) => {
-      if (!this.isGameOver) {
-        this.triggerGameOver();
-      }
+    this.networkManager.onGameOver = () => {
+      this.triggerGameOver(true);
     };
 
     this.networkManager.onHostMigrated = (data) => {
       if (data.newHostId === this.networkManager.playerId) {
         this.isHost = true;
         this.showHudAlert("你已成为房主", 2000);
+      }
+    };
+
+    this.networkManager.onPlayerLeft = (data) => {
+      this.playerSync?.removeRemotePlayer(data.playerId);
+      this.showHudAlert("玩家已离开", 2000);
+    };
+
+    this.networkManager.onPlayerDisconnected = (data) => {
+      const rp = this.playerSync?.remotePlayers?.get(data.playerId);
+      if (rp) {
+        rp.disconnected = true;
+        this.showHudAlert("玩家断线，等待重连...", 2000);
+      }
+    };
+
+    this.networkManager.onPlayerReconnected = (data) => {
+      if (!this.playerSync?.remotePlayers) return;
+      const rp = this.playerSync.remotePlayers.get(data.oldPlayerId);
+      if (rp) {
+        rp.disconnected = false;
+        this.playerSync.remotePlayers.delete(data.oldPlayerId);
+        this.playerSync.remotePlayers.set(data.playerId, rp);
+        rp.playerId = data.playerId;
+        this.showHudAlert("玩家已重连", 2000);
+      }
+    };
+
+    this.networkManager.onConnectionRestored = (gameState) => {
+      if (!gameState) return;
+      this.isHost = gameState.hostId === this.networkManager.playerId;
+      this.showHudAlert("已重新连接", 2000);
+
+      if (gameState.playerStates) {
+        for (const ps of gameState.playerStates) {
+          if (ps.playerId === this.networkManager.playerId) {
+            this.player.setPosition(ps.x, ps.y);
+            this.player.hp = ps.hp;
+            this.player.maxHp = ps.maxHp;
+            this.player.facingDirection = ps.facing;
+            this.level = ps.level || 1;
+            if (ps.isDead) {
+              this.player.setHp(0);
+            }
+          } else {
+            if (!this.playerSync) continue;
+            this.playerSync.addRemotePlayer(ps.playerId, ps.fighterType, ps.username);
+            this.playerSync.updatePlayerState(ps.playerId, {
+              x: ps.x, y: ps.y, facing: ps.facing,
+              hp: ps.hp, maxHp: ps.maxHp, isDead: ps.isDead
+            });
+          }
+        }
       }
     };
   }
@@ -1411,9 +1478,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.updateHelpOverlayPresentation();
-    this.updateSeaWaves(time);
     this.handlePlaytestHotkeys();
-    this.updateEdgeFogOverlay();
 
     if (this.isGameOver) {
       this.updateBossProjectiles(time);
@@ -1483,18 +1548,29 @@ export class GameScene extends Phaser.Scene {
     }
     this.checkStageAnnouncements();
     this.updateBossApproachWarning();
-    this.spawnAccumulatorMs += delta;
-    this.processDirectorBossSpawns();
-    this.processDirectorMiniBossSpawns();
-    this.processDirectorSpawnBursts();
-    this.processDirectorLadderSpawns();
-    this.processDirectorHatchBreaches();
+    this.updateReaperSpawning(delta);
 
-    const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
-    const effectiveSpawnIntervalMs = this.baseSpawnCheckIntervalMs / Math.max(0.2, spawnRateMultiplier);
-    while (this.spawnAccumulatorMs >= effectiveSpawnIntervalMs) {
-      this.spawnAccumulatorMs -= effectiveSpawnIntervalMs;
-      this.maintainEnemyDensity();
+    // Enemy spawning is host-authoritative in coop — only the host creates enemies.
+    if (this.gameMode !== "coop" || this.isHost) {
+      this.spawnAccumulatorMs += delta;
+      this.processDirectorBossSpawns();
+      this.processDirectorMiniBossSpawns();
+      this.processDirectorSpawnBursts();
+      this.processDirectorLadderSpawns();
+      this.processDirectorHatchBreaches();
+
+      const spawnRateMultiplier = this.getEffectiveSpawnRateMultiplier();
+      const effectiveSpawnIntervalMs = this.baseSpawnCheckIntervalMs / Math.max(0.2, spawnRateMultiplier);
+      while (this.spawnAccumulatorMs >= effectiveSpawnIntervalMs) {
+        this.spawnAccumulatorMs -= effectiveSpawnIntervalMs;
+        this.maintainEnemyDensity();
+      }
+    } else {
+      this.director.consumeBossSpawnRequests();
+      this.director.consumeMiniBossSpawnRequests();
+      this.director.consumeSpawnBurstRequests();
+      this.director.consumeLadderSpawnRequests();
+      this.director.consumeHatchBreachSpawnRequests();
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.dash) || this.consumeTouchDash()) {
@@ -1525,10 +1601,11 @@ export class GameScene extends Phaser.Scene {
         }
         enemy.speed = enemy.baseSpeed * speedMultiplier;
         enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
-        enemy.chase(this.player, delta, time);
-        enemy.tryApplyPoisonAura(this.player, time);
+        const target = this._getNearestPlayerForEnemy(enemy);
+        enemy.chase(target, delta, time);
+        enemy.tryApplyPoisonAura(target, time);
         if (enemy.updateBossPattern) {
-          enemy.updateBossPattern(this.player, time);
+          enemy.updateBossPattern(target, time);
         }
         this.applyEnemyAntiJam(enemy, time);
       });
@@ -1539,7 +1616,9 @@ export class GameScene extends Phaser.Scene {
 
       if (this.networkSyncAccumulator >= 50) {
         this.networkSyncAccumulator = 0;
-        this.networkManager.sendPlayerState(this.player);
+        if (!this.player.isDead()) {
+          this.networkManager.sendPlayerState(this.player);
+        }
 
         if (this.isHost) {
           const activeEnemies = this.enemies.getChildren()
@@ -1554,16 +1633,37 @@ export class GameScene extends Phaser.Scene {
               facing: e.facingDirection,
               isElite: e.isElite || false,
               eliteType: e.eliteType,
-              damage: e.damage
+              damage: e.damage,
+              xpValue: e.xpValue,
+              archetype: e.getData("archetype"),
+              bossVariant: e.getData("bossVariant")
             }));
           this.networkManager.sendEnemyState(activeEnemies);
         }
-
-        this.playerSync?.update(this.time.now);
       }
+
+      this.playerSync?.update(this.time.now);
+    }
+
+    // Infinite background parallax — tiles scroll at 30% of camera speed.
+    if (this._bgTile) {
+      this._bgTile.tilePositionX = this.cameras.main.scrollX * 0.3;
+      this._bgTile.tilePositionY = this.cameras.main.scrollY * 0.3;
     }
 
     if (this.player.isDead()) {
+      if ((this.player.revivals || 0) > 0 && !this._revivalUsed) {
+        this.player.revivals -= 1;
+        this._revivalUsed = true;
+        this.player.hp = Math.round(this.player.maxHp * 0.5);
+        this.player.setAlpha(1);
+        this.player.setTint(0xffffff);
+        this.player.body?.setVelocity(0, 0);
+        if (this.player.body) { this.player.body.enable = true; }
+        this.showHudAlert("复活!", 2000);
+        this.shakeScreen(200, 0.006);
+        return;
+      }
       this.triggerGameOver();
       return;
     }
@@ -2349,151 +2449,12 @@ export class GameScene extends Phaser.Scene {
     gfx.destroy();
   }
 
-  drawArena() {
-    const seaGraphics = this.add.graphics();
-    seaGraphics.setDepth(-3);
-    seaGraphics.fillStyle(0x061328, 1);
-    seaGraphics.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+  drawArena() {}
 
-    const graphics = this.add.graphics();
-    graphics.setDepth(0);
-
-    const deckLeft = DECK_SURFACE_INSET;
-    const deckTop = DECK_SURFACE_INSET;
-    const deckWidth = WORLD_WIDTH - DECK_SURFACE_INSET * 2;
-    const deckHeight = WORLD_HEIGHT - DECK_SURFACE_INSET * 2;
-    const deckRight = deckLeft + deckWidth;
-    const deckBottom = deckTop + deckHeight;
-    const hasDeckPlankTexture = DECK_TILE_VARIANTS.some((variant) => this.textures.exists(variant.key));
-    const hasDeckTrimTexture = this.textures.exists(IMPORTED_PIXEL_ASSETS.deckPlankTrim.key);
-
-    graphics.fillStyle(scaleHexColor(0x5b3b25, DECK_BRIGHTNESS_MULTIPLIER), 1);
-    graphics.fillRect(deckLeft, deckTop, deckWidth, deckHeight);
-
-    let lastVariantKey = null;
-    let variantRunLength = 0;
-    for (let y = deckTop; y < deckBottom; y += DECK_TILE_SIZE) {
-      const plankIndex = Math.floor((y - deckTop) / DECK_TILE_SIZE);
-      const rowHeight = Math.min(DECK_TILE_SIZE - 2, deckBottom - y);
-      const excludedKey = variantRunLength >= 3 ? lastVariantKey : null;
-      const deckVariant = pickWeightedDeckVariant(DECK_TILE_VARIANTS, excludedKey);
-      if (deckVariant.key === lastVariantKey) {
-        variantRunLength += 1;
-      } else {
-        lastVariantKey = deckVariant.key;
-        variantRunLength = 1;
-      }
-
-      if (hasDeckPlankTexture) {
-        const textureKey = this.textures.exists(deckVariant.key) ? deckVariant.key : IMPORTED_PIXEL_ASSETS.deckPlankMain.key;
-        const plankRow = this.add.tileSprite(
-          deckLeft + deckWidth * 0.5,
-          y + rowHeight * 0.5,
-          deckWidth,
-          rowHeight,
-          textureKey
-        );
-        plankRow.setDepth(0);
-        const plankTint = plankIndex % 2 === 0 ? deckVariant.tintEven : deckVariant.tintOdd;
-        plankRow.setTint(scaleHexColor(plankTint, DECK_BRIGHTNESS_MULTIPLIER));
-        plankRow.tileScaleX = 1;
-        plankRow.tileScaleY = 1;
-        plankRow.tilePositionX = (plankIndex % 5) * deckVariant.tileOffsetStep;
-      } else {
-        const plankColor = plankIndex % 2 === 0 ? deckVariant.fallbackEven : deckVariant.fallbackOdd;
-        graphics.fillStyle(scaleHexColor(plankColor, DECK_BRIGHTNESS_MULTIPLIER), 1);
-        graphics.fillRect(deckLeft, y, deckWidth, rowHeight);
-      }
-
-      const seamInset = 28 + (plankIndex % 4) * 18;
-      const seamWidth = Math.max(120, deckWidth - seamInset * 2);
-      graphics.fillStyle(
-        scaleHexColor(0x8b603f, DECK_BRIGHTNESS_MULTIPLIER),
-        (plankIndex % 2 === 0 ? 0.08 : 0.14) * DECK_HIGHLIGHT_OPACITY
-      );
-      graphics.fillRect(deckLeft + seamInset, y, seamWidth, 2);
-
-      if (hasDeckTrimTexture) {
-        const trimRow = this.add.tileSprite(
-          deckLeft + deckWidth * 0.5,
-          y + 2,
-          deckWidth,
-          6,
-          IMPORTED_PIXEL_ASSETS.deckPlankTrim.key
-        );
-        trimRow.setDepth(0.1);
-        trimRow.setTint(
-          scaleHexColor(plankIndex % 2 === 0 ? 0xd9b48c : 0xc49263, DECK_BRIGHTNESS_MULTIPLIER)
-        );
-        trimRow.setAlpha(DECK_HIGHLIGHT_OPACITY);
-      }
-
-      const jointSteps = [148, 206, 172, 228];
-      let jointX = deckLeft + 76 + ((plankIndex % 5) * 22);
-      let jointIndex = plankIndex % jointSteps.length;
-      while (jointX < deckRight - 72) {
-        graphics.fillStyle(
-          scaleHexColor(0x4a2f1f, DECK_BRIGHTNESS_MULTIPLIER),
-          0.22 * DECK_HIGHLIGHT_OPACITY
-        );
-        graphics.fillRect(jointX, y + 4, 3, DECK_TILE_SIZE - 10);
-        if ((jointIndex + plankIndex) % 3 === 0) {
-          graphics.fillStyle(
-            scaleHexColor(0x2f1d12, DECK_BRIGHTNESS_MULTIPLIER),
-            0.1 * DECK_HIGHLIGHT_OPACITY
-          );
-          graphics.fillRect(jointX + 6, y + 8, 22, 2);
-        }
-        jointX += jointSteps[jointIndex];
-        jointIndex = (jointIndex + 1) % jointSteps.length;
-      }
-    }
-
-    graphics.fillStyle(0x3d2619, 1);
-    graphics.fillRect(deckLeft, deckTop, deckWidth, 18);
-    graphics.fillRect(deckLeft, deckBottom - 18, deckWidth, 18);
-    graphics.fillRect(deckLeft, deckTop, 18, deckHeight);
-    graphics.fillRect(deckRight - 18, deckTop, 18, deckHeight);
-
-    const hatchWidth = 128;
-    const hatchHeight = 64;
-    const hatchX = HATCH_BREACH_POINT.x - hatchWidth / 2;
-    const hatchY = HATCH_BREACH_POINT.y - hatchHeight / 2;
-    graphics.fillStyle(0x4b2f1e, 1);
-    graphics.fillRect(hatchX, hatchY, hatchWidth, hatchHeight);
-    graphics.lineStyle(2, 0x28170f, 1);
-    graphics.strokeRect(hatchX, hatchY, hatchWidth, hatchHeight);
-    graphics.lineStyle(2, 0x8f6441, 0.75);
-    graphics.lineBetween(HATCH_BREACH_POINT.x, hatchY + 6, HATCH_BREACH_POINT.x, hatchY + hatchHeight - 6);
-    graphics.lineBetween(hatchX + 6, HATCH_BREACH_POINT.y, hatchX + hatchWidth - 6, HATCH_BREACH_POINT.y);
-
-    const beamYPositions = [deckTop + 186, deckTop + 420, deckBottom - 214];
-    beamYPositions.forEach((beamY, index) => {
-      graphics.fillStyle(0x3f281a, 0.26);
-      graphics.fillRect(deckLeft + 36, beamY - 7, deckWidth - 72, 14);
-      graphics.fillStyle(0x8f6441, 0.12);
-      graphics.fillRect(deckLeft + 44, beamY - 5, deckWidth - 88, 3);
-      for (let x = deckLeft + 120 + (index % 2) * 38; x < deckRight - 120; x += 260) {
-        graphics.fillStyle(0x2d1a10, 0.35);
-        graphics.fillRect(x, beamY - 3, 10, 6);
-      }
-    });
-
-    [
-      { x: deckLeft + 118, y: deckTop + 146 },
-      { x: deckRight - 118, y: deckTop + 146 },
-      { x: deckLeft + 118, y: deckBottom - 146 },
-      { x: deckRight - 118, y: deckBottom - 146 }
-    ].forEach((plate) => {
-      graphics.fillStyle(0x4f3728, 0.42);
-      graphics.fillRect(plate.x - 18, plate.y - 12, 36, 24);
-      graphics.lineStyle(1, 0xb08961, 0.34);
-      graphics.strokeRect(plate.x - 18, plate.y - 12, 36, 24);
-    });
-
-    this.initializeSeaWaves();
-    this.drawDeckRails();
-    this.drawDeckDecor(deckLeft, deckTop, deckRight, deckBottom);
+  _createInfiniteBackground() {
+    this._bgTile = this.add.tileSprite(0, 0, WORLD_WIDTH, WORLD_HEIGHT, "game_bg");
+    this._bgTile.setOrigin(0, 0);
+    this._bgTile.setDepth(-5);
   }
 
   drawDeckDecor(deckLeft, deckTop, deckRight, deckBottom) {
@@ -2638,8 +2599,8 @@ export class GameScene extends Phaser.Scene {
       position: "fixed", bottom: "64px", left: "64px",
       width: joystickSize + "px", height: joystickSize + "px",
       borderRadius: "50%",
-      background: "rgba(17,48,83,0.62)",
-      border: "2px solid rgba(127,184,255,0.85)",
+      background: "rgba(42,42,74,0.65)",
+      border: "2px solid rgba(196,160,64,0.85)",
       zIndex: zIdx,
       touchAction: "none"
     });
@@ -2649,8 +2610,8 @@ export class GameScene extends Phaser.Scene {
       width: thumbSize + "px", height: thumbSize + "px",
       marginTop: -(thumbSize / 2) + "px", marginLeft: -(thumbSize / 2) + "px",
       borderRadius: "50%",
-      background: "rgba(142,216,255,0.6)",
-      border: "2px solid rgba(198,236,255,0.9)",
+      background: "rgba(196,160,64,0.55)",
+      border: "2px solid rgba(254,240,138,0.9)",
       pointerEvents: "none"
     });
     this._domJoystickBase.appendChild(this._domJoystickThumb);
@@ -2672,7 +2633,7 @@ export class GameScene extends Phaser.Scene {
     const dashText = document.createElement("span");
     dashText.textContent = "闪";
     Object.assign(dashText.style, {
-      fontFamily: "'Zpix', sans-serif",
+      fontFamily: "'ZpixOne', sans-serif",
       fontSize: "14px", color: "#ffe8a8",
       textShadow: "0 0 0 3px #2a1a04"
     });
@@ -2702,7 +2663,7 @@ export class GameScene extends Phaser.Scene {
     const pauseText = document.createElement("span");
     pauseText.textContent = "菜单";
     Object.assign(pauseText.style, {
-      fontFamily: "'Zpix', sans-serif",
+      fontFamily: "'ZpixOne', sans-serif",
       fontSize: "11px", color: "#ffffff",
       textShadow: "0 0 0 2px #0a0a0a",
       fontWeight: "bold"
@@ -3475,6 +3436,19 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  _getNearestPlayerForEnemy(enemy) {
+    let nearest = this.player;
+    let nearestDist = Phaser.Math.Distance.Between(enemy.x, enemy.y, nearest.x, nearest.y);
+    if (this.playerSync) {
+      for (const rp of this.playerSync.getAllRemotePlayers()) {
+        if (rp.isDead || rp.disconnected) continue;
+        const dist = Phaser.Math.Distance.Between(enemy.x, enemy.y, rp.sprite.x, rp.sprite.y);
+        if (dist < nearestDist) { nearestDist = dist; nearest = rp.sprite; }
+      }
+    }
+    return nearest;
+  }
+
   applyEnemyAntiJam(enemy, nowMs) {
     if (!this.devAntiJamEnabled || !enemy?.active || !enemy?.body) {
       return;
@@ -4067,7 +4041,7 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0).setDepth(depth).setAlpha(0);
 
     const label = this.add.text(cx, cy, text, {
-      fontFamily: "Zpix", fontSize: "28px", color,
+      fontFamily: "ZpixOne", fontSize: "28px", color,
       stroke: "#000000", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -4105,6 +4079,44 @@ export class GameScene extends Phaser.Scene {
       tone: "approach",
       durationMs: 1500
     });
+  }
+
+  updateReaperSpawning(_delta) {
+    const REAPER_FIRST_AT_SEC = 900; // 15 minutes
+    const REAPER_INTERVAL_SEC = 60;   // every 60s after first
+    if (this.runTimeMs < REAPER_FIRST_AT_SEC * 1000) return;
+
+    const elapsedSinceFirst = this.runTimeMs - REAPER_FIRST_AT_SEC * 1000;
+    const reaperIndex = Math.floor(elapsedSinceFirst / (REAPER_INTERVAL_SEC * 1000));
+    const lastSpawnedIndex = this._lastReaperIndex ?? -1;
+
+    if (reaperIndex > lastSpawnedIndex) {
+      this._lastReaperIndex = reaperIndex;
+      const spawnCount = reaperIndex + 1; // increasing reapers each wave
+      for (let i = 0; i < spawnCount; i++) {
+        this.time.delayedCall(i * 400, () => this.spawnReaper());
+      }
+      this.showHudAlert("死神降临!", 2000);
+      this.shakeScreen(300, 0.008);
+    }
+  }
+
+  spawnReaper() {
+    const spawn = this.getBossEntrySpawn(null);
+    const r = new BossEnemy(this, spawn.position.x, spawn.position.y, { variant: "reaper" });
+    r.hp = 99999;
+    r.maxHp = 99999;
+    r.speed = 200;
+    r.baseSpeed = 200;
+    r.damage = 99;
+    r.baseDamage = 99;
+    r.xpValue = 0;
+    r.setData("lastDashHitId", -1);
+    r.setData("archetype", "reaper");
+    r.setData("spawnLane", spawn.lane);
+    r.setTint(0xff0000);
+    r.setAlpha(0.85);
+    this.enemies.add(r);
   }
 
   lerpColor(fromHex, toHex, t) {
@@ -4197,7 +4209,7 @@ export class GameScene extends Phaser.Scene {
     if (!text) {
       text = this.add
         .text(x, y, "", {
-          fontFamily: "Zpix",
+          fontFamily: "ZpixOne",
           fontSize: "14px",
           color: "#ff4444",
           stroke: "#000000",
@@ -4696,20 +4708,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.gameMode === "coop" && !this.isHost) {
-      return;
-    }
-
     if (player.isDashing()) {
       const lastDashHitId = enemy.getData("lastDashHitId") ?? -1;
       if (lastDashHitId !== player.currentDashId) {
         enemy.setData("lastDashHitId", player.currentDashId);
-        enemy.takeDamage(player.dashDamage);
-        enemy.applyKnockbackFrom(player.x, player.y, 360);
-        this.shakeScreen(80, 0.003);
 
-        if (enemy.isDead()) {
-          this.handleEnemyDefeat(enemy);
+        if (this.gameMode === "coop" && !this.isHost) {
+          const enemyId = enemy.serverId;
+          if (enemyId && enemy.active && !enemy.getData("isDying")) {
+            this.networkManager?.sendEnemyDamage(enemyId, player.dashDamage, "dash");
+          }
+        } else {
+          enemy.takeDamage(player.dashDamage);
+          enemy.applyKnockbackFrom(player.x, player.y, 360);
+          this.shakeScreen(80, 0.003);
+
+          if (enemy.isDead()) {
+            this.handleEnemyDefeat(enemy);
+          }
         }
       }
 
@@ -4790,7 +4806,7 @@ export class GameScene extends Phaser.Scene {
     const indicatorY = boss.y - Math.max(42, boss.displayHeight * 0.45);
     const warningText = this.add
       .text(boss.x, indicatorY, "环形冲击", {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "16px",
         color: "#ffd1d1",
         stroke: "#3f0f0f",
@@ -4920,12 +4936,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.lastAttackAt = now;
-    if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
-      return;
-    }
-    nearestEnemy.takeDamage(this.attackDamage);
-    nearestEnemy.applyKnockbackFrom(this.player.x, this.player.y, 140);
 
+    // Visual flash — shown on all clients.
     const flash = this.add.graphics();
     flash.lineStyle(2, 0x89e8ff, 1);
     flash.lineBetween(this.player.x, this.player.y, nearestEnemy.x, nearestEnemy.y);
@@ -4935,6 +4947,21 @@ export class GameScene extends Phaser.Scene {
       duration: 90,
       onComplete: () => flash.destroy()
     });
+
+    // Damage is host-authoritative in coop.
+    if (this.gameMode === "coop" && !this.isHost) {
+      const enemyId = nearestEnemy.serverId;
+      if (enemyId && nearestEnemy.active && !nearestEnemy.getData("isDying")) {
+        this.networkManager?.sendEnemyDamage(enemyId, this.attackDamage, "autoAttack");
+      }
+      return;
+    }
+
+    if (typeof nearestEnemy.takeDamage !== "function" || typeof nearestEnemy.applyKnockbackFrom !== "function") {
+      return;
+    }
+    nearestEnemy.takeDamage(this.attackDamage);
+    nearestEnemy.applyKnockbackFrom(this.player.x, this.player.y, 140);
 
     if (nearestEnemy.isDead()) {
       this.handleEnemyDefeat(nearestEnemy);
@@ -5357,7 +5384,7 @@ export class GameScene extends Phaser.Scene {
     const color = colorMap[item.itemConfig.id] || "#ffffff";
     const text = this.add
       .text(item.x, item.y - 16, label, {
-        fontFamily: "Zpix",
+        fontFamily: "ZpixOne",
         fontSize: "14px",
         color,
         stroke: "#000000",
@@ -5483,7 +5510,7 @@ export class GameScene extends Phaser.Scene {
     const badgeDepth = Number(config.badgeDepth ?? 30.4);
     const textDepth = Number(config.textDepth ?? badgeDepth + 0.6);
     const textStyle = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${fontSize}px`,
       color: config.color ?? "#3a1f11"
     };
@@ -5527,24 +5554,28 @@ export class GameScene extends Phaser.Scene {
     const cam = this.cameras.main;
     const centerX = cam.width * 0.5;
     const centerY = cam.height * 0.5;
-    const panelWidth = 480;
-    const panelHeight = 420;
+    const panelWidth = 300;
+    const panelHeight = 400;
     const depth = RENDER_DEPTH.MENUS;
+    const ph = panelHeight / 2;
+    const pw = panelWidth / 2;
 
-    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.6)
-      .setScrollFactor(0).setDepth(depth);
-    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x0e1a2e, 0.97)
-      .setStrokeStyle(3, 0x5ca7ff, 0.95).setScrollFactor(0).setDepth(depth + 1);
-    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 14, panelHeight - 14, 0x132240, 0.95)
-      .setStrokeStyle(1, 0x3a7abf, 0.85).setScrollFactor(0).setDepth(depth + 1);
+    const overlay = this.add.rectangle(centerX, centerY, cam.width, cam.height, 0x000000, 0.55).setScrollFactor(0).setDepth(depth);
+    const panelShadow = this.add.rectangle(centerX + 2, centerY + 4, panelWidth, panelHeight, 0x000000, 0.5).setScrollFactor(0).setDepth(depth + 1);
+    const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x3a3a5a, 0.98)
+      .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(depth + 1);
+    const panelInner = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
+      .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(depth + 1);
 
-    const title = this.add.text(centerX, centerY - panelHeight / 2 + 30, "升级!", {
-      fontFamily: "Zpix", fontSize: "32px", color: "#f8fbff",
-      stroke: "#0e1a2e", strokeThickness: 5
+    // ── Title ──
+    const titleY = centerY - ph + 28;
+    const title = this.add.text(centerX, titleY, "升 级 !", {
+      fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
+      stroke: "#0a0a0a", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
-    const subtitle = this.add.text(centerX, centerY - panelHeight / 2 + 56, `Lv.${this.level}`, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#7ab8e0"
+    const subtitle = this.add.text(centerX, titleY + 22, `Lv.${this.level}`, {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#8a8aaa"
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
 
     // Filter out passives the player already has
@@ -5563,6 +5594,14 @@ export class GameScene extends Phaser.Scene {
       projectile_count: 0xffcc44,
       movement_speed: 0x44ff88,
       pickup_radius: 0xcc66ff,
+      lifesteal: 0xff4466,
+      max_hp_boost: 0xff8888,
+      xp_boost: 0x88ff88,
+      luck_boost: 0x44ff44,
+      crit_chance: 0xff4444,
+      duration_boost: 0x4488ff,
+      cooldown_reduction: 0x88ccff,
+      revival: 0xffdd44,
       passive_ember_core: 0xff4422,
       passive_blade_sigil: 0x88ccff,
       passive_iron_shell: 0xaaaaaa,
@@ -5571,7 +5610,11 @@ export class GameScene extends Phaser.Scene {
       passive_armor: 0xcccccc,
       passive_hollow_heart: 0xff8888,
       passive_attractorb: 0xaa66ff,
-      passive_frost_shard: 0x88ddff
+      passive_frost_shard: 0x88ddff,
+      passive_spellbinder: 0x4488ff,
+      passive_candelabrador: 0xffaa44,
+      passive_duplicator: 0xffcc88,
+      passive_bracer: 0x66ccff
     };
 
     const UPGRADE_ICONS = {
@@ -5580,28 +5623,42 @@ export class GameScene extends Phaser.Scene {
       projectile_count: "◎",
       movement_speed: "➣",
       pickup_radius: "⊕",
+      lifesteal: "🩸",
+      max_hp_boost: "❤",
+      xp_boost: "⭐",
+      luck_boost: "🍀",
+      crit_chance: "💥",
+      duration_boost: "⏳",
+      cooldown_reduction: "🕐",
+      revival: "💀",
       passive_ember_core: "🔥",
       passive_blade_sigil: "🗡",
       passive_iron_shell: "🛡",
       passive_swift_feet: "👟",
       passive_wings: "🪶",
       passive_armor: "🔰",
-      passive_hollow_heart: "❤",
+      passive_hollow_heart: "💖",
       passive_attractorb: "🧲",
-      passive_frost_shard: "❄"
+      passive_frost_shard: "❄",
+      passive_spellbinder: "📖",
+      passive_candelabrador: "🕯",
+      passive_duplicator: "📋",
+      passive_bracer: "🤲"
     };
 
-    const optStartY = centerY - 60;
-    const optHeight = 72;
-    const optGap = 10;
-    const optWidth = panelWidth - 60;
+    // ── Option cards ──
+    const optStartY = centerY - ph + 72;
+    const optHeight = 62;
+    const optGap = 6;
+    const optWidth = panelWidth - 36;
+    const optLeft = centerX - optWidth / 2;
 
     choices.forEach((upgrade, index) => {
       const y = optStartY + index * (optHeight + optGap);
-      const color = UPGRADE_COLORS[upgrade.id] || 0x5ca7ff;
+      if (y + optHeight / 2 > centerY + ph - 62) return;
+      const color = UPGRADE_COLORS[upgrade.id] || 0xc4a040;
       const icon = UPGRADE_ICONS[upgrade.id] || "?";
 
-      // Check if this is an evolution option
       let isEvolution = false;
       let evoName = "";
       if (upgrade.passiveKey) {
@@ -5615,71 +5672,46 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      // Option background
-      const bgColor = isEvolution ? 0x1a3050 : 0x1a2640;
-      const strokeColor = isEvolution ? 0xffdd44 : 0x3a6aaf;
+      const bgColor = isEvolution ? 0x2a3a2a : 0x2a2a4a;
+      const strokeColor = isEvolution ? 0xfef08a : 0xc4a040;
       const box = this.add.rectangle(centerX, y, optWidth, optHeight, bgColor, 0.96)
         .setStrokeStyle(isEvolution ? 2 : 1, strokeColor, 0.9)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0).setDepth(depth + 2);
 
-      // Color accent bar (left)
-      const accent = this.add.rectangle(centerX - optWidth / 2 + 4, y, 6, optHeight - 8, color, 1)
+      // Accent bar
+      const accent = this.add.rectangle(optLeft + 3, y, 4, optHeight - 8, color, 1)
         .setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
 
       // Icon
-      const iconText = this.add.text(centerX - optWidth / 2 + 22, y - 12, icon, {
-        fontFamily: "Zpix", fontSize: "22px"
-      }).setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
+      const iconX = optLeft + 16;
+      const iconText = this.add.text(iconX, y, icon, {
+        fontFamily: "ZpixOne", fontSize: "20px"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
 
-      // Name + key hint
+      // Name
+      const textLeft = optLeft + 32;
       let nameStr = `[${index + 1}] ${upgrade.label}`;
-      if (upgrade.isPassive && this.player.hasPassive(upgrade.passiveKey)) {
-        nameStr += " [已拥有]";
-      }
-      const nameText = this.add.text(centerX - optWidth / 2 + 50, y - 18, nameStr, {
-        fontFamily: "Zpix", fontSize: "17px", color: "#f0f4ff",
-        stroke: "#0e1a2e", strokeThickness: 3
+      const nameText = this.add.text(textLeft, y - 12, nameStr, {
+        fontFamily: "ZpixOne", fontSize: "14px", color: "#f0f4ff",
+        stroke: "#0a0a0a", strokeThickness: 2
       }).setScrollFactor(0).setDepth(depth + 3);
 
       // Description
       let descStr = upgrade.description || "";
       if (isEvolution) {
-        descStr = `✨ 进化! → ${evoName}`;
+        descStr = `✦ ${evoName}`;
       }
-      const descText = this.add.text(centerX - optWidth / 2 + 50, y + 4, descStr, {
-        fontFamily: "Zpix", fontSize: "13px", color: isEvolution ? "#ffdd66" : "#8aa8cc"
+      const descText = this.add.text(textLeft, y + 8, descStr, {
+        fontFamily: "ZpixOne", fontSize: "11px", color: isEvolution ? "#fef08a" : "#a0a0b0"
       }).setScrollFactor(0).setDepth(depth + 3);
 
-      // Weapon level info for weapon-related upgrades
-      let levelStr = "";
-      if (upgrade.id === "weapon_damage" || upgrade.id === "attack_speed" || upgrade.id === "projectile_count") {
-        const weapons = this.player.weapons || [];
-        if (weapons.length > 0) {
-          levelStr = weapons.map(w => `${w.type} Lv.${w.level}`).join("  ");
-        }
-      }
-      if (upgrade.passiveKey && !isEvolution) {
-        const matchingRule2 = WEAPON_EVOLUTION_RULES.find(r => r.requiredPassive === upgrade.passiveKey);
-        if (matchingRule2) {
-          const ownedW = this.player.weapons?.find(w => (w.baseType || w.type) === matchingRule2.weapon);
-          if (ownedW) {
-            levelStr = `${matchingRule2.weapon} Lv.${ownedW.level}/${matchingRule2.level} → ${matchingRule2.evolution}`;
-          }
-        }
-      }
-      if (levelStr) {
-        const levelText = this.add.text(centerX + optWidth / 2 - 16, y - 8, levelStr, {
-          fontFamily: "Zpix", fontSize: "11px", color: "#6688aa"
-        }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
-        optionObjects.push(levelText);
-      }
-
       // Evolution badge
+      const infoRight = centerX + pw - 14;
       if (isEvolution) {
-        const badge = this.add.text(centerX + optWidth / 2 - 16, y + 10, "进化!", {
-          fontFamily: "Zpix", fontSize: "12px", color: "#ffdd44",
-          stroke: "#2a1a10", strokeThickness: 2
+        const badge = this.add.text(infoRight, y - 12, "进化!", {
+          fontFamily: "ZpixOne", fontSize: "10px", color: "#fef08a",
+          stroke: "#0a0a0a", strokeThickness: 2
         }).setOrigin(1, 0.5).setScrollFactor(0).setDepth(depth + 3);
         optionObjects.push(badge);
       }
@@ -5689,30 +5721,67 @@ export class GameScene extends Phaser.Scene {
         this.closeLevelUpChoices();
       };
       box.on("pointerdown", chooseUpgrade);
-      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x224060 : 0x223454, 1));
+      box.on("pointerover", () => box.setFillStyle(isEvolution ? 0x3a5a3a : 0x3a3a5a, 1));
       box.on("pointerout", () => box.setFillStyle(bgColor, 0.96));
       this.levelUpOptionActions.push(chooseUpgrade);
 
       optionObjects.push(box, accent, iconText, nameText, descText);
     });
 
-    // Bottom bar: current weapons
+    // ── Weapon bar ──
     const weapons = this.player.weapons || [];
+    const barY = centerY + ph - 44;
     if (weapons.length > 0) {
-      const barY = centerY + panelHeight / 2 - 30;
-      const barBg = this.add.rectangle(centerX, barY, panelWidth - 40, 28, 0x0a1520, 0.8)
-        .setStrokeStyle(1, 0x2a4a6f, 0.6).setScrollFactor(0).setDepth(depth + 2);
       const weaponStr = weapons.map(w => {
         const name = (w.baseType || w.type).replace(/_/g, " ");
         return `${name} Lv.${w.level}`;
-      }).join("  |  ");
+      }).join(" | ");
       const weaponBar = this.add.text(centerX, barY, weaponStr, {
-        fontFamily: "Zpix", fontSize: "12px", color: "#8ab8dd"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
-      optionObjects.push(barBg, weaponBar);
+        fontFamily: "ZpixOne", fontSize: "10px", color: "#8a8aaa"
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 2);
+      optionObjects.push(weaponBar);
     }
 
-    this.levelUpUi = [overlay, panel, panelInner, title, subtitle, ...optionObjects];
+    // ── Reroll & Skip ──
+    const btnRowY = centerY + ph - 22;
+    const rerollsLeft = this.rerollsRemaining ?? 0;
+
+    const rerollBtn = this.add.rectangle(centerX - 46, btnRowY, 80, 28, 0x3b5998, 1)
+      .setStrokeStyle(2, rerollsLeft > 0 ? 0xc4a040 : 0x4a4a5a, 0.8)
+      .setScrollFactor(0).setDepth(depth + 2)
+      .setInteractive({ useHandCursor: rerollsLeft > 0 });
+    const rerollText = this.add.text(centerX - 46, btnRowY, `重抽${rerollsLeft}`, {
+      fontFamily: "ZpixOne", fontSize: "11px", color: rerollsLeft > 0 ? "#ffffff" : "#6a6a7a"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+
+    if (rerollsLeft > 0) {
+      const doReroll = () => {
+        this.rerollsRemaining -= 1;
+        this.closeLevelUpChoices();
+        this.pendingLevelUps += 1;
+        this.time.delayedCall(50, () => this.openLevelUpChoices());
+      };
+      rerollBtn.on("pointerdown", doReroll);
+      rerollText.setInteractive({ useHandCursor: true });
+      rerollText.on("pointerdown", doReroll);
+    }
+
+    const skipBtn = this.add.rectangle(centerX + 46, btnRowY, 64, 28, 0xb03020, 1)
+      .setStrokeStyle(2, 0xc4a040, 1)
+      .setScrollFactor(0).setDepth(depth + 2)
+      .setInteractive({ useHandCursor: true });
+    const skipText = this.add.text(centerX + 46, btnRowY, "跳过", {
+      fontFamily: "ZpixOne", fontSize: "11px", color: "#ffffff"
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+
+    const doSkip = () => this.closeLevelUpChoices();
+    skipBtn.on("pointerdown", doSkip);
+    skipText.on("pointerdown", doSkip);
+    skipText.setInteractive({ useHandCursor: true });
+
+    optionObjects.push(rerollBtn, rerollText, skipBtn, skipText);
+
+    this.levelUpUi = [overlay, panelShadow, panel, panelInner, title, subtitle, ...optionObjects];
   }
 
   handleLevelUpInput() {
@@ -5741,145 +5810,104 @@ export class GameScene extends Phaser.Scene {
 
     const cx = 640;
     const cy = 360;
-    const pw = 520;
-    const ph = 440;
+    const pw = 440;
+    const ph = 340;
     const d = RENDER_DEPTH.MENUS + 10;
     const uiObjs = [];
 
     const backdrop = this.add.rectangle(cx, cy, 1280, 720, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
-    const panel = this.add.rectangle(cx, cy, pw, ph, 0x10203a, 0.96).setStrokeStyle(3, 0x5ca7ff, 0.96).setScrollFactor(0).setDepth(d + 1);
-    const panelInner = this.add.rectangle(cx, cy, pw - 14, ph - 14, 0x0b1830, 0.94).setStrokeStyle(1, 0x3a7abf, 0.88).setScrollFactor(0).setDepth(d + 1);
+    const panelShadow = this.add.rectangle(cx + 2, cy + 4, pw, ph, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 1);
+    const panel = this.add.rectangle(cx, cy, pw, ph, 0x3a3a5a, 0.98).setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
+    const panelInner = this.add.rectangle(cx, cy, pw - 12, ph - 12, 0x2a2a4a, 0).setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
 
     const title = this.add.text(cx, cy - ph / 2 + 24, "游戏暂停", {
-      fontFamily: "Zpix", fontSize: "30px", color: "#f8fbff", stroke: "#102640", strokeThickness: 6
+      fontFamily: "ZpixOne", fontSize: "24px", color: "#f8fbff", stroke: "#0a0a0a", strokeThickness: 5
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-    // Stats section (left side)
-    const statsX = cx - pw / 2 + 20;
-    const statsW = pw / 2 - 30;
-    let sy = cy - ph / 2 + 58;
+    // Back button (top-right of panel)
+    const backBtnX = cx + pw / 2 - 58;
+    const backBtnY = cy - ph / 2 + 28;
+    const backBtnW = 96;
+    const backBtnH = 40;
+    const backShadow = this.add.rectangle(backBtnX, backBtnY + 2, backBtnW, backBtnH, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 2);
+    const backPlate = this.add.rectangle(backBtnX, backBtnY, backBtnW, backBtnH, 0xb03020, 1)
+      .setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const backText = this.add.text(backBtnX, backBtnY, "返回", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
+    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
-    const addStatLine = (label, value, color = "#c8ddef") => {
+    backPlate.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
+    backPlate.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
+    backText.on("pointerover", () => { backPlate.setFillStyle(0xc04030, 1); backText.setColor("#fef08a"); });
+    backText.on("pointerout", () => { backPlate.setFillStyle(0xb03020, 1); backText.setColor("#ffffff"); });
+
+    const onResume = () => this.closePauseMenu();
+    backPlate.on("pointerdown", onResume);
+    backText.on("pointerdown", onResume);
+
+    // ── Compact stats (single column) ──
+    const leftX = cx - pw / 2 + 24;
+    const rightX = cx + pw / 2 - 24;
+    let sy = cy - ph / 2 + 56;
+    const lineH = 17;
+
+    const addRow = (label, value, color = "#ffffff") => {
       uiObjs.push(
-        this.add.text(statsX, sy, label, { fontFamily: "Zpix", fontSize: "12px", color: "#7a9abf" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(statsX + statsW, sy, String(value), { fontFamily: "Zpix", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(leftX, sy, label, { fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0" }).setScrollFactor(0).setDepth(d + 2),
+        this.add.text(rightX, sy, String(value), { fontFamily: "ZpixOne", fontSize: "12px", color }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
       );
-      sy += 18;
+      sy += lineH;
     };
 
-    const addSectionHeader = (text) => {
-      uiObjs.push(
-        this.add.text(statsX, sy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
-      );
-      sy += 18;
-    };
-
-    // Run stats
-    addSectionHeader("— 运行数据 —");
     const totalSec = Math.floor(this.runTimeMs / 1000);
     const min = Math.floor(totalSec / 60);
     const sec = totalSec % 60;
-    addStatLine("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
-    addStatLine("击杀数", this.totalKills);
-    addStatLine("当前等级", this.level);
-    addStatLine("最大连击", `x${this.maxKillCombo}`);
-    sy += 6;
-
-    // Player stats
-    addSectionHeader("— 玩家属性 —");
-    addStatLine("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
-    addStatLine("移动速度", this.player.speed, "#66ff88");
-    addStatLine("拾取范围", Math.round(this.player.pickupRadius + (this.level - 1) * 2), "#cc88ff");
-    if (this.player.damageReduction > 0) addStatLine("伤害减免", `${Math.round(this.player.damageReduction * 100)}%`, "#aaaaff");
-    if (this.player.armorFlat > 0) addStatLine("护甲", `-${this.player.armorFlat}`, "#ccccff");
-    sy += 6;
-
-    // Passives
-    const passives = Object.keys(this.player.passives || {});
-    if (passives.length > 0) {
-      addSectionHeader("— 被动道具 —");
-      passives.forEach(p => {
-        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === p);
-        addStatLine(info?.label || p, "✓", "#88ff88");
-      });
-    }
-
-    // Weapons section (right side)
-    const wx = cx + 10;
-    const ww = pw / 2 - 30;
-    let wy = cy - ph / 2 + 58;
+    addRow("存活时间", `${min}:${String(sec).padStart(2, "0")}`);
+    addRow("击杀数", this.totalKills);
+    addRow("等级", this.level);
+    addRow("生命", `${this.player.hp}/${this.player.maxHp}`, "#ff8866");
+    sy += 4;
 
     const weapons = this.player.weapons || [];
-    const addWeaponHeader = (text) => {
+    if (weapons.length > 0) {
       uiObjs.push(
-        this.add.text(wx, wy, text, { fontFamily: "Zpix", fontSize: "13px", color: "#5ca7ff", fontStyle: "bold" }).setScrollFactor(0).setDepth(d + 2)
+        this.add.text(leftX, sy, "— 武器 —", { fontFamily: "ZpixOne", fontSize: "13px", color: "#fef08a" }).setScrollFactor(0).setDepth(d + 2)
       );
-      wy += 18;
-    };
-
-    addWeaponHeader("— 武器 —");
-    weapons.forEach(w => {
-      const name = (w.baseType || w.type).replace(/_/g, " ");
-      const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
-      const cd = this.weaponSystem?.getEffectiveCooldownMs?.(w) ?? w.cooldownMs;
-      const evoTag = w.evolved ? " ✦" : "";
-      uiObjs.push(
-        this.add.text(wx, wy, `${name}${evoTag}`, { fontFamily: "Zpix", fontSize: "12px", color: w.evolved ? "#ffdd66" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
-        this.add.text(wx + ww, wy, `Lv.${w.level}  DMG:${dmg}  CD:${cd}ms`, { fontFamily: "Zpix", fontSize: "11px", color: "#7a9abf" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
-      );
-      wy += 18;
-    });
-
-    // Evolution hints
-    const evoRules = WEAPON_EVOLUTION_RULES.filter(r => {
-      const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
-      return owned && !owned.evolved;
-    });
-    if (evoRules.length > 0) {
-      wy += 6;
-      addWeaponHeader("— 进化 —");
-      evoRules.forEach(r => {
-        const owned = weapons.find(w => (w.baseType || w.type) === r.weapon);
-        const hasPassive = this.player.hasPassive(r.requiredPassive);
-        const levelOk = owned.level >= r.level;
-        const status = hasPassive && levelOk ? "✓ 就绪" : `Lv.${owned.level}/${r.level} ${hasPassive ? "✓被动" : "✗被动"}`;
-        const info = LEVEL_UP_UPGRADES.find(u => u.passiveKey === r.requiredPassive);
+      sy += lineH;
+      weapons.forEach(w => {
+        const name = (w.baseType || w.type).replace(/_/g, " ");
+        const dmg = this.weaponSystem?.getScaledWeaponDamage?.(w) ?? w.damage;
+        const evoTag = w.evolved ? "✦" : "";
         uiObjs.push(
-          this.add.text(wx, wy, `${r.weapon} → ${r.evolution}`, { fontFamily: "Zpix", fontSize: "11px", color: hasPassive && levelOk ? "#88ff88" : "#8899aa" }).setScrollFactor(0).setDepth(d + 2),
-          this.add.text(wx + ww, wy, status, { fontFamily: "Zpix", fontSize: "10px", color: hasPassive && levelOk ? "#88ff88" : "#667788" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
+          this.add.text(leftX + 8, sy, `${evoTag} ${name}`, { fontFamily: "ZpixOne", fontSize: "11px", color: w.evolved ? "#fef08a" : "#c8ddef" }).setScrollFactor(0).setDepth(d + 2),
+          this.add.text(rightX, sy, `Lv.${w.level}  DMG:${dmg}`, { fontFamily: "ZpixOne", fontSize: "11px", color: "#a0a0b0" }).setOrigin(1, 0).setScrollFactor(0).setDepth(d + 2)
         );
-        wy += 16;
+        sy += lineH;
       });
     }
 
-    // Buttons (bottom)
-    const btnY = cy + ph / 2 - 70;
-    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 44, 0x1a324f, 1).setStrokeStyle(2, 0x6ab8ff, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    // ── Buttons ──
+    const btnY = cy + ph / 2 - 52;
+    const resumeBtn = this.add.rectangle(cx - 80, btnY, 140, 38, 0x2d8a3d, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const resumeLabel = this.add.text(cx - 80, btnY, "继续游戏", {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffffff", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
-    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 44, 0x2a1a1a, 1).setStrokeStyle(2, 0xff6666, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const quitBtn = this.add.rectangle(cx + 80, btnY, 140, 38, 0xb03020, 1).setStrokeStyle(3, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
     const quitLabel = this.add.text(cx + 80, btnY, "返回主菜单", {
-      fontFamily: "Zpix", fontSize: "20px", color: "#ffaaaa", stroke: "#0f1c2f", strokeThickness: 4
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff", stroke: "#0a0a0a", strokeThickness: 3
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
 
     const bgmLabel = this.bgmEnabled ? "BGM: ON" : "BGM: OFF";
-    const bgmBtn = this.add.rectangle(cx - 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0x5ca7ff, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const bgmText = this.add.text(cx - 80, btnY + 50, bgmLabel, {
-      fontFamily: "Zpix", fontSize: "14px", color: "#a8c8e8", stroke: "#0d1a2d", strokeThickness: 2
+    const bgmBtn = this.add.rectangle(cx, btnY + 42, 100, 26, 0x2a2a4a, 1).setStrokeStyle(1, 0xc4a040, 0.5).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+    const bgmText = this.add.text(cx, btnY + 42, bgmLabel, {
+      fontFamily: "ZpixOne", fontSize: "12px", color: "#a0a0b0", stroke: "#0a0a0a", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
 
-    const settingsBtn = this.add.rectangle(cx + 80, btnY + 50, 120, 32, 0x1a2a3f, 1).setStrokeStyle(1, 0xffd866, 0.8).setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const settingsLabel = this.add.text(cx + 80, btnY + 50, "设置", {
-      fontFamily: "Zpix", fontSize: "14px", color: "#ffd866", stroke: "#0d1a2d", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
-
-    const escHint = this.add.text(cx, cy + ph / 2 - 12, "按 ESC / P 继续", {
-      fontFamily: "Zpix", fontSize: "12px", color: "#5a7a9f", stroke: "#0d1a2d", strokeThickness: 2
+    const escHint = this.add.text(cx, cy + ph / 2 - 10, "ESC / P 继续", {
+      fontFamily: "ZpixOne", fontSize: "11px", color: "#8a7a3a", stroke: "#0a0a0a", strokeThickness: 2
     }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
-    const onResume = () => this.closePauseMenu();
     resumeBtn.on("pointerdown", onResume);
     resumeLabel.on("pointerdown", onResume);
 
@@ -5900,16 +5928,7 @@ export class GameScene extends Phaser.Scene {
     bgmBtn.on("pointerdown", onBgmToggle);
     bgmText.on("pointerdown", onBgmToggle);
 
-    const onSettings = () => {
-      this.closePauseMenu();
-      if (typeof window !== "undefined" && window.__forgeduelOpenSettings) {
-        window.__forgeduelOpenSettings();
-      }
-    };
-    settingsBtn.on("pointerdown", onSettings);
-    settingsLabel.on("pointerdown", onSettings);
-
-    this.pauseUi = [backdrop, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, settingsBtn, settingsLabel, escHint, ...uiObjs];
+    this.pauseUi = [backdrop, panelShadow, panel, panelInner, title, backShadow, backPlate, backText, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, escHint, ...uiObjs];
   }
 
   closePauseMenu() {
@@ -6032,127 +6051,107 @@ export class GameScene extends Phaser.Scene {
       const canvasW = 1280;
       const canvasH = 720;
       const centerX = canvasW / 2;
-      const optionCount = START_WEAPON_OPTIONS.length;
-      const maxPanelHeight = canvasH - 20;
-      const panelHeight = Math.min(maxPanelHeight, Math.max(500, 260 + optionCount * 72));
+      const panelWidth = 440;
+      const panelHeight = 440;
       const panelTop = Math.max(10, (canvasH - panelHeight) / 2);
       const centerY = panelTop + panelHeight / 2;
-      const panel = this.add
-      .rectangle(centerX, centerY, 700, panelHeight, 0x22150d, 0.96)
-      .setStrokeStyle(3, 0xb48855, 0.96)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 1);
-      const panelInset = this.add
-      .rectangle(centerX, centerY, 672, panelHeight - 30, 0x342214, 0.94)
-      .setStrokeStyle(1, 0x6d4a31, 0.88)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 2);
-      const headerBottom = panelTop + 130;
-      const { titleChip, title } = this.createModalTitle(
-      centerX,
-      panelTop + 50,
-      "选择初始武器",
-      {
-        fontSize: 32,
-        minWidth: 292,
-        badgeDepth: RENDER_DEPTH.MENUS + 3,
-        textDepth: RENDER_DEPTH.MENUS + 4
-      }
-    );
+      const d = RENDER_DEPTH.MENUS;
 
-      const coinText = this.add
-      .text(centerX, panelTop + 85, `金币: ${this.metaData.currency}`, {
-        fontFamily: "Zpix",
-        fontSize: "20px",
-        color: "#e2c388",
-        stroke: "#2e170d",
-        strokeThickness: 3
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      const overlay = this.add.rectangle(centerX, canvasH / 2, canvasW, canvasH, 0x000000, 0.55).setScrollFactor(0).setDepth(d);
+      const panelShadow = this.add.rectangle(centerX + 2, centerY + 4, panelWidth, panelHeight, 0x000000, 0.5).setScrollFactor(0).setDepth(d + 1);
+      const panel = this.add.rectangle(centerX, centerY, panelWidth, panelHeight, 0x3a3a5a, 0.98)
+        .setStrokeStyle(4, 0xc4a040, 1).setScrollFactor(0).setDepth(d + 1);
+      const panelInset = this.add.rectangle(centerX, centerY, panelWidth - 12, panelHeight - 12, 0x2a2a4a, 0)
+        .setStrokeStyle(2, 0x8a7a3a, 0.8).setScrollFactor(0).setDepth(d + 1);
 
-      const subtitle = this.add
-      .text(centerX, headerBottom, "选择一把武器开始游戏", {
-        fontFamily: "Zpix",
-        fontSize: "17px",
-        color: "#d8bf95",
-        stroke: "#2a1a10",
-        strokeThickness: 2
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      const title = this.add.text(centerX, panelTop + 32, "选择初始武器", {
+        fontFamily: "ZpixOne", fontSize: "24px", color: "#fef08a",
+        stroke: "#0a0a0a", strokeThickness: 5
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
+
+      const coinText = this.add.text(centerX, panelTop + 58, `金币: ${this.metaData.currency}`, {
+        fontFamily: "ZpixOne", fontSize: "13px", color: "#a0a0b0",
+        stroke: "#0a0a0a", strokeThickness: 2
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
+
+      const headerBottom = panelTop + 82;
+      const subtitle = this.add.text(centerX, headerBottom, "选择一把武器开始游戏", {
+        fontFamily: "ZpixOne", fontSize: "11px", color: "#8a8aaa",
+        stroke: "#0a0a0a", strokeThickness: 2
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 2);
 
       const statusTextY = centerY + panelHeight / 2 - 22;
       const statusText = this.add
       .text(centerX, statusTextY, "", {
-        fontFamily: "Zpix",
-        fontSize: "18px",
-        color: "#ebd7b7",
-        stroke: "#2e170d",
-        strokeThickness: 4
+        fontFamily: "ZpixOne",
+        fontSize: "12px",
+        color: "#ffb4b4",
+        stroke: "#0a0a0a",
+        strokeThickness: 3
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setDepth(RENDER_DEPTH.MENUS + 4);
+      .setDepth(d + 2);
 
       const optionRows = [];
-      const optAreaTop = headerBottom + 28;
-      const optAreaBottom = statusTextY - 28;
+      const optAreaTop = headerBottom + 14;
+      const optAreaBottom = statusTextY - 14;
       const optAreaHeight = optAreaBottom - optAreaTop;
-      const optionSpacing = Math.min(72, (optAreaHeight - 74) / Math.max(1, optionCount - 1));
-      const optionsStartY = optAreaTop + 37;
+      const optionCount = START_WEAPON_OPTIONS.length;
+      const optionSpacing = Math.min(54, (optAreaHeight - 44) / Math.max(1, optionCount - 1));
+      const optionsStartY = optAreaTop + 22;
+      const optBoxW = panelWidth - 48;
+      const optInlayW = optBoxW - 12;
+      const iconOffsetX = centerX - optBoxW / 2 + 22;
+      const textOffsetX = iconOffsetX + 34;
       START_WEAPON_OPTIONS.forEach((option, index) => {
       const y = optionsStartY + index * optionSpacing;
-      const box = this.add
-        .rectangle(centerX, y, 620, 74, 0x4a2f1d, 0.98)
-        .setStrokeStyle(2, 0xb48855, 0.92)
+      const box = this.add.rectangle(centerX, y, optBoxW, 44, 0x2a2a4a, 0.98)
+        .setStrokeStyle(2, 0xc4a040, 0.9)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 4);
-      const boxInlay = this.add
-        .rectangle(centerX, y, 604, 58, 0xead7b7, 0.88)
-        .setStrokeStyle(1, 0x6d4a31, 0.6)
+        .setDepth(d + 3);
+      const boxInlay = this.add.rectangle(centerX, y, optInlayW, 34, 0x1a1a2a, 0.88)
+        .setStrokeStyle(1, 0x8a7a3a, 0.6)
         .setInteractive({ useHandCursor: true })
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 5);
+        .setDepth(d + 4);
       const weaponIcon = this.add
-        .image(centerX - 314, y, this.getWeaponIconKey(option.weaponType))
-        .setDisplaySize(36, 36)
+        .image(iconOffsetX, y, this.getWeaponIconKey(option.weaponType))
+        .setDisplaySize(22, 22)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
       const heading = this.add
-        .text(centerX - 268, y - 13, `[${index + 1}] ${option.label}`, {
-          fontFamily: "Zpix",
-          fontSize: "24px",
-          color: "#2e170d",
-          stroke: "#f7e8cc",
-          strokeThickness: 1
+        .text(textOffsetX, y - 9, `[${index + 1}] ${option.label}`, {
+          fontFamily: "ZpixOne",
+          fontSize: "14px",
+          color: "#ffffff",
+          stroke: "#0a0a0a",
+          strokeThickness: 3
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
       const detail = this.add
-        .text(centerX - 268, y + 15, "", {
-          fontFamily: "Zpix",
-          fontSize: "13px",
-          color: "#6a4d36",
-          stroke: "#f7e8cc",
+        .text(textOffsetX, y + 9, "", {
+          fontFamily: "ZpixOne",
+          fontSize: "10px",
+          color: "#a0a0b0",
+          stroke: "#0a0a0a",
           strokeThickness: 1
         })
         .setOrigin(0, 0.5)
         .setScrollFactor(0)
-        .setDepth(RENDER_DEPTH.MENUS + 6);
+        .setDepth(d + 5);
 
       const refreshOption = () => {
         const unlocked = Boolean(this.weaponUnlocks[option.id]);
         if (unlocked) {
           detail.setText(`已解锁 · 点击选择`);
-          detail.setColor("#56714b");
+          detail.setColor("#88ff88");
         } else {
           detail.setText(`锁定 · 解锁需要 ${option.unlockCost} 金币`);
-          detail.setColor("#8b5d37");
+          detail.setColor("#ff8888");
         }
       };
 
@@ -6183,7 +6182,7 @@ export class GameScene extends Phaser.Scene {
         this.weaponSelectionActions.push(choose);
       });
 
-      this.weaponSelectionUi = [panel, panelInset, titleChip, title, coinText, subtitle, statusText, ...optionRows];
+      this.weaponSelectionUi = [overlay, panelShadow, panel, panelInset, title, coinText, subtitle, statusText, ...optionRows];
     } catch (error) {
       console.error("[GameScene] Failed to open weapon selection modal, fallback to default weapon.", error);
       this.forceCloseWeaponSelectionWithFallback();
@@ -6283,6 +6282,18 @@ export class GameScene extends Phaser.Scene {
       } else if (upgrade.passiveKey === "frost_shard") {
         this.weaponSystem.addGlobalDamagePercent(upgrade.value, "frost");
         this.showHudAlert("FROST SHARD", 1200);
+      } else if (upgrade.passiveKey === "spellbinder") {
+        this.weaponSystem.addGlobalDurationPercent(upgrade.value);
+        this.showHudAlert("SPELLBINDER", 1200);
+      } else if (upgrade.passiveKey === "candelabrador") {
+        this.weaponSystem.addGlobalRangePercent(upgrade.value);
+        this.showHudAlert("CANDELABRADOR", 1200);
+      } else if (upgrade.passiveKey === "duplicator") {
+        this.weaponSystem.addProjectileCount(upgrade.value);
+        this.showHudAlert("DUPLICATOR", 1200);
+      } else if (upgrade.passiveKey === "bracer") {
+        this.weaponSystem.addAttackSpeedPercent(upgrade.value);
+        this.showHudAlert("BRACER", 1200);
       }
       return;
     }
@@ -6306,6 +6317,42 @@ export class GameScene extends Phaser.Scene {
     }
     if (upgrade.id === "pickup_radius") {
       this.player.pickupRadius += upgrade.value;
+      return;
+    }
+    if (upgrade.id === "lifesteal") {
+      this.player.lifestealChance = (this.player.lifestealChance || 0) + upgrade.value;
+      this.player.lifestealAmount = (this.player.lifestealAmount || 0) + 5;
+      return;
+    }
+    if (upgrade.id === "max_hp_boost") {
+      this.player.maxHp = Math.round(this.player.maxHp * (1 + upgrade.value));
+      this.player.hp = Math.min(this.player.hp + Math.round(this.player.maxHp * upgrade.value), this.player.maxHp);
+      return;
+    }
+    if (upgrade.id === "xp_boost") {
+      this.metaXpMultiplier += upgrade.value;
+      return;
+    }
+    if (upgrade.id === "luck_boost") {
+      this.player.luck = (this.player.luck || 0) + upgrade.value;
+      return;
+    }
+    if (upgrade.id === "crit_chance") {
+      this.player.critChance = (this.player.critChance || 0) + upgrade.value;
+      this.player.critMultiplier = 2;
+      return;
+    }
+    if (upgrade.id === "duration_boost") {
+      this.weaponSystem.addGlobalDurationPercent(upgrade.value);
+      return;
+    }
+    if (upgrade.id === "cooldown_reduction") {
+      this.weaponSystem.addAttackSpeedPercent(upgrade.value);
+      return;
+    }
+    if (upgrade.id === "revival") {
+      this.player.revivals = (this.player.revivals || 0) + 1;
+      this.showHudAlert("REVIVAL READY", 1500);
     }
   }
 
@@ -6507,24 +6554,32 @@ export class GameScene extends Phaser.Scene {
     this.runMetaCurrency = 0;
   }
 
-  triggerGameOver() {
+  triggerGameOver(force = false) {
     if (this.isGameOver) {
       return;
     }
 
     if (this.gameMode === "coop" && this.networkManager) {
-      this.networkManager.sendPlayerDied();
-      const allDead = this.player.isDead() &&
-        (!this.playerSync || this.playerSync.isAllDead());
-      if (!allDead) {
-        this.player.body?.setVelocity(0, 0);
-        this.showHudAlert("等待队友救援...", 3000);
-        return;
+      if (!this._hasSentPlayerDied) {
+        this._hasSentPlayerDied = true;
+        this.networkManager.sendPlayerDied();
       }
-      this.networkManager.sendGameOver({
-        timeSurvivedMs: this.runTimeMs,
-        enemiesKilled: this.totalKills
-      });
+      if (!force) {
+        const allDead = this.player.isDead() &&
+          (!this.playerSync || this.playerSync.isAllDead());
+        if (!allDead) {
+          this.player.body?.setVelocity(0, 0);
+          this.showHudAlert("等待队友救援...", 3000);
+          return;
+        }
+      }
+      if (!this._hasSentGameOver) {
+        this._hasSentGameOver = true;
+        this.networkManager.sendGameOver({
+          timeSurvivedMs: this.runTimeMs,
+          enemiesKilled: this.totalKills
+        });
+      }
     }
 
     this.isGameOver = true;
@@ -6578,14 +6633,14 @@ export class GameScene extends Phaser.Scene {
 
     // "YOU DIED" text
     const deathText = this.add.text(cx, cy - 30, "YOU DIED", {
-      fontFamily: "Zpix", fontSize: "64px", color: "#ff2222",
+      fontFamily: "ZpixOne", fontSize: "64px", color: "#ff2222",
       stroke: "#000000", strokeThickness: 8,
       shadow: { offsetX: 0, offsetY: 0, color: "#ff0000", blur: 20, fill: true }
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0).setScale(0.3);
 
     // Subtitle
     const subText = this.add.text(cx, cy + 30, `击杀: ${this.totalKills}  等级: ${this.level}  存活: ${this.formatRunTime(this.runTimeMs)}`, {
-      fontFamily: "Zpix", fontSize: "18px", color: "#cc8888",
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#cc8888",
       stroke: "#000000", strokeThickness: 4
     }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 1).setAlpha(0);
 
@@ -6974,14 +7029,14 @@ export class GameScene extends Phaser.Scene {
     const lineSpacing = 16 * scale;
     const fontSize = Math.floor(14 * scale);
     const style = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${fontSize}px`,
       color: "#f7f3de",
       stroke: "#1c130e",
       strokeThickness: Math.max(1, Math.floor(2 * scale))
     };
     const labelStyle = {
-      fontFamily: "Zpix",
+      fontFamily: "ZpixOne",
       fontSize: `${Math.floor(10 * scale)}px`,
       color: "#d6c6a2",
       stroke: "#1c130e",

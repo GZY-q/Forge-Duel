@@ -1,5 +1,3 @@
-import { createBackButton } from "../ui/createBackButton.js";
-
 const COIN_STORAGE_KEY = "forgeduel_coins";
 const META_STORAGE_KEY = "forgeduel_meta_v1";
 const UPGRADE_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
@@ -7,237 +5,387 @@ const UPGRADE_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
 const DEFAULT_UPGRADES = Object.freeze({
   dash_cooldown: 0,
   xp_gain: 0,
-  movement_speed: 0
+  movement_speed: 0,
+  power: 0,
+  max_hp: 0,
+  armor: 0,
+  amount: 0,
+  cooldown: 0,
+  area: 0,
+  speed: 0,
+  duration: 0,
+  move_speed2: 0,
+  magnet: 0,
+  luck: 0,
+  growth: 0
 });
 
 const UPGRADE_DEFINITIONS = [
-  {
-    key: "dash_cooldown",
-    label: "闪避冷却",
-    effectLabel: "-5%",
-    baseCost: 45,
-    costStep: 20,
-    maxLevel: 10
-  },
-  {
-    key: "xp_gain",
-    label: "经验获取",
-    effectLabel: "+10%",
-    baseCost: 55,
-    costStep: 24,
-    maxLevel: 10
-  },
-  {
-    key: "movement_speed",
-    label: "移动速度",
-    effectLabel: "+5%",
-    baseCost: 40,
-    costStep: 18,
-    maxLevel: 10
-  }
+  { key: "power", label: "威力", description: "每级提高 5% 造成的伤害", effectLabel: "+5%", baseCost: 200, costStep: 100, maxLevel: 5, icon: "⚔️" },
+  { key: "max_hp", label: "最大生命值", description: "每级提高 10% 最大生命值", effectLabel: "+10%", baseCost: 200, costStep: 100, maxLevel: 3, icon: "❤️" },
+  { key: "armor", label: "装甲", description: "每级增加 1 点护甲", effectLabel: "+1", baseCost: 600, costStep: 200, maxLevel: 3, icon: "🛡️" },
+  { key: "amount", label: "数量", description: "增加 1 个武器投射物数量", effectLabel: "+1", baseCost: 5000, costStep: 0, maxLevel: 1, icon: "🔢" },
+  { key: "cooldown", label: "冷却", description: "每级减少 2.5% 武器冷却时间", effectLabel: "-2.5%", baseCost: 900, costStep: 300, maxLevel: 2, icon: "⏱️" },
+  { key: "area", label: "区域", description: "每级扩大 5% 武器效果范围", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "📐" },
+  { key: "speed", label: "速度", description: "每级提高 5% 武器投射物速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "💨" },
+  { key: "duration", label: "持续时间", description: "每级延长 5% 武器持续时间", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "⏳" },
+  { key: "move_speed2", label: "速度", description: "每级提高 5% 移动速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "👢" },
+  { key: "magnet", label: "Magnet", description: "每级扩大 25% 拾取范围", effectLabel: "+25%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "🧲" },
+  { key: "luck", label: "幸运", description: "每级提高 10% 幸运值", effectLabel: "+10%", baseCost: 600, costStep: 200, maxLevel: 3, icon: "🍀" },
+  { key: "growth", label: "成长", description: "每级提高 3% 经验获取", effectLabel: "+3%", baseCost: 900, costStep: 300, maxLevel: 5, icon: "📈" }
 ];
 
 function toSafeInt(value) {
   const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return 0;
-  }
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
   return Math.floor(parsed);
 }
+
+import {
+  createVSBackground,
+  createVSTopBar,
+  createVSBackButton,
+  createVSPanel,
+  createVSCard,
+  createVSLevelSquares
+} from "../ui/vsUI.js";
 
 export class UpgradeScene extends Phaser.Scene {
   constructor() {
     super("UpgradeScene");
     this.coins = 0;
     this.upgrades = { ...DEFAULT_UPGRADES };
-    this.coinsText = null;
+    this.selectedIndex = 0;
+    this.cardObjects = [];
+    this.detailObjects = null;
     this.statusText = null;
   }
 
   create() {
-    const camera = this.cameras.main;
-    const centerX = camera.width * 0.5;
+    this.cardObjects = [];
+    this.detailObjects = null;
+    this.statusText = null;
+    this.selectedIndex = 0;
+
+    const cam = this.cameras.main;
+    const cx = cam.width * 0.5;
+    const cy = cam.height * 0.5;
 
     this.coins = this.loadCoins();
     this.upgrades = this.loadUpgrades();
 
-    this.add.rectangle(centerX, camera.height * 0.5, camera.width, camera.height, 0x071120, 1);
-    for (let y = 0; y < camera.height; y += 32) {
-      const color = Math.floor(y / 32) % 2 === 0 ? 0x0d1a31 : 0x11213d;
-      this.add.rectangle(centerX, y + 16, camera.width, 30, color, 1).setOrigin(0.5);
+    // ── Background ──
+    createVSBackground(this);
+
+    // ── Top bar (coins only, no right button) ──
+    this.topBar = createVSTopBar(this, { coins: this.coins });
+
+    // ── Back button (top-right) ──
+    const doClose = () => {
+      const mainMenu = this.scene.get("MainMenuScene");
+      if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+        mainMenu.closeSubMenu();
+      } else {
+        this.scene.stop("UpgradeScene");
+      }
+    };
+    createVSBackButton(this, cam.width - 84, 36, doClose);
+
+    // ── ESC key closes ──
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", doClose);
     }
-    this.add.rectangle(centerX, camera.height * 0.5, camera.width - 72, camera.height - 80, 0x0b1830, 0.92).setStrokeStyle(4, 0x5ca7ff, 1);
-    this.add.rectangle(centerX, camera.height * 0.5, camera.width - 86, camera.height - 94, 0, 0).setStrokeStyle(2, 0xb8e0ff, 0.92);
-    this.add
-      .text(centerX, 72, "升级商店", {
-        fontFamily: "Zpix",
-        fontSize: "38px",
-        color: "#ffffff",
-        stroke: "#0b1220",
-        strokeThickness: 6
-      })
-      .setOrigin(0.5);
 
-    this.coinsText = this.add
-      .text(centerX, 118, "", {
-        fontFamily: "Zpix",
-        fontSize: "24px",
-        color: "#ffe08a",
-        stroke: "#2a1a06",
-        strokeThickness: 4
-      })
-      .setOrigin(0.5);
+    //========== 增强选择面板尺寸 ==========
+    const panelW = 780;
+    const panelH = 560;
+    const panelCenterY = cy + 15;
+    const panelTop = panelCenterY - panelH / 2;
+    const panelBottom = panelCenterY + panelH / 2;
+    createVSPanel(this, cx, panelCenterY, panelW, panelH);
 
-    const headerY = 176;
-    this.add.rectangle(centerX, headerY + 6, 930, 44, 0x152947, 0.95).setStrokeStyle(2, 0x7bc3ff, 1);
-    this.add.text(220, headerY, "升级", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(530, headerY, "等级", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(650, headerY, "花费", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
-    this.add.text(850, headerY, "效果", { fontFamily: "Zpix", fontSize: "22px", color: "#cfe9ff" });
+    //========== 标题 ==========
+    // Y偏移60（面板顶部往下60px）| 字号30px
+    this.add.text(cx, panelTop + 60, "增强选择", {
+      fontFamily: "ZpixOne", fontSize: "30px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5);
 
-    UPGRADE_DEFINITIONS.forEach((definition, index) => {
-      this.createUpgradeRow(definition, index);
+    //========== 卡片网格 ==========
+    // 列数（默认4列）
+    const cols = 4;
+    // 卡片宽度（默认148）
+    const cardW = 148;
+    // 卡片高度（默认90）
+    const cardH = 90;
+    // 水平间距（默认10）
+    const gapX = 10;
+    // 垂直间距（默认7）
+    const gapY = 7;
+    // 网格总宽度
+    const gridW = cols * cardW + (cols - 1) * gapX;
+    // 网格起始X（居中）
+    const startX = cx - gridW / 2 + cardW / 2;
+    // 网格起始Y（默认panelTop + 160）
+    const startY = panelTop + 160;
+
+    UPGRADE_DEFINITIONS.forEach((def, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const cardX = startX + col * (cardW + gapX);
+      const cardY = startY + row * (cardH + gapY);
+      this.createCard(def, i, cardX, cardY, cardW, cardH);
     });
 
-    this.statusText = this.add
-      .text(centerX, 552, "", {
-        fontFamily: "Zpix",
-        fontSize: "20px",
-        color: "#cde5ff",
-        stroke: "#0e1a2a",
-        strokeThickness: 4
-      })
+    const gridBottom = startY + (3 - 1) * (cardH + gapY) + cardH / 2;
+
+    //========== 状态文字 ==========
+    // 位于卡片下方 | 字号14px
+    this.statusText = this.add.text(cx, gridBottom + 14, "", {
+      fontFamily: "ZpixOne", fontSize: "14px", color: "#cde5ff",
+      stroke: "#0e1a2a", strokeThickness: 3
+    }).setOrigin(0.5);
+
+    //========== 详情面板 ==========
+    // Y位置（默认panelBottom - 50）
+    const detailY = panelBottom - 50;
+    this.createDetailPanel(cx, detailY, panelW - 30, 80);
+
+    // Select first by default
+    this.selectUpgrade(0);
+    this.refreshCardLevels();
+  }
+
+  createCard(def, index, x, y, w, h) {
+    const container = this.add.container(x, y);
+
+    const bg = this.add.rectangle(0, 0, w, h, 0x3a3a4a, 0.95)
+      .setStrokeStyle(2, 0xc4a040, 0.9)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    container.add(bg);
+
+    // Name
+    const nameText = this.add.text(0, -h / 2 + 16, def.label, {
+      fontFamily: "ZpixOne", fontSize: "13px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 3
+    }).setOrigin(0.5);
+    container.add(nameText);
+
+    // Icon background
+    const iconBg = this.add.rectangle(0, -2, 40, 40, 0x1a1a2a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1);
+    container.add(iconBg);
+
+    // Icon
+    const icon = this.add.text(0, -2, def.icon || "?", {
+      fontFamily: "ZpixOne", fontSize: "22px"
+    }).setOrigin(0.5);
+    container.add(icon);
+
+    // Level squares
+    const squares = createVSLevelSquares(this, container, def.maxLevel, 0, h / 2 - 14);
+    container.setData("squares", squares);
+
+    // Click
+    bg.on("pointerdown", () => {
+      this.selectUpgrade(index);
+      this.tweens.add({
+        targets: container, scaleX: 0.96, scaleY: 0.96,
+        duration: 60, yoyo: true
+      });
+    });
+
+    bg.on("pointerover", () => {
+      bg.setStrokeStyle(3, 0xfef08a, 1);
+    });
+    bg.on("pointerout", () => {
+      const isSelected = this.selectedIndex === index;
+      bg.setStrokeStyle(isSelected ? 3 : 2, isSelected ? 0xffffff : 0xc4a040, 1);
+    });
+
+    this.cardObjects.push({ container, bg, def, squares });
+  }
+
+  createDetailPanel(x, y, w, h) {
+    const container = this.add.container(x, y);
+
+    const bg = this.add.rectangle(0, 0, w, h, 0x4a4a5a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1)
       .setOrigin(0.5);
+    container.add(bg);
 
-    this.createButton(centerX, 628, "开始游戏", () => {
-      const selectedShip = this.resolveSelectedShip();
-      this.scene.start("GameScene", selectedShip ? { selectedShip } : undefined);
-    }, 200, 50);
+    // Icon (large)
+    const iconBg = this.add.rectangle(-w / 2 + 46, 0, 52, 52, 0x1a1a2a, 1)
+      .setStrokeStyle(2, 0xc4a040, 1);
+    container.add(iconBg);
 
-    createBackButton(this, () => this.scene.start("MainMenuScene"));
+    const icon = this.add.text(-w / 2 + 46, 0, "", {
+      fontFamily: "ZpixOne", fontSize: "28px"
+    }).setOrigin(0.5);
+    container.add(icon);
 
-    this.refreshCoinsText();
+    // Name
+    const nameText = this.add.text(-w / 2 + 100, -16, "", {
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0, 0.5);
+    container.add(nameText);
+
+    // Description
+    const descText = this.add.text(-w / 2 + 100, 12, "", {
+      fontFamily: "ZpixOne", fontSize: "13px", color: "#d4d4e0",
+      stroke: "#1a1a2a", strokeThickness: 2
+    }).setOrigin(0, 0.5);
+    container.add(descText);
+
+    // Cost
+    const costText = this.add.text(w / 2 - 130, -12, "", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffe08a",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(1, 0.5);
+    container.add(costText);
+
+    // Buy button
+    const btnW = 110;
+    const btnH = 40;
+    const btnX = w / 2 - 70;
+    const btnY = 12;
+
+    const btnShadow = this.add.rectangle(btnX, btnY + 3, btnW, btnH, 0x000000, 0.5).setOrigin(0.5);
+    container.add(btnShadow);
+
+    const btnBg = this.add.rectangle(btnX, btnY, btnW, btnH, 0x2d8a3d, 1)
+      .setStrokeStyle(3, 0xc4a040, 1)
+      .setOrigin(0.5)
+      .setInteractive({ useHandCursor: true });
+    container.add(btnBg);
+
+    const btnText = this.add.text(btnX, btnY, "购买", {
+      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
+      stroke: "#000000", strokeThickness: 4
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    container.add(btnText);
+
+    // Hover
+    btnBg.on("pointerover", () => {
+      btnBg.setFillStyle(0x3aaa3a, 1);
+      btnBg.setStrokeStyle(3, 0xfef08a, 1);
+      btnText.setColor("#fef08a");
+    });
+    btnBg.on("pointerout", () => {
+      btnBg.setFillStyle(0x2d8a3d, 1);
+      btnBg.setStrokeStyle(3, 0xc4a040, 1);
+      btnText.setColor("#ffffff");
+    });
+
+    const trigger = () => {
+      const def = this.detailDef;
+      if (!def) return;
+      this.purchaseUpgrade(def);
+    };
+    btnBg.on("pointerdown", trigger);
+    btnText.on("pointerdown", trigger);
+
+    this.detailObjects = { container, icon, nameText, descText, costText, btnBg, btnText };
   }
 
-  createUpgradeRow(definition, index) {
-    const y = 230 + index * 92;
-    this.add.rectangle(652, y + 14, 930, 58, 0x13233d, 0.9).setStrokeStyle(2, 0x345c87, 0.95);
-    const levelText = this.add.text(530, y, "", { fontFamily: "Zpix", fontSize: "24px", color: "#f2f8ff" });
-    const costText = this.add.text(650, y, "", { fontFamily: "Zpix", fontSize: "24px", color: "#ffe08a" });
-    const effectText = this.add.text(850, y, definition.effectLabel, { fontFamily: "Zpix", fontSize: "24px", color: "#9ff0b6" });
+  selectUpgrade(index) {
+    this.selectedIndex = index;
+    const def = UPGRADE_DEFINITIONS[index];
 
-    this.add.text(220, y, definition.label, { fontFamily: "Zpix", fontSize: "24px", color: "#f2f8ff" });
+    // Update card borders
+    this.cardObjects.forEach((card, i) => {
+      const isSelected = i === index;
+      card.bg.setStrokeStyle(isSelected ? 3 : 2, isSelected ? 0xffffff : 0xc4a040, 1);
+    });
 
-    const buyButton = this.createButton(1080, y + 14, "购买", () => {
-      this.purchaseUpgrade(definition, levelText, costText);
-    }, 130, 42);
+    // Update detail panel
+    const detail = this.detailObjects;
+    const level = this.upgrades[def.key] ?? 0;
+    const isMaxed = level >= def.maxLevel;
+    const cost = isMaxed ? 0 : this.getUpgradeCost(def, level);
 
-    buyButton.setDepth(3);
-    levelText.setDepth(3);
-    costText.setDepth(3);
-    effectText.setDepth(3);
-    this.refreshUpgradeRow(definition, levelText, costText);
-  }
+    detail.icon.setText(def.icon || "?");
+    detail.nameText.setText(def.label);
+    detail.descText.setText(isMaxed
+      ? `${def.description}（已满级）`
+      : `${def.description}（${def.effectLabel}）`
+    );
+    detail.costText.setText(isMaxed ? "已满级" : `💰 ${cost}`);
+    detail.costText.setColor(isMaxed ? "#89f5a6" : "#ffe08a");
 
-  refreshUpgradeRow(definition, levelText, costText) {
-    const level = this.upgrades[definition.key] ?? 0;
-    const isMaxed = level >= definition.maxLevel;
-    levelText.setText(`等级 ${level}`);
     if (isMaxed) {
-      costText.setText("满级");
-      costText.setColor("#89f5a6");
-      return;
+      detail.btnBg.setFillStyle(0x4a4a4a, 1);
+      detail.btnBg.disableInteractive();
+      detail.btnText.disableInteractive();
+    } else {
+      detail.btnBg.setFillStyle(0x2d8a3d, 1);
+      detail.btnBg.setInteractive({ useHandCursor: true });
+      detail.btnText.setInteractive({ useHandCursor: true });
     }
-    const cost = this.getUpgradeCost(definition, level);
-    costText.setText(`${cost}`);
-    costText.setColor("#ffe08a");
+
+    this.detailDef = def;
   }
 
-  purchaseUpgrade(definition, levelText, costText) {
-    const level = this.upgrades[definition.key] ?? 0;
-    if (level >= definition.maxLevel) {
-      this.setStatus("已达到最大等级。", "#9ff0b6");
+  purchaseUpgrade(def) {
+    const level = this.upgrades[def.key] ?? 0;
+    if (level >= def.maxLevel) {
+      this.setStatus("已达到最大等级", "#9ff0b6");
       return;
     }
 
-    const cost = this.getUpgradeCost(definition, level);
+    const cost = this.getUpgradeCost(def, level);
     if (this.coins < cost) {
-      this.setStatus("金币不足。", "#ffb4b4");
+      this.setStatus("金币不足", "#ffb4b4");
       return;
     }
 
     this.coins -= cost;
-    this.upgrades[definition.key] = level + 1;
+    this.upgrades[def.key] = level + 1;
     this.saveCoins(this.coins);
     this.saveUpgrades(this.upgrades);
+    this.topBar.setCoins(this.coins);
 
-    this.refreshCoinsText();
-    this.refreshUpgradeRow(definition, levelText, costText);
-    this.setStatus(`${definition.label} 升级购买完成`, "#9ff0b6");
+    this.refreshCardLevels();
+    this.selectUpgrade(this.selectedIndex);
+    this.setStatus(`${def.label} 升级成功！`, "#9ff0b6");
+  }
+
+  refreshCardLevels() {
+    this.cardObjects.forEach((card, i) => {
+      const def = UPGRADE_DEFINITIONS[i];
+      const level = this.upgrades[def.key] ?? 0;
+      const squares = card.container.getData("squares");
+      squares.forEach((sq, l) => {
+        if (l < level) {
+          sq.setFillStyle(0xc4a040, 1);
+          sq.setStrokeStyle(1, 0xfef08a, 1);
+        } else {
+          sq.setFillStyle(0x1a1a2a, 1);
+          sq.setStrokeStyle(1, 0x4a4a5a, 1);
+        }
+      });
+    });
   }
 
   getUpgradeCost(definition, level) {
     return definition.baseCost + level * definition.costStep;
   }
 
-  createButton(x, y, label, onClick, width = 240, height = 50) {
-    const shadow = this.add
-      .rectangle(x, y + 4, width + 12, height + 8, 0x0b1423, 0.95)
-      .setOrigin(0.5);
-    const button = this.add
-      .rectangle(x, y, width, height, 0x1c324d, 1)
-      .setStrokeStyle(3, 0x67b8ff, 1)
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    this.add.rectangle(x, y, width - 12, height - 12, 0, 0).setStrokeStyle(1, 0xb8e0ff, 0.9).setOrigin(0.5);
-    const text = this.add
-      .text(x, y, label, {
-        fontFamily: "Zpix",
-        fontSize: "24px",
-        color: "#ffffff",
-        stroke: "#0e1a2a",
-        strokeThickness: 5
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-
-    const trigger = () => {
-      if (typeof onClick === "function") {
-        onClick();
-      }
-    };
-    button.on("pointerdown", trigger);
-    text.on("pointerdown", trigger);
-    shadow.setData("decorative", true);
-    return button;
-  }
-
-  refreshCoinsText() {
-    if (!this.coinsText) {
-      return;
-    }
-    this.coinsText.setText(`金币: ${this.coins}`);
-  }
-
   setStatus(message, color = "#cde5ff") {
-    if (!this.statusText) {
-      return;
-    }
+    if (!this.statusText) return;
     this.statusText.setText(message);
     this.statusText.setColor(color);
   }
 
   loadCoins() {
-    if (typeof window === "undefined" || !window.localStorage) {
-      return 0;
-    }
+    if (typeof window === "undefined" || !window.localStorage) return 0;
     return toSafeInt(window.localStorage.getItem(COIN_STORAGE_KEY));
   }
 
   saveCoins(coins) {
-    if (typeof window === "undefined" || !window.localStorage) {
-      return;
-    }
+    if (typeof window === "undefined" || !window.localStorage) return;
     const safeCoins = toSafeInt(coins);
     try {
       window.localStorage.setItem(COIN_STORAGE_KEY, String(safeCoins));
@@ -251,51 +399,37 @@ export class UpgradeScene extends Phaser.Scene {
         startingWeaponBonus: toSafeInt(metaParsed?.startingWeaponBonus)
       };
       window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(mergedMeta));
-    } catch (_error) {
-      // Ignore storage failures to keep runtime stable.
-    }
+    } catch (_error) {}
   }
 
   loadUpgrades() {
-    if (typeof window === "undefined" || !window.localStorage) {
-      return { ...DEFAULT_UPGRADES };
-    }
+    if (typeof window === "undefined" || !window.localStorage) return { ...DEFAULT_UPGRADES };
     try {
       const raw = window.localStorage.getItem(UPGRADE_STORAGE_KEY);
-      if (!raw) {
-        return { ...DEFAULT_UPGRADES };
-      }
+      if (!raw) return { ...DEFAULT_UPGRADES };
       const parsed = JSON.parse(raw);
-      return {
-        dash_cooldown: toSafeInt(parsed?.dash_cooldown),
-        xp_gain: toSafeInt(parsed?.xp_gain),
-        movement_speed: toSafeInt(parsed?.movement_speed)
-      };
+      const result = { ...DEFAULT_UPGRADES };
+      Object.keys(result).forEach(k => {
+        result[k] = toSafeInt(parsed?.[k]);
+      });
+      return result;
     } catch (_error) {
       return { ...DEFAULT_UPGRADES };
     }
   }
 
   saveUpgrades(upgrades) {
-    if (typeof window === "undefined" || !window.localStorage) {
-      return;
-    }
-    const sanitized = {
-      dash_cooldown: toSafeInt(upgrades?.dash_cooldown),
-      xp_gain: toSafeInt(upgrades?.xp_gain),
-      movement_speed: toSafeInt(upgrades?.movement_speed)
-    };
+    if (typeof window === "undefined" || !window.localStorage) return;
+    const sanitized = {};
+    Object.keys(DEFAULT_UPGRADES).forEach(k => {
+      sanitized[k] = toSafeInt(upgrades?.[k]);
+    });
     try {
       window.localStorage.setItem(UPGRADE_STORAGE_KEY, JSON.stringify(sanitized));
-    } catch (_error) {
-      // Ignore storage failures to keep runtime stable.
-    }
+    } catch (_error) {}
   }
 
-  resolveSelectedShip() {
-    if (typeof window === "undefined" || !window.localStorage) {
-      return null;
-    }
-    return window.localStorage.getItem("forgeduel_selected_ship") || null;
+  shutdown() {
+    this.children.removeAll(true);
   }
 }

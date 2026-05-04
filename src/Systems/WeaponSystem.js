@@ -2,7 +2,12 @@ import {
   PROJECTILE_POOL_SIZE_BY_TEXTURE,
   PROJECTILE_TEXTURE_BY_WEAPON,
   WEAPON_DEFINITIONS,
-  WEAPON_EVOLUTION_RULES
+  WEAPON_EVOLUTION_RULES,
+  AURA_WEAPON_TYPES,
+  SLASH_WEAPON_TYPES,
+  BOOMERANG_WEAPON_TYPES,
+  MOLOTOV_WEAPON_TYPES,
+  GRAVITY_WEAPON_TYPES
 } from "../config/weapons.js";
 import { Enemy } from "../entities/Enemy.js";
 
@@ -75,6 +80,7 @@ export class WeaponSystem {
     this.globalDamageMultiplier = 1;
     this.globalCooldownMultiplier = 1;
     this.globalRangeMultiplier = 1;
+    this.globalDurationMultiplier = 1;
     this.projectileCount = 1;
     this.projectileGlowGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
     this.projectileTrailRectsGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH - 1);
@@ -281,6 +287,15 @@ export class WeaponSystem {
     return this.globalRangeMultiplier;
   }
 
+  addGlobalDurationPercent(percent) {
+    const safePercent = Number(percent) || 0;
+    if (safePercent <= 0) {
+      return this.globalDurationMultiplier;
+    }
+    this.globalDurationMultiplier *= 1 + safePercent;
+    return this.globalDurationMultiplier;
+  }
+
   getScaledWeaponDamage(weapon) {
     return Math.max(1, Math.round(weapon.damage * this.globalDamageMultiplier));
   }
@@ -339,7 +354,7 @@ export class WeaponSystem {
       range: definition.range,
       knockbackForce: definition.knockbackForce,
       projectileBehavior: definition.projectileBehavior,
-      projectileSpeed: definition.projectileSpeed,
+      projectileSpeed: definition.projectileSpeed ?? 0,
       explosionRadius: definition.explosionRadius ?? 0,
       explosionDamageMultiplier: definition.explosionDamageMultiplier ?? 0,
       orbitBladeCount: definition.orbitBladeCount ?? 0,
@@ -347,7 +362,37 @@ export class WeaponSystem {
       orbitSpeed: definition.orbitSpeed ?? 0,
       orbitAngle: 0,
       orbitSprites: [],
-      nextFireAt: 0
+      nextFireAt: 0,
+      chainCount: definition.chainCount ?? 0,
+      chainRange: definition.chainRange ?? 0,
+      chainFalloff: definition.chainFalloff ?? 0,
+      scatterCount: definition.scatterCount ?? 0,
+      scatterSpreadDeg: definition.scatterSpreadDeg ?? 0,
+      homingTurnRate: definition.homingTurnRate ?? 0,
+      laserWidth: definition.laserWidth ?? 0,
+      laserDurationMs: definition.laserDurationMs ?? 0,
+      pierceCount: definition.pierceCount ?? 0,
+      boomerangCount: definition.boomerangCount ?? 0,
+      boomerangReturnSpeed: definition.boomerangReturnSpeed ?? 0,
+      boomerangArcHeight: definition.boomerangArcHeight ?? 0,
+      boomerangHitCooldownMs: definition.boomerangHitCooldownMs ?? 0,
+      slashAngleDeg: definition.slashAngleDeg ?? 140,
+      slashDurationMs: definition.slashDurationMs ?? 280,
+      slashWidth: definition.slashWidth ?? 12,
+      auraRadius: definition.auraRadius ?? 0,
+      auraDamageIntervalMs: definition.auraDamageIntervalMs ?? 800,
+      auraKnockback: definition.auraKnockback ?? 0,
+      fireRadius: definition.fireRadius ?? 0,
+      fireDamagePerTick: definition.fireDamagePerTick ?? 0,
+      fireTickIntervalMs: definition.fireTickIntervalMs ?? 0,
+      fireDurationMs: definition.fireDurationMs ?? 0,
+      gravityRadius: definition.gravityRadius ?? 0,
+      gravityForce: definition.gravityForce ?? 0,
+      gravityDurationMs: definition.gravityDurationMs ?? 0,
+      auraLastDamageAt: 0,
+      slashActive: false,
+      slashStartAt: 0,
+      boomerangProjectiles: []
     };
   }
 
@@ -367,6 +412,23 @@ export class WeaponSystem {
 
     if (weapon.type === "fireball" || weapon.type === "meteor") {
       weapon.explosionRadius = Math.round(Math.max(weapon.explosionRadius, 40) * 1.05);
+    }
+    if (weapon.type === "boomerang" || weapon.type === "death_spiral") {
+      weapon.boomerangCount = Math.min(6, (weapon.boomerangCount || 2) + 1);
+    }
+    if (weapon.type === "slash" || weapon.type === "cyclone_slash") {
+      weapon.slashWidth = Math.min(24, (weapon.slashWidth || 12) + 2);
+    }
+    if (weapon.type === "garlic_aura" || weapon.type === "holy_aura") {
+      weapon.auraRadius = Math.round((weapon.auraRadius || 90) * 1.06);
+    }
+    if (weapon.type === "molotov" || weapon.type === "inferno") {
+      weapon.fireRadius = Math.round((weapon.fireRadius || 64) * 1.08);
+      weapon.fireDamagePerTick = Math.round((weapon.fireDamagePerTick || 5) * 1.12);
+    }
+    if (weapon.type === "gravity_well" || weapon.type === "singularity") {
+      weapon.gravityRadius = Math.round((weapon.gravityRadius || 120) * 1.06);
+      weapon.gravityForce = Math.round((weapon.gravityForce || 80) * 1.08);
     }
   }
 
@@ -420,6 +482,23 @@ export class WeaponSystem {
     weapon.laserWidth = evolved.laserWidth ?? 0;
     weapon.laserDurationMs = evolved.laserDurationMs ?? 0;
     weapon.pierceCount = evolved.pierceCount ?? 0;
+    weapon.boomerangCount = evolved.boomerangCount ?? 0;
+    weapon.boomerangReturnSpeed = evolved.boomerangReturnSpeed ?? 0;
+    weapon.boomerangArcHeight = evolved.boomerangArcHeight ?? 0;
+    weapon.boomerangHitCooldownMs = evolved.boomerangHitCooldownMs ?? 0;
+    weapon.slashAngleDeg = evolved.slashAngleDeg ?? 140;
+    weapon.slashDurationMs = evolved.slashDurationMs ?? 280;
+    weapon.slashWidth = evolved.slashWidth ?? 12;
+    weapon.auraRadius = evolved.auraRadius ?? 0;
+    weapon.auraDamageIntervalMs = evolved.auraDamageIntervalMs ?? 800;
+    weapon.auraKnockback = evolved.auraKnockback ?? 0;
+    weapon.fireRadius = evolved.fireRadius ?? 0;
+    weapon.fireDamagePerTick = evolved.fireDamagePerTick ?? 0;
+    weapon.fireTickIntervalMs = evolved.fireTickIntervalMs ?? 0;
+    weapon.fireDurationMs = evolved.fireDurationMs ?? 0;
+    weapon.gravityRadius = evolved.gravityRadius ?? 0;
+    weapon.gravityForce = evolved.gravityForce ?? 0;
+    weapon.gravityDurationMs = evolved.gravityDurationMs ?? 0;
     weapon.nextFireAt = 0;
 
     if (weapon.type === "orbit_blades") {
@@ -440,10 +519,21 @@ export class WeaponSystem {
     }
     this.updateProjectiles(delta);
     this.updateOrbitBlades(time, delta);
+    this.updateSlashes(time, delta);
+    this.updateAuras(time, delta);
+    this.updateBoomerangs(time, delta);
+    this.updateGravityWells(time, delta);
+    this.updateFireZones(time, delta);
 
     this.player.weapons.forEach((weapon) => {
       if (weapon.type === "orbit_blades") {
         this.ensureOrbitBlades(weapon);
+        return;
+      }
+      if (AURA_WEAPON_TYPES.includes(weapon.type)) {
+        return;
+      }
+      if (SLASH_WEAPON_TYPES.includes(weapon.type) && weapon.slashActive) {
         return;
       }
 
@@ -672,6 +762,16 @@ export class WeaponSystem {
       fired = this.fireHomingMissile(weapon);
     } else if (weapon.type === "laser" || weapon.type === "prismatic_laser") {
       fired = this.fireLaser(weapon);
+    } else if (BOOMERANG_WEAPON_TYPES.includes(weapon.type)) {
+      fired = this.fireBoomerang(weapon);
+    } else if (SLASH_WEAPON_TYPES.includes(weapon.type)) {
+      fired = this.fireSlash(weapon);
+    } else if (AURA_WEAPON_TYPES.includes(weapon.type)) {
+      fired = this.fireAura(weapon);
+    } else if (MOLOTOV_WEAPON_TYPES.includes(weapon.type)) {
+      fired = this.fireMolotov(weapon);
+    } else if (GRAVITY_WEAPON_TYPES.includes(weapon.type)) {
+      fired = this.fireGravityWell(weapon);
     }
 
     if (fired && this.scene?.playWeaponFireFeedback) {
@@ -967,6 +1067,18 @@ export class WeaponSystem {
       this.triggerExplosion(hitX, hitY, explosionRadius, explosionDamage);
     }
 
+    if (hitProjectile.getData("isMolotiv")) {
+      this.triggerFireZone(hitX, hitY, hitProjectile);
+    }
+
+    if (hitProjectile.getData("isGravityWell")) {
+      this.triggerGravityWell(hitX, hitY, hitProjectile);
+    }
+
+    if (hitProjectile.getData("isGrenade")) {
+      this.triggerGrenadeExplosion(hitX, hitY, hitProjectile);
+    }
+
     this.releaseProjectile(hitProjectile);
   }
 
@@ -1026,7 +1138,91 @@ export class WeaponSystem {
     });
   }
 
+  triggerFireZone(x, y, projectile) {
+    const radius = projectile.getData("fireRadius") ?? 64;
+    const damagePerTick = projectile.getData("fireDamagePerTick") ?? 5;
+    const tickIntervalMs = projectile.getData("fireTickIntervalMs") ?? 500;
+    const durationMs = projectile.getData("fireDurationMs") ?? 3000;
+    const weaponType = projectile.weaponType ?? "molotov";
+
+    const gfx = this.scene.add.graphics().setDepth(9);
+    this.activeFireZones = this.activeFireZones || [];
+    this.activeFireZones.push({
+      x,
+      y,
+      radius,
+      damagePerTick,
+      tickIntervalMs,
+      durationMs,
+      elapsedMs: 0,
+      lastTickMs: 0,
+      weaponType,
+      gfx
+    });
+  }
+
+  triggerGravityWell(x, y, projectile) {
+    const radius = projectile.getData("gravityRadius") ?? 120;
+    const force = projectile.getData("gravityForce") ?? 80;
+    const durationMs = projectile.getData("gravityDurationMs") ?? 2500;
+    const weaponType = projectile.weaponType ?? "gravity_well";
+    const damage = Math.max(1, Math.round((projectile.damage ?? 8) * 0.3));
+
+    const gfx = this.scene.add.graphics().setDepth(9);
+    this.activeGravityWells = this.activeGravityWells || [];
+    this.activeGravityWells.push({
+      x,
+      y,
+      radius,
+      force,
+      durationMs,
+      elapsedMs: 0,
+      damage,
+      weaponType,
+      gfx,
+      lastDamageAt: 0
+    });
+  }
+
+  triggerGrenadeExplosion(x, y, projectile) {
+    const radius = projectile.getData("grenadeRadius") ?? 100;
+    const damage = projectile.getData("grenadeDamage") ?? 35;
+
+    const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
+    gfx.fillStyle(0xff4422, 0.6);
+    gfx.fillCircle(x, y, radius);
+    gfx.lineStyle(3, 0xff8844, 0.8);
+    gfx.strokeCircle(x, y, radius * 0.8);
+    this.scene.tweens.add({
+      targets: gfx,
+      alpha: 0,
+      duration: 200,
+      onComplete: () => gfx.destroy()
+    });
+
+    this.scene.enemies.getChildren().forEach((enemy) => {
+      if (!enemy.active || enemy.getData("isDying")) return;
+      const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
+      if (dist > radius) return;
+      const falloff = 1 - (dist / radius) * 0.5;
+      this.applyDamage(enemy, Math.round(damage * falloff), 140, x, y);
+    });
+  }
+
   applyDamage(enemy, damage, knockbackForce, sourceX, sourceY, sourceWeaponType) {
+    // Non-host clients send damage events to the host instead of applying locally.
+    // The host applies damage, syncs enemy HP, and sends kill events.
+    if (this.scene.gameMode === "coop" && !this.scene.isHost) {
+      if (enemy?.serverId && enemy.active && !enemy.getData("isDying")) {
+        this.scene.networkManager?.sendEnemyDamage(
+          enemy.serverId,
+          Number.isFinite(damage) ? damage : 0,
+          sourceWeaponType
+        );
+      }
+      return;
+    }
+
     if (!(enemy instanceof Enemy) || !enemy.active) {
       this.warnInvalidProjectileCollision(enemy);
       return;
@@ -1086,6 +1282,404 @@ export class WeaponSystem {
     });
 
     return nearest;
+  }
+
+  fireSlash(weapon) {
+    const target = this.findNearestEnemy(this.player.x, this.player.y, this.getEffectiveRange(weapon) + 40);
+    if (!target) {
+      return false;
+    }
+
+    if (weapon.slashActive) {
+      return false;
+    }
+
+    weapon.slashActive = true;
+    weapon.slashStartAt = this.scene.time.now;
+    const scaledDamage = this.getScaledWeaponDamage(weapon);
+    const slashAngle = Phaser.Math.DegToRad(weapon.slashAngleDeg ?? 140);
+    const slashWidth = weapon.slashWidth ?? 12;
+    const slashRange = this.getEffectiveRange(weapon);
+    const slashDuration = weapon.slashDurationMs ?? 280;
+    const baseAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+
+    const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
+    const startTime = weapon.slashStartAt;
+    const player = this.player;
+    const halfAngle = slashAngle / 2;
+    const hitSet = new Set();
+
+    this.scene.tweens.addCounter({
+      from: 0,
+      to: 1,
+      duration: slashDuration,
+      onUpdate: (tween) => {
+        const progress = tween.getValue();
+        const sweepProgress = progress;
+        gfx.clear();
+        const currentAngle = baseAngle - halfAngle + slashAngle * (sweepProgress < 0.5 ? sweepProgress * 2 : 1 - (sweepProgress - 0.5) * 2);
+        const scaleEase = progress < 0.5 ? progress * 2 : 1;
+        const arcStart = currentAngle - halfAngle * 0.3;
+        const arcEnd = currentAngle + halfAngle * 0.3;
+
+        gfx.lineStyle(slashWidth * scaleEase, 0xffffff, 0.8);
+        gfx.lineStyle(Math.max(2, slashWidth * 0.6 * scaleEase), 0xffddaa, 0.9);
+
+        for (let a = arcStart; a <= arcEnd; a += 0.15) {
+          const endX = player.x + Math.cos(a) * slashRange * scaleEase;
+          const endY = player.y + Math.sin(a) * slashRange * scaleEase;
+          gfx.lineBetween(player.x, player.y, endX, endY);
+        }
+
+        gfx.fillStyle(0xffffff, 0.3 * scaleEase);
+        gfx.slice(player.x, player.y, slashRange * scaleEase, arcStart, arcEnd, false);
+        gfx.fillPath();
+
+        this.scene.enemies.getChildren().forEach((enemy) => {
+          if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+          if (hitSet.has(enemy)) return;
+          const ex = enemy.x - player.x;
+          const ey = enemy.y - player.y;
+          const proj = ex * Math.cos(currentAngle) + ey * Math.sin(currentAngle);
+          if (proj < 0 || proj > slashRange) return;
+          const perp = Math.abs(-ex * Math.sin(currentAngle) + ey * Math.cos(currentAngle));
+          const hitRadius = (enemy.body?.radius || 14) + slashWidth;
+          if (perp <= hitRadius) {
+            hitSet.add(enemy);
+            this.applyDamage(enemy, Math.round(scaledDamage * (progress < 0.5 ? 1 : 0.7)), weapon.knockbackForce, player.x, player.y, weapon.type);
+          }
+        });
+      },
+      onComplete: () => {
+        gfx.destroy();
+        weapon.slashActive = false;
+      }
+    });
+
+    return true;
+  }
+
+  updateSlashes(time, delta) {
+  }
+
+  fireAura(weapon) {
+    return true;
+  }
+
+  updateAuras(time, delta) {
+    this.player.weapons.forEach((weapon) => {
+      if (!AURA_WEAPON_TYPES.includes(weapon.type)) return;
+      if (time < (weapon.auraLastDamageAt ?? 0) + (weapon.auraDamageIntervalMs ?? 800)) return;
+
+      const auraRadius = weapon.auraRadius ?? 90;
+      const scaledDamage = this.getScaledWeaponDamage(weapon);
+      const auraDamage = Math.max(1, Math.round(scaledDamage * 0.3));
+      const knockback = weapon.auraKnockback ?? 60;
+
+      this.scene.enemies.getChildren().forEach((enemy) => {
+        if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+        const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
+        if (dist <= auraRadius) {
+          this.applyDamage(enemy, auraDamage, knockback, this.player.x, this.player.y, weapon.type);
+        }
+      });
+
+      weapon.auraLastDamageAt = time;
+
+      const auraGfx = this.scene.add.graphics().setDepth(9);
+      const auraColor = weapon.type === "holy_aura" ? 0xaaddff : 0xaaffaa;
+      auraGfx.lineStyle(2, auraColor, 0.4);
+      auraGfx.strokeCircle(this.player.x, this.player.y, auraRadius);
+      auraGfx.fillStyle(auraColor, 0.08);
+      auraGfx.fillCircle(this.player.x, this.player.y, auraRadius);
+      this.scene.tweens.add({
+        targets: auraGfx,
+        alpha: 0,
+        duration: 300,
+        onComplete: () => auraGfx.destroy()
+      });
+    });
+  }
+
+  fireBoomerang(weapon) {
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
+    if (!target) return false;
+
+    const count = weapon.boomerangCount ?? 2;
+    const scaledDamage = this.getScaledWeaponDamage(weapon);
+    const baseAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
+    let fired = false;
+
+    for (let i = 0; i < count; i++) {
+      const angleOffset = count > 1 ? (i - (count - 1) / 2) * 0.4 : 0;
+      const throwAngle = baseAngle + angleOffset;
+
+      const boomerangObj = {
+        x: this.player.x,
+        y: this.player.y,
+        targetX: target.x,
+        targetY: target.y,
+        originX: this.player.x,
+        originY: this.player.y,
+        angle: throwAngle,
+        speed: weapon.projectileSpeed ?? 280,
+        returnSpeed: weapon.boomerangReturnSpeed ?? 320,
+        arcHeight: weapon.boomerangArcHeight ?? 120,
+        damage: scaledDamage,
+        knockbackForce: weapon.knockbackForce,
+        progress: 0,
+        phase: "out",
+        hitCooldowns: new Map(),
+        weaponType: weapon.type,
+        gfx: null
+      };
+
+      weapon.boomerangProjectiles = weapon.boomerangProjectiles || [];
+      weapon.boomerangProjectiles.push(boomerangObj);
+      fired = true;
+    }
+
+    if (this.scene.playSfx) {
+      this.scene.playSfx("slash");
+    }
+    return fired;
+  }
+
+  updateBoomerangs(time, delta) {
+    this.player.weapons.forEach((weapon) => {
+      if (!BOOMERANG_WEAPON_TYPES.includes(weapon.type)) return;
+      weapon.boomerangProjectiles = weapon.boomerangProjectiles || [];
+
+      for (let i = weapon.boomerangProjectiles.length - 1; i >= 0; i--) {
+        const b = weapon.boomerangProjectiles[i];
+        const dt = delta / 1000;
+        const dist = Math.hypot(b.targetX - b.originX, b.targetY - b.originY);
+        const totalDist = dist * 0.7;
+
+        if (b.phase === "out") {
+          b.progress += (b.speed * dt) / Math.max(1, totalDist);
+          if (b.progress >= 1) {
+            b.phase = "return";
+            b.progress = 0;
+          }
+        } else if (b.phase === "return") {
+          b.progress += (b.returnSpeed * dt) / Math.max(1, totalDist);
+          if (b.progress >= 1) {
+            if (b.gfx) b.gfx.destroy();
+            weapon.boomerangProjectiles.splice(i, 1);
+            continue;
+          }
+        }
+
+        let bx, by;
+        const outProgress = b.phase === "out" ? b.progress : 1;
+        const returnProgress = b.phase === "return" ? b.progress : 0;
+
+        if (b.phase === "out") {
+          const t = b.progress;
+          const easeT = 1 - (1 - t) * (1 - t);
+          bx = b.originX + Math.cos(b.angle) * totalDist * easeT;
+          by = b.originY + Math.sin(b.angle) * totalDist * easeT - Math.sin(Math.PI * t) * b.arcHeight * 0.3;
+        } else {
+          const t = b.progress;
+          const easeT = t * t;
+          bx = (b.originX + Math.cos(b.angle) * totalDist) * (1 - easeT) + this.player.x * easeT;
+          by = (b.originY + Math.sin(b.angle) * totalDist) * (1 - easeT) + this.player.y * easeT;
+        }
+
+        if (!b.gfx) {
+          b.gfx = this.scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
+        }
+        b.gfx.clear();
+        const color = weapon.type === "death_spiral" ? 0x8844ff : 0x44ddaa;
+        b.gfx.fillStyle(color, 0.9);
+        b.gfx.fillCircle(Math.round(bx), Math.round(by), 6);
+        b.gfx.lineStyle(2, color, 0.7);
+        b.gfx.strokeCircle(Math.round(bx), Math.round(by), 8);
+
+        this.scene.enemies.getChildren().forEach((enemy) => {
+          if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+          const enemyDist = Phaser.Math.Distance.Between(bx, by, enemy.x, enemy.y);
+          if (enemyDist > 20) return;
+          const lastHit = b.hitCooldowns.get(enemy) ?? 0;
+          if (time - lastHit < (weapon.boomerangHitCooldownMs ?? 300)) return;
+          b.hitCooldowns.set(enemy, time);
+          this.applyDamage(enemy, b.damage, b.knockbackForce, bx, by, weapon.type);
+        });
+      }
+    });
+  }
+
+  fireMolotov(weapon) {
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
+    if (!target) return false;
+
+    const dx = target.x - this.player.x;
+    const dy = target.y - this.player.y;
+    const dist = Math.hypot(dx, dy);
+    const nx = dist > 0.001 ? dx / dist : 1;
+    const ny = dist > 0.001 ? dy / dist : 0;
+
+    const speed = weapon.projectileSpeed ?? 200;
+    const texture = PROJECTILE_TEXTURE_BY_WEAPON[weapon.type] || "proj_fireball";
+    const projectile = this.acquireProjectile(texture);
+    if (!projectile) return false;
+
+    const scaledDamage = this.getScaledWeaponDamage(weapon);
+
+    projectile.speed = speed;
+    projectile.maxDistance = effectiveRange;
+    projectile.travelled = 0;
+    projectile.damage = scaledDamage;
+    projectile.knockbackForce = weapon.knockbackForce;
+    projectile.weaponType = weapon.type;
+    projectile.behavior = "molotov";
+    projectile.explosionRadius = weapon.fireRadius ?? 64;
+    projectile.explosionDamage = Math.round(scaledDamage * 0.5);
+    projectile.setData("fireRadius", weapon.fireRadius ?? 64);
+    projectile.setData("fireDamagePerTick", weapon.fireDamagePerTick ?? 5);
+    projectile.setData("fireTickIntervalMs", weapon.fireTickIntervalMs ?? 500);
+    projectile.setData("fireDurationMs", weapon.fireDurationMs ?? 3000);
+    projectile.setData("isMolotov", true);
+    const visualProfile = this.getProjectileVisualProfile(weapon.type);
+    const visualColor = 0xff6622;
+    projectile.setTint(visualColor);
+    projectile.setData("visualColor", visualColor);
+    projectile.setData("glowAlpha", 0.8);
+    projectile.setData("trailBurst", 3);
+
+    projectile.enableBody(true, this.player.x, this.player.y, true, true);
+    projectile.body.setVelocity(nx * speed, ny * speed - 60);
+
+    return true;
+  }
+
+  fireGravityWell(weapon) {
+    const effectiveRange = this.getEffectiveRange(weapon);
+    const target = this.findNearestEnemy(this.player.x, this.player.y, effectiveRange);
+    if (!target) return false;
+
+    const dx = target.x - this.player.x;
+    const dy = target.y - this.player.y;
+    const dist = Math.hypot(dx, dy);
+    const nx = dist > 0.001 ? dx / dist : 1;
+    const ny = dist > 0.001 ? dy / dist : 0;
+
+    const speed = weapon.projectileSpeed ?? 180;
+    const texture = PROJECTILE_TEXTURE_BY_WEAPON[weapon.type] || "proj_homing";
+    const projectile = this.acquireProjectile(texture);
+    if (!projectile) return false;
+
+    const scaledDamage = this.getScaledWeaponDamage(weapon);
+
+    projectile.speed = speed;
+    projectile.maxDistance = effectiveRange * 0.65;
+    projectile.travelled = 0;
+    projectile.damage = scaledDamage;
+    projectile.knockbackForce = weapon.knockbackForce;
+    projectile.weaponType = weapon.type;
+    projectile.behavior = "gravity_well";
+    projectile.explosionRadius = 0;
+    projectile.explosionDamage = 0;
+    projectile.setData("gravityRadius", weapon.gravityRadius ?? 120);
+    projectile.setData("gravityForce", weapon.gravityForce ?? 80);
+    projectile.setData("gravityDurationMs", weapon.gravityDurationMs ?? 2500);
+    projectile.setData("isGravityWell", true);
+    const visualColor = 0x6622ff;
+    projectile.setTint(visualColor);
+    projectile.setData("visualColor", visualColor);
+    projectile.setData("glowAlpha", 0.9);
+    projectile.setData("trailBurst", 2);
+
+    projectile.enableBody(true, this.player.x, this.player.y, true, true);
+    projectile.body.setVelocity(nx * speed, ny * speed);
+
+    return true;
+  }
+
+  updateGravityWells(time, delta) {
+    this.activeGravityWells = this.activeGravityWells || [];
+    for (let i = this.activeGravityWells.length - 1; i >= 0; i--) {
+      const well = this.activeGravityWells[i];
+      well.elapsedMs += delta;
+      if (well.elapsedMs >= well.durationMs) {
+        if (well.gfx) well.gfx.destroy();
+        this.activeGravityWells.splice(i, 1);
+        continue;
+      }
+
+      const progress = well.elapsedMs / well.durationMs;
+      const alpha = progress < 0.2 ? progress / 0.2 : progress > 0.8 ? (1 - progress) / 0.2 : 1;
+
+      if (well.gfx) {
+        well.gfx.clear();
+        well.gfx.fillStyle(0x6622ff, 0.15 * alpha);
+        well.gfx.fillCircle(well.x, well.y, well.radius);
+        well.gfx.lineStyle(2, 0x9944ff, 0.5 * alpha);
+        well.gfx.strokeCircle(well.x, well.y, well.radius);
+      }
+
+      this.scene.enemies.getChildren().forEach((enemy) => {
+        if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+        const dx = well.x - enemy.x;
+        const dy = well.y - enemy.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist > well.radius || dist < 1) return;
+        const force = well.force * (1 - dist / well.radius);
+        const nx = dx / dist;
+        const ny = dy / dist;
+        if (enemy.body) {
+          enemy.body.setVelocity(
+            enemy.body.velocity.x + nx * force * (delta / 16),
+            enemy.body.velocity.y + ny * force * (delta / 16)
+          );
+        }
+        if (dist < 20 && well.elapsedMs - (well.lastDamageAt ?? 0) > 500) {
+          well.lastDamageAt = well.elapsedMs;
+          this.applyDamage(enemy, well.damage, 30, well.x, well.y, well.weaponType);
+        }
+      });
+    }
+  }
+
+  updateFireZones(time, delta) {
+    this.activeFireZones = this.activeFireZones || [];
+    for (let i = this.activeFireZones.length - 1; i >= 0; i--) {
+      const zone = this.activeFireZones[i];
+      zone.elapsedMs += delta;
+      if (zone.elapsedMs >= zone.durationMs) {
+        if (zone.gfx) zone.gfx.destroy();
+        this.activeFireZones.splice(i, 1);
+        continue;
+      }
+
+      const progress = zone.elapsedMs / zone.durationMs;
+      const scaleProgress = progress < 0.2 ? progress / 0.2 : 1;
+      const alphaProgress = progress > 0.8 ? (1 - progress) / 0.2 : 1;
+      const currentRadius = zone.radius * scaleProgress;
+
+      if (zone.gfx) {
+        zone.gfx.clear();
+        zone.gfx.fillStyle(0xff4422, 0.25 * alphaProgress);
+        zone.gfx.fillCircle(zone.x, zone.y, currentRadius);
+        zone.gfx.lineStyle(2, 0xff8844, 0.5 * alphaProgress);
+        zone.gfx.strokeCircle(zone.x, zone.y, currentRadius * 0.7);
+      }
+
+      zone.lastTickMs = zone.lastTickMs ?? 0;
+      if (zone.elapsedMs - zone.lastTickMs >= zone.tickIntervalMs) {
+        zone.lastTickMs = zone.elapsedMs;
+        this.scene.enemies.getChildren().forEach((enemy) => {
+          if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
+          const dist = Phaser.Math.Distance.Between(zone.x, zone.y, enemy.x, enemy.y);
+          if (dist <= currentRadius) {
+            this.applyDamage(enemy, zone.damagePerTick, 40, zone.x, zone.y, zone.weaponType);
+          }
+        });
+      }
+    }
   }
 
   findWeaponByBaseType(baseType) {

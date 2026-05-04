@@ -26,7 +26,7 @@ function getPlayerDirectionalTextureKey(scene, direction = "south") {
   return null;
 }
 
-function getPlayerTextureKey(scene, direction = "south") {
+export function getPlayerTextureKey(scene, direction = "south") {
   const directionalKey = getPlayerDirectionalTextureKey(scene, direction);
   if (directionalKey) {
     return directionalKey;
@@ -68,7 +68,7 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.dashSpeedMultiplier = 4;
     this.dashDamage = 20;
     this.currentDashId = 0;
-    this.maxWeaponSlots = 3;
+    this.maxWeaponSlots = 6;
     this.weapons = [];
     this.passives = {};
     this.pickupRadius = 140;

@@ -85,13 +85,32 @@ export const SPAWN_BURST_CONFIG = {
 
 export const XP_REQUIREMENTS = {
   byLevel: {
-    1: 1000,
-    2: 1600,
-    3: 2400
+    1: 200,
+    2: 320,
+    3: 480
   },
-  postL3Base: 2400,
-  postL3Step: 1000
+  postL3Base: 480,
+  postL3Step: 200
 };
+
+export const XP_GEM_TYPES = Object.freeze({
+  WHITE: { id: "white", value: 1, scale: 0.8, color: 0xddeeff, minEnemyXp: 0 },
+  BLUE: { id: "blue", value: 5, scale: 1.0, color: 0x4488ff, minEnemyXp: 15 },
+  GREEN: { id: "green", value: 25, scale: 1.2, color: 0x44ff66, minEnemyXp: 40 },
+  RED: { id: "red", value: 100, scale: 1.5, color: 0xff4444, minEnemyXp: 100 }
+});
+
+export const XP_GEM_KEYS = Object.freeze(Object.keys(XP_GEM_TYPES));
+
+export function getXpGemTypeForValue(xpValue) {
+  const types = [XP_GEM_TYPES.RED, XP_GEM_TYPES.GREEN, XP_GEM_TYPES.BLUE, XP_GEM_TYPES.WHITE];
+  for (const gemType of types) {
+    if (xpValue >= gemType.minEnemyXp) {
+      return gemType;
+    }
+  }
+  return XP_GEM_TYPES.WHITE;
+}
 
 export const ITEM_DROP_CONFIGS = Object.freeze({
   health_orb: Object.freeze({
@@ -135,6 +154,26 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     label: "武器升级",
     color: 0xff8800,
     dropChance: 0.04,
+    scale: 1.3,
+    duration: 0
+  }),
+  bomb: Object.freeze({
+    id: "bomb",
+    label: "炸弹",
+    color: 0xff4422,
+    dropChance: 0.01,
+    scale: 1.4,
+    duration: 0
+  }),
+  red_potion: Object.freeze({
+    id: "red_potion",
+    label: "红药水",
+    color: 0xff2266,
+    healAmount: 50,
+    healDurationMs: 30000,
+    healTickMs: 1000,
+    healPerTick: 2,
+    dropChance: 0.008,
     scale: 1.3,
     duration: 0
   })

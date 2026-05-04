@@ -26,21 +26,9 @@ function lerp(from, to, t) {
   return from + (to - from) * clamp01(t);
 }
 
-function randomIntInclusive(min, max) {
-  const safeMin = Math.ceil(min);
-  const safeMax = Math.floor(max);
-  return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
-}
-
-function randomArrayItem(items) {
-  if (!Array.isArray(items) || items.length === 0) {
-    return null;
-  }
-  return items[Math.floor(Math.random() * items.length)] ?? null;
-}
-
 export class DirectorSystem {
   constructor(config = {}) {
+    this._rng = config.rng || null;
     this.paused = false;
     this.durationsMs = {
       [DIRECTOR_STATE.BUILD]: config.buildMs ?? DIRECTOR_DEFAULT_DURATIONS_MS[DIRECTOR_STATE.BUILD],
@@ -63,10 +51,23 @@ export class DirectorSystem {
     this.ladderSpawnIntervalMs = config.ladderSpawnIntervalMs ?? DIRECTOR_LADDER_SPAWN_EVENT.intervalMs;
     this.nextLadderSpawnAtMs = this.ladderSpawnIntervalMs;
     this.pendingLadderSpawnCount = 0;
-    this.hatchBreachAtMs = randomIntInclusive(DIRECTOR_HATCH_BREACH_EVENT.minAtMs, DIRECTOR_HATCH_BREACH_EVENT.maxAtMs);
+    this.hatchBreachAtMs = this._randomInt(DIRECTOR_HATCH_BREACH_EVENT.minAtMs, DIRECTOR_HATCH_BREACH_EVENT.maxAtMs);
     this.hasHatchBreachSpawned = false;
     this.pendingHatchBreachSpawnCount = 0;
     this.adaptivePerformance = 0;
+  }
+
+  _randomInt(min, max) {
+    if (this._rng) return this._rng.intBetween(min, max);
+    const safeMin = Math.ceil(min);
+    const safeMax = Math.floor(max);
+    return Math.floor(Math.random() * (safeMax - safeMin + 1)) + safeMin;
+  }
+
+  _randomPick(items) {
+    if (!Array.isArray(items) || items.length === 0) return null;
+    if (this._rng) return this._rng.pick(items);
+    return items[Math.floor(Math.random() * items.length)] ?? null;
   }
 
   pause() {
@@ -114,7 +115,7 @@ export class DirectorSystem {
 
   updateSpawnBurstSchedule() {
     while (this.totalElapsedMs >= this.nextSpawnBurstAtMs) {
-      this.pendingSpawnBurstCount += randomIntInclusive(
+      this.pendingSpawnBurstCount += this._randomInt(
         DIRECTOR_DENSITY_REWORK.burstMinCount,
         DIRECTOR_DENSITY_REWORK.burstMaxCount
       );
@@ -131,7 +132,7 @@ export class DirectorSystem {
 
   updateLadderSpawnSchedule() {
     while (this.totalElapsedMs >= this.nextLadderSpawnAtMs) {
-      this.pendingLadderSpawnCount += randomIntInclusive(
+      this.pendingLadderSpawnCount += this._randomInt(
         DIRECTOR_LADDER_SPAWN_EVENT.minCount,
         DIRECTOR_LADDER_SPAWN_EVENT.maxCount
       );
@@ -147,7 +148,7 @@ export class DirectorSystem {
       return;
     }
 
-    this.pendingHatchBreachSpawnCount = randomIntInclusive(
+    this.pendingHatchBreachSpawnCount = this._randomInt(
       DIRECTOR_HATCH_BREACH_EVENT.minCount,
       DIRECTOR_HATCH_BREACH_EVENT.maxCount
     );
@@ -284,7 +285,7 @@ export class DirectorSystem {
     if (preferredLane && SPAWN_LANE_KEYS.includes(preferredLane)) {
       return preferredLane;
     }
-    return randomArrayItem(SPAWN_LANE_KEYS);
+    return this._randomPick(SPAWN_LANE_KEYS);
   }
 
   chooseLadderLane(preferredLane = null) {
@@ -292,7 +293,7 @@ export class DirectorSystem {
     if (preferredLane && ladderLanes.includes(preferredLane)) {
       return preferredLane;
     }
-    return randomArrayItem(ladderLanes);
+    return this._randomPick(ladderLanes);
   }
 }
 

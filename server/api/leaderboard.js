@@ -10,13 +10,22 @@ const SORT_FIELDS = {
   coopBestTime: "coopBestTimeMs"
 };
 
+const SORT_DIRECTIONS = {
+  bestTimeMs: -1,
+  totalKills: -1,
+  highestLevel: -1,
+  coopBestTimeMs: -1
+};
+
 leaderboardRoutes.get("/", async (req, res) => {
   try {
     const sortKey = SORT_FIELDS[req.query.sort] || "bestTimeMs";
     const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 10, 1), 50);
+    const sortDir = SORT_DIRECTIONS[sortKey] || -1;
 
     const results = await PlayerData.aggregate([
-      { $sort: { [sortKey]: -1 } },
+      { $match: { [sortKey]: { $gt: 0 } } },
+      { $sort: { [sortKey]: sortDir } },
       { $limit: limit },
       {
         $lookup: {
@@ -26,10 +35,10 @@ leaderboardRoutes.get("/", async (req, res) => {
           as: "user"
         }
       },
-      { $unwind: "$user" },
+      { $unwind: { path: "$user", preserveNullAndEmptyArrays: true } },
       {
         $project: {
-          username: "$user.username",
+          username: { $ifNull: ["$user.username", "Unknown"] },
           value: `$${sortKey}`,
           bestTimeMs: 1,
           totalKills: 1,
@@ -40,7 +49,7 @@ leaderboardRoutes.get("/", async (req, res) => {
 
     const entries = results.map((r, i) => ({
       rank: i + 1,
-      username: r.username,
+      username: r.username || "Unknown",
       value: r.value
     }));
 

@@ -17,7 +17,15 @@ const BOSS_VARIANTS = {
     radialBurstIntervalMs: 6000,
     radialBurstWarningLeadMs: 1000,
     radialBurstBulletCount: 12,
-    radialBurstBulletSpeed: 220
+    radialBurstBulletSpeed: 220,
+    shotgunIntervalMs: 4000,
+    shotgunBulletCount: 7,
+    shotgunSpreadDeg: 45,
+    shotgunBulletSpeedMin: 160,
+    shotgunBulletSpeedMax: 260,
+    grenadeIntervalMs: 7000,
+    grenadeDamage: 35,
+    grenadeRadius: 100
   },
   mini: {
     hp: 112,
@@ -35,7 +43,41 @@ const BOSS_VARIANTS = {
     radialBurstIntervalMs: 6000,
     radialBurstWarningLeadMs: 1000,
     radialBurstBulletCount: 12,
-    radialBurstBulletSpeed: 205
+    radialBurstBulletSpeed: 205,
+    shotgunIntervalMs: 5500,
+    shotgunBulletCount: 5,
+    shotgunSpreadDeg: 50,
+    shotgunBulletSpeedMin: 140,
+    shotgunBulletSpeedMax: 220,
+    grenadeIntervalMs: 9000,
+    grenadeDamage: 22,
+    grenadeRadius: 70
+  },
+  reaper: {
+    hp: 99999,
+    speed: 200,
+    damage: 99,
+    xpValue: 0,
+    radius: 28,
+    scale: 2.8,
+    tint: 0xff2222,
+    shockwaveIntervalMs: 1800,
+    shockwaveRadius: 220,
+    rushIntervalMs: 3000,
+    rushDurationMs: 400,
+    rushSpeedMultiplier: 3.0,
+    radialBurstIntervalMs: 3500,
+    radialBurstWarningLeadMs: 600,
+    radialBurstBulletCount: 16,
+    radialBurstBulletSpeed: 280,
+    shotgunIntervalMs: 2500,
+    shotgunBulletCount: 10,
+    shotgunSpreadDeg: 60,
+    shotgunBulletSpeedMin: 200,
+    shotgunBulletSpeedMax: 300,
+    grenadeIntervalMs: 4000,
+    grenadeDamage: 50,
+    grenadeRadius: 130
   }
 };
 const MINI_BOSS_TEXTURE_KEY = "char_enemy_miniboss_davy_south";
@@ -54,9 +96,14 @@ function resolveDavyTextureKey(scene) {
   return candidates.find((key) => scene?.textures?.exists(key)) ?? null;
 }
 
+function abilityScore(distance, config) {
+  if (!config) return 1;
+  return config.scoreFunction ? config.scoreFunction(distance) : 1;
+}
+
 export class BossEnemy extends Enemy {
   constructor(scene, x, y, options = {}) {
-    const variant = options.variant === "mini" ? "mini" : "boss";
+    const variant = options.variant === "mini" ? "mini" : options.variant === "reaper" ? "reaper" : "boss";
     const config = BOSS_VARIANTS[variant];
 
     super(scene, x, y, {
@@ -88,6 +135,26 @@ export class BossEnemy extends Enemy {
     this.nextRadialBurstAtMs = 0;
     this.radialBurstWarningShownAtMs = -1;
 
+    this.shotgunIntervalMs = config.shotgunIntervalMs;
+    this.shotgunBulletCount = config.shotgunBulletCount;
+    this.shotgunSpreadDeg = config.shotgunSpreadDeg;
+    this.shotgunBulletSpeedMin = config.shotgunBulletSpeedMin;
+    this.shotgunBulletSpeedMax = config.shotgunBulletSpeedMax;
+    this.nextShotgunAtMs = config.shotgunIntervalMs * 0.5;
+
+    this.grenadeIntervalMs = config.grenadeIntervalMs;
+    this.grenadeDamage = config.grenadeDamage;
+    this.grenadeRadius = config.grenadeRadius;
+    this.nextGrenadeAtMs = config.grenadeIntervalMs;
+
+    this.abilities = [
+      { id: "shockwave", weight: 1, scoreDist: (d) => d < 220 ? 2 : 0.3 },
+      { id: "rush", weight: 2, scoreDist: (d) => d / (d + 300) * 3 },
+      { id: "radialBurst", weight: 1.5, scoreDist: (d) => 1 },
+      { id: "shotgun", weight: 1.2, scoreDist: (d) => Math.exp(-Math.pow((d - 250) / 150, 2)) },
+      { id: "grenade", weight: 0.8, scoreDist: (d) => d / (d + 200) }
+    ];
+
     this.setData("isBoss", true);
     this.setData("bossVariant", this.variant);
 
@@ -96,10 +163,29 @@ export class BossEnemy extends Enemy {
       this.setTexture(davyTextureKey);
       this.setData("bossTextureKey", davyTextureKey);
     } else if (this.variant === "mini" && scene?.textures?.exists(MINI_BOSS_TEXTURE_KEY)) {
-      // TODO: remove this branch once all build variants guarantee davy texture preload.
       this.setTexture(MINI_BOSS_TEXTURE_KEY);
       this.setData("bossTextureKey", MINI_BOSS_TEXTURE_KEY);
     }
+  }
+
+  chooseAbility(target) {
+    const distance = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+    let totalScore = 0;
+    const scores = this.abilities.map((ability) => {
+      const now = this.scene?.time?.now ?? 0;
+      const nextKey = `next_${ability.id}_at_ms`;
+      if (now < (this[nextKey] ?? 0)) return 0;
+      const score = (ability.weight ?? 1) * ability.scoreDist(distance);
+      totalScore += score;
+      return score;
+    });
+    if (totalScore <= 0) return null;
+    let rand = Math.random() * totalScore;
+    for (let i = 0; i < this.abilities.length; i++) {
+      rand -= scores[i];
+      if (rand <= 0) return this.abilities[i].id;
+    }
+    return this.abilities[0].id;
   }
 
   updateBossPattern(target, nowMs) {
@@ -158,5 +244,115 @@ export class BossEnemy extends Enemy {
         this.scene.spawnBossRadialBurst(this, this.radialBurstBulletCount, this.radialBurstBulletSpeed);
       }
     }
+
+    if (nowMs >= this.nextShotgunAtMs) {
+      const distance = Phaser.Math.Distance.Between(this.x, this.y, target.x, target.y);
+      if (distance < 400) {
+        this.nextShotgunAtMs = nowMs + this.shotgunIntervalMs;
+        this.fireShotgun(target);
+      } else {
+        this.nextShotgunAtMs = nowMs + 2000;
+      }
+    }
+
+    if (nowMs >= this.nextGrenadeAtMs) {
+      this.nextGrenadeAtMs = nowMs + this.grenadeIntervalMs;
+      this.throwGrenade(target);
+    }
+  }
+
+  fireShotgun(target) {
+    if (!this.scene?.bossProjectiles) return;
+    const dx = target.x - this.x;
+    const dy = target.y - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.001) return;
+
+    const baseAngle = Math.atan2(dy, dx);
+    const spreadRad = Phaser.Math.DegToRad(this.shotgunSpreadDeg);
+    const count = this.shotgunBulletCount;
+    const center = (count - 1) / 2;
+
+    for (let i = 0; i < count; i++) {
+      const offset = (i - center) * (spreadRad / count);
+      const angle = baseAngle + offset;
+      const speed = Phaser.Math.FloatBetween(this.shotgunBulletSpeedMin, this.shotgunBulletSpeedMax);
+      const nx = Math.cos(angle);
+      const ny = Math.sin(angle);
+
+      let projectile = this.scene.bossProjectiles.getFirstDead(false);
+      if (!projectile) {
+        if (this.scene.bossProjectiles.getLength() >= 220) break;
+        projectile = this.scene.bossProjectiles.create(-1000, -1000, "boss_bullet");
+        if (!projectile?.body) continue;
+        projectile.body.setCircle(Math.max(2, projectile.displayWidth * 0.42), 0, 0);
+        projectile.setDepth(8);
+      }
+      projectile.setActive(true);
+      projectile.setVisible(true);
+      projectile.body.enable = true;
+      projectile.setPosition(this.x, this.y);
+      projectile.body.setVelocity(nx * speed, ny * speed);
+      projectile.setData("damage", Math.round(this.damage * 0.35));
+      projectile.setTint(0xff6644);
+      projectile.setData("isBoomerangProjectile", false);
+
+      this.scene.time.delayedCall(2500, () => {
+        if (projectile.active) {
+          this.scene.releaseBossProjectile(projectile);
+        }
+      });
+    }
+  }
+
+  throwGrenade(target) {
+    if (!this.scene?.bossProjectiles) return;
+    let vx = 0;
+    let vy = 0;
+    if (target.body) {
+      vx = target.body.velocity?.x ?? 0;
+      vy = target.body.velocity?.y ?? 0;
+    }
+    const travelTime = 0.5;
+    const predictedX = target.x + vx * travelTime * 0.5;
+    const predictedY = target.y + vy * travelTime * 0.5;
+
+    const dx = predictedX - this.x;
+    const dy = predictedY - this.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist < 0.001) return;
+
+    const speed = 180;
+    const nx = dx / dist;
+    const ny = dy / dist;
+
+    let projectile = this.scene.bossProjectiles.getFirstDead(false);
+    if (!projectile) {
+      if (this.scene.bossProjectiles.getLength() >= 220) return;
+      projectile = this.scene.bossProjectiles.create(-1000, -1000, "boss_bullet");
+      if (!projectile?.body) return;
+      projectile.body.setCircle(Math.max(2, projectile.displayWidth * 0.42), 0, 0);
+      projectile.setDepth(8);
+    }
+    projectile.setActive(true);
+    projectile.setVisible(true);
+    projectile.body.enable = true;
+    projectile.setPosition(this.x, this.y);
+    projectile.body.setVelocity(nx * speed, ny * speed);
+    projectile.setData("damage", 0);
+    projectile.setTint(0xff4422);
+    projectile.setData("isGrenade", true);
+    projectile.setData("grenadeDamage", this.grenadeDamage);
+    projectile.setData("grenadeRadius", this.grenadeRadius);
+    projectile.setData("isBoomerangProjectile", false);
+    projectile.setData("grenadeLaunchX", this.x);
+    projectile.setData("grenadeLaunchY", this.y);
+    projectile.setData("grenadeRange", dist * 1.1);
+
+    this.scene.time.delayedCall(1200, () => {
+      if (projectile.active) {
+        this.scene.releaseBossProjectile(projectile);
+      }
+    });
   }
 }
