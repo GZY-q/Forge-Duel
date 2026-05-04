@@ -463,7 +463,7 @@ export class WeaponSystem {
     weapon.type = evolutionType;
     weapon.evolved = true;
     weapon.projectileBehavior = evolved.projectileBehavior;
-    weapon.damage = Math.max(Math.round(weapon.damage * 1.7), evolved.damage);
+    weapon.damage = Math.max(Math.round(weapon.damage * 1.5), evolved.damage);
     weapon.cooldownMs = evolved.cooldownMs;
     weapon.range = Math.max(weapon.range, evolved.range);
     weapon.knockbackForce = evolved.knockbackForce;

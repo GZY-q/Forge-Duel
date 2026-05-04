@@ -1,4 +1,4 @@
-import { createVSBackground, createVSPanel, createVSBackButton } from "../ui/vsUI.js";
+import { createMainMenuBackground, createVSPanel, createVSBackButton, createVSTopBar } from "../ui/vsUI.js";
 
 const API_BASE = window.location.origin;
 
@@ -47,8 +47,9 @@ const LIST_BOTTOM_PAD = 46;
 const PAGE_CTRL_H = 34;
 const SCROLLBAR_W = 8;
 const SCROLLBAR_MIN_H = 30;
-const PANEL_W = 780;
-const PANEL_H = 560;
+const PANEL_W = 700;
+const PANEL_H = 500;
+const COIN_STORAGE_KEY = "forgeduel_coins";
 
 function formatTime(ms) {
   if (!ms || ms <= 0) return "--:--";
@@ -72,6 +73,19 @@ export class LeaderboardScene extends Phaser.Scene {
     this._initialSort = data?.sort || "bestTime";
   }
 
+  preload() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+  }
+
+  loadCoins() {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
+  }
+
   create() {
     const cam = this.cameras.main;
     this.camW = cam.width;
@@ -79,11 +93,17 @@ export class LeaderboardScene extends Phaser.Scene {
     this.cx = cam.width * 0.5;
     this.cy = cam.height * 0.5;
 
-    createVSBackground(this);
+    // ── Background ──
+    createMainMenuBackground(this);
+
+    // ── Top bar (coins only) ──
+    const coins = this.loadCoins();
+    this.topBar = createVSTopBar(this, { coins });
 
     const doClose = () => {
       const mainMenu = this.scene.get("MainMenuScene");
       if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+        mainMenu.showBackButton(false);
         mainMenu.closeSubMenu();
       } else {
         this.scene.stop("LeaderboardScene");
@@ -91,16 +111,20 @@ export class LeaderboardScene extends Phaser.Scene {
     };
     createVSBackButton(this, cam.width - 84, 36, doClose);
 
+    if (this.input?.keyboard) {
+      this.input.keyboard.on("keydown-ESC", doClose);
+    }
+
     this.panelW = PANEL_W;
     this.panelH = PANEL_H;
-    this.panelTop = this.cy - this.panelH / 2;
-    this.panelBottom = this.cy + this.panelH / 2;
+    this.panelTop = this.cy + 20 - this.panelH / 2;
+    this.panelBottom = this.cy + 20 + this.panelH / 2;
     this.panelLeft = this.cx - this.panelW / 2;
     this.panelRight = this.cx + this.panelW / 2;
 
-    createVSPanel(this, this.cx, this.cy, this.panelW, this.panelH);
+    createVSPanel(this, this.cx, this.cy + 20, this.panelW, this.panelH);
 
-    this.add.rectangle(this.cx, this.cy, this.panelW, this.panelH, 0x000000, 0.15).setDepth(50);
+    this.add.rectangle(this.cx, this.cy + 20, this.panelW, this.panelH, 0x000000, 0.15).setDepth(50);
 
     this.add.text(this.cx, this.panelTop + TITLE_TOP_OFFSET, "排 行 榜", {
       fontFamily: "ZpixOne", fontSize: "20px", color: C.textGold,

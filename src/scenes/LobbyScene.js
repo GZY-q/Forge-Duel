@@ -3,7 +3,7 @@ import { SHIP_CONFIGS, SHIP_STORAGE_KEY } from "../config/ships.js";
 import { SocketClient } from "../networking/SocketClient.js";
 import { NetworkManager } from "../networking/NetworkManager.js";
 import { VoiceManager } from "../networking/VoiceManager.js";
-import { createVSBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
+import { createMainMenuBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
@@ -12,6 +12,12 @@ const MAX_PLAYERS = 4;
 export class LobbyScene extends Phaser.Scene {
   constructor() {
     super("LobbyScene");
+  }
+
+  preload() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
   }
 
   init(data) {
@@ -28,7 +34,7 @@ export class LobbyScene extends Phaser.Scene {
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    createVSBackground(this);
+    createMainMenuBackground(this);
 
     // Register shutdown cleanup via Phaser's event system.
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this._onShutdown());
@@ -81,7 +87,7 @@ export class LobbyScene extends Phaser.Scene {
     this.selectionObjects.push(joinBtn.plate, joinBtn.text);
 
     this._selectionBackBtn = createBackButton(this, () => {
-      this.scene.start("ShipSelectionScene", { mode: "coop" });
+      this.scene.start("ShipSelectionScene", { mode: "coop", fromLobby: true });
     });
   }
 
@@ -574,6 +580,7 @@ export class LobbyScene extends Phaser.Scene {
 
   _leaveAndReturn() {
     this._destroyCodeInput();
+    this._destroySelectionUI();
     this.scene.start("MainMenuScene");
   }
 

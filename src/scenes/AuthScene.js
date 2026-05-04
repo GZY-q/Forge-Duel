@@ -1,11 +1,25 @@
-import { createVSBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
+import { createMainMenuBackground, createVSPanel, createVSTopBar, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
 const API_BASE = window.location.origin;
+const COIN_STORAGE_KEY = "forgeduel_coins";
 
 export class AuthScene extends Phaser.Scene {
   constructor() {
     super("AuthScene");
+  }
+
+  preload() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+  }
+
+  loadCoins() {
+    if (typeof window === "undefined" || !window.localStorage) return 0;
+    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    if (!Number.isFinite(parsed) || parsed < 0) return 0;
+    return Math.floor(parsed);
   }
 
   create() {
@@ -13,8 +27,12 @@ export class AuthScene extends Phaser.Scene {
     const cx = camera.width * 0.5;
     const cy = camera.height * 0.5;
 
-    // ── VS Background ──
-    createVSBackground(this);
+    // ── Main Menu Background ──
+    createMainMenuBackground(this);
+
+    // ── Top bar (coins only) ──
+    const coins = this.loadCoins();
+    this.topBar = createVSTopBar(this, { coins });
 
     // ── Panel ──
     createVSPanel(this, cx, cy, 420, 400);
@@ -45,18 +63,18 @@ export class AuthScene extends Phaser.Scene {
 
     this._createLink(cx, cy + 130, "游客模式（仅单机）", () => {
       this._cleanupDom();
-      this.scene.start("MainMenuScene");
+      this.scene.stop("AuthScene");
     });
 
     createBackButton(this, () => {
       this._cleanupDom();
-      this.scene.start("MainMenuScene");
+      this.scene.stop("AuthScene");
     });
 
     if (this.input?.keyboard) {
       this.input.keyboard.on("keydown-ESC", () => {
         this._cleanupDom();
-        this.scene.start("MainMenuScene");
+        this.scene.stop("AuthScene");
       });
     }
   }
@@ -146,7 +164,7 @@ export class AuthScene extends Phaser.Scene {
 
   _createButton(x, y, label, onClick) {
     return createVSButton(this, x, y, label, {
-      width: 280, height: 46, fontSize: "20px", onClick
+      width: 100, fontSize: "16px", onClick
     });
   }
 
@@ -174,7 +192,7 @@ export class AuthScene extends Phaser.Scene {
     }
 
     this.errorText.setText("请稍候...");
-    this.submitBtn.plate.disableInteractive();
+    this.submitBtn.img.disableInteractive();
 
     try {
       const endpoint = this.isLogin ? "/api/auth/login" : "/api/auth/register";
@@ -188,7 +206,7 @@ export class AuthScene extends Phaser.Scene {
 
       if (!res.ok) {
         this.errorText.setText(data.error || "请求失败");
-        this.submitBtn.plate.setInteractive({ useHandCursor: true });
+        this.submitBtn.img.setInteractive({ useHandCursor: true });
         return;
       }
 
@@ -201,7 +219,7 @@ export class AuthScene extends Phaser.Scene {
       this.scene.start("MainMenuScene", { authUser: data.user, authToken: data.token });
     } catch (err) {
       this.errorText.setText("网络错误，请检查服务器是否运行");
-      this.submitBtn.plate.setInteractive({ useHandCursor: true });
+      this.submitBtn.img.setInteractive({ useHandCursor: true });
     }
   }
 

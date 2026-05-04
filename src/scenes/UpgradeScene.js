@@ -42,7 +42,7 @@ function toSafeInt(value) {
 }
 
 import {
-  createVSBackground,
+  createMainMenuBackground,
   createVSTopBar,
   createVSBackButton,
   createVSPanel,
@@ -61,6 +61,12 @@ export class UpgradeScene extends Phaser.Scene {
     this.statusText = null;
   }
 
+  init() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+  }
+
   create() {
     this.cardObjects = [];
     this.detailObjects = null;
@@ -75,7 +81,7 @@ export class UpgradeScene extends Phaser.Scene {
     this.upgrades = this.loadUpgrades();
 
     // ── Background ──
-    createVSBackground(this);
+    createMainMenuBackground(this);
 
     // ── Top bar (coins only, no right button) ──
     this.topBar = createVSTopBar(this, { coins: this.coins });
@@ -97,8 +103,8 @@ export class UpgradeScene extends Phaser.Scene {
     }
 
     //========== 增强选择面板尺寸 ==========
-    const panelW = 780;
-    const panelH = 560;
+    const panelW = 700;
+    const panelH = 500;
     const panelCenterY = cy + 15;
     const panelTop = panelCenterY - panelH / 2;
     const panelBottom = panelCenterY + panelH / 2;

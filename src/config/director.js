@@ -68,12 +68,12 @@ export const DIRECTOR_DIFFICULTY_SCALING = {
 
 export const DIRECTOR_ENEMY_HP_SCALING = {
   base: 1,
-  perMinute: 0.10
+  perMinute: 0.13
 };
 
 export const DIRECTOR_ENEMY_DAMAGE_SCALING = {
   base: 1,
-  perMinute: 0.08
+  perMinute: 0.10
 };
 
 export const DIRECTOR_DENSITY_REWORK = {

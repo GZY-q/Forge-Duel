@@ -8,7 +8,7 @@ import {
   getUnlockProgress
 } from "../config/ships.js";
 import {
-  createVSBackground,
+  createMainMenuBackground,
   createVSTopBar,
   createVSBackButton,
   createVSPanel,
@@ -45,17 +45,23 @@ export class ShipSelectionScene extends Phaser.Scene {
     this.pendingMode = data?.mode || "solo";
   }
 
+  preload() {
+    if (!this.textures.exists("main_menu_bg")) {
+      this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+  }
+
   create() {
     const cam = this.cameras.main;
     const cx = cam.width * 0.5;
     const cy = cam.height * 0.5;
 
     // ── Background ──
-    createVSBackground(this);
+    createMainMenuBackground(this);
 
     // ── Top bar ──
     const coins = this.loadCoins();
-    const goBack = () => this.scene.start("MainMenuScene");
+    const goBack = () => this.scene.start("MainMenuScene", { fromShipSelection: true });
     this.topBar = createVSTopBar(this, {
       coins,
       showBack: true,

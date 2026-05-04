@@ -23,6 +23,7 @@
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
     "phaser": "^3.90.0",
+    "phaser3-rex-plugins": "^1.80.20",
     "socket.io": "^4.8.1",
     "socket.io-client": "^4.8.3",
     "vite": "^8.0.10"
