@@ -74,14 +74,14 @@ export class LobbyScene extends Phaser.Scene {
 
     // Create room button
     const createBtn = createVSButton(this, cx, cy + 10, "创建房间", {
-      width: 240, height: 60, fontSize: "22px",
+      width: 120, height: 60, fontSize: "22px",
       onClick: () => this._onSelectCreate()
     });
     this.selectionObjects.push(createBtn.plate, createBtn.text);
 
     // Join room button
     const joinBtn = createVSButton(this, cx, cy + 90, "加入房间", {
-      width: 240, height: 60, fontSize: "22px",
+      width: 120, height: 60, fontSize: "22px",
       onClick: () => this._onSelectJoin()
     });
     this.selectionObjects.push(joinBtn.plate, joinBtn.text);
@@ -146,14 +146,14 @@ export class LobbyScene extends Phaser.Scene {
 
     // Confirm button
     const confirmBtn = createVSButton(this, cx + 80, cy + 92, "确认", {
-      width: 100, height: 36, fontSize: "14px",
+      width: 120, height: 36, fontSize: "14px",
       onClick: () => this._submitJoinCode()
     });
     this.codeInputObjects.push(confirmBtn.plate, confirmBtn.text);
 
     // Back button
     const backBtn = createVSButton(this, cx - 80, cy + 92, "返回", {
-      width: 100, height: 36, fontSize: "14px",
+      width: 120, height: 36, fontSize: "14px",
       onClick: () => this._cancelCodeInput()
     });
     this.codeInputObjects.push(backBtn.plate, backBtn.text);
@@ -308,15 +308,15 @@ export class LobbyScene extends Phaser.Scene {
 
     this.voiceControls = this._createVoiceControls(cx, cy + 155);
     this.readyBtn = createVSButton(this, cx - 80, cy + 210, "准备", {
-      width: 140, height: 42, fontSize: "18px",
+      width: 120, height: 42, fontSize: "18px",
       onClick: () => this._toggleReady()
     });
     this.startBtn = createVSButton(this, cx + 80, cy + 210, "开始游戏", {
-      width: 140, height: 42, fontSize: "18px",
+      width: 120, height: 42, fontSize: "18px",
       onClick: () => this._startGame()
     });
-    this.startBtn.plate.setAlpha(0.4);
-    this.startBtn.plate.disableInteractive();
+    this.startBtn.img.setAlpha(0.4);
+    this.startBtn.img.disableInteractive();
 
     createBackButton(this, () => this._leaveAndReturn());
 
@@ -501,20 +501,20 @@ export class LobbyScene extends Phaser.Scene {
     const allReady = players.length >= 2 && players.every((p) => p.ready);
 
     if (isHost && allReady && players.length >= 2) {
-      this.startBtn.plate.setAlpha(1);
-      this.startBtn.plate.setInteractive({ useHandCursor: true });
+      this.startBtn.img.setAlpha(1);
+      this.startBtn.img.setInteractive({ useHandCursor: true });
       this.statusText.setText("所有玩家已准备，点击开始游戏");
     } else if (isHost && players.length < 2) {
-      this.startBtn.plate.setAlpha(0.4);
-      this.startBtn.plate.disableInteractive();
+      this.startBtn.img.setAlpha(0.4);
+      this.startBtn.img.disableInteractive();
       this.statusText.setText("等待更多玩家加入...");
     } else if (isHost && !allReady) {
-      this.startBtn.plate.setAlpha(0.4);
-      this.startBtn.plate.disableInteractive();
+      this.startBtn.img.setAlpha(0.4);
+      this.startBtn.img.disableInteractive();
       this.statusText.setText("等待所有玩家准备...");
     } else {
-      this.startBtn.plate.setAlpha(0.4);
-      this.startBtn.plate.disableInteractive();
+      this.startBtn.img.setAlpha(0.4);
+      this.startBtn.img.disableInteractive();
       this.statusText.setText("等待房主开始...");
     }
   }
@@ -548,7 +548,7 @@ export class LobbyScene extends Phaser.Scene {
     this.isReady = !this.isReady;
     await this.networkManager?.setReady(this.isReady);
     this.readyBtn.text.setText(this.isReady ? "取消准备" : "准备");
-    this.readyBtn.plate.setStrokeStyle(3, this.isReady ? 0xffd866 : 0xc4a040, 1);
+    this.readyBtn.img.setStrokeStyle(3, this.isReady ? 0xffd866 : 0xc4a040, 1);
     this._updateStartButton();
   }
 

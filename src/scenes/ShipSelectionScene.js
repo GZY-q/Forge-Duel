@@ -129,7 +129,7 @@ export class ShipSelectionScene extends Phaser.Scene {
     // 高度88 | Y位置panelBottom - 52
     this.createDetailPanel(cx, panelBottom - 52, panelW - 30, 88);
 
-    createVSConfirmButton(this, cx + 250, panelBottom - 70, "确认", () => {
+    createVSConfirmButton(this, cx + 250, panelBottom - 50, "确认", () => {
       if (!this.selectedShipId) {
         this.updateDetailPanel(null, "请先选择一个角色", true);
         return;

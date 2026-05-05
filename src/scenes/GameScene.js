@@ -1096,49 +1096,6 @@ export class GameScene extends Phaser.Scene {
       .setLineSpacing(4)
       .setScrollFactor(0)
       .setDepth(10);
-    if (this.textures.exists(IMPORTED_PIXEL_ASSETS.uiPanelBrown.key)) {
-      this.hudPanelBack = this.add
-        .image(HUD_PANEL_X + HUD_PANEL_WIDTH * 0.5, HUD_PANEL_Y + HUD_PANEL_HEIGHT * 0.5, IMPORTED_PIXEL_ASSETS.uiPanelBrown.key)
-        .setOrigin(0.5)
-        .setDisplaySize(HUD_PANEL_WIDTH, HUD_PANEL_HEIGHT)
-        .setScrollFactor(0)
-        .setDepth(8)
-        .setTint(0x8e5b33)
-        .setAlpha(0.92);
-      this.hudSecondaryPanel = this.add
-        .image(1142, 44, IMPORTED_PIXEL_ASSETS.uiPanelBrown.key)
-        .setOrigin(0.5)
-        .setDisplaySize(228, 78)
-        .setScrollFactor(0)
-        .setDepth(8)
-        .setTint(0x7e532f);
-    }
-    if (this.textures.exists(IMPORTED_PIXEL_ASSETS.uiPanelTanInlay.key)) {
-      this.hudXpFrame = this.add
-        .image(162, 47, IMPORTED_PIXEL_ASSETS.uiPanelTanInlay.key)
-        .setOrigin(0.5)
-        .setDisplaySize(284, 10)
-        .setScrollFactor(0)
-        .setDepth(8.8)
-        .setTint(0xd2b07e)
-        .setAlpha(0.9);
-    }
-    if (this.textures.exists(IMPORTED_PIXEL_ASSETS.uiPanelBrownInlay.key)) {
-      this.hudHeaderChip = this.add
-        .image(76, 18, IMPORTED_PIXEL_ASSETS.uiPanelBrownInlay.key)
-        .setOrigin(0.5)
-        .setDisplaySize(120, 18)
-        .setScrollFactor(0)
-        .setDepth(8.9)
-        .setTint(0xc19a67);
-      this.hudSecondaryChip = this.add
-        .image(1104, 18, IMPORTED_PIXEL_ASSETS.uiPanelBrownInlay.key)
-        .setOrigin(0.5)
-        .setDisplaySize(100, 18)
-        .setScrollFactor(0)
-        .setDepth(8.9)
-        .setTint(0xb48855);
-    }
     this.hudCoreLabelText = this.add
       .text(76, 18, "SURVIVAL LOG", {
         fontFamily: "ZpixOne",
@@ -2400,13 +2357,13 @@ export class GameScene extends Phaser.Scene {
 
     // --- DOM Joystick ---
     const joystickSize = TOUCH_JOYSTICK_RADIUS * 2;
-    const thumbSize = 28;
+    const thumbSize = 32;
     this._domJoystickBase = document.createElement("div");
     Object.assign(this._domJoystickBase.style, {
       position: "fixed", bottom: "64px", left: "64px",
       width: joystickSize + "px", height: joystickSize + "px",
       borderRadius: "50%",
-      background: "rgba(42,42,74,0.65)",
+      background: "rgba(42,42,74,0.75)",
       border: "2px solid rgba(196,160,64,0.85)",
       zIndex: zIdx,
       touchAction: "none"
@@ -2417,7 +2374,7 @@ export class GameScene extends Phaser.Scene {
       width: thumbSize + "px", height: thumbSize + "px",
       marginTop: -(thumbSize / 2) + "px", marginLeft: -(thumbSize / 2) + "px",
       borderRadius: "50%",
-      background: "rgba(196,160,64,0.55)",
+      background: "rgba(196,160,64,0.7)",
       border: "2px solid rgba(254,240,138,0.9)",
       pointerEvents: "none"
     });
@@ -2430,21 +2387,15 @@ export class GameScene extends Phaser.Scene {
     Object.assign(this._domDashBtn.style, {
       position: "fixed", bottom: "64px", right: "64px",
       width: dashSize + "px", height: dashSize + "px",
-      borderRadius: "50%",
-      background: "rgba(92,61,14,0.62)",
-      border: "2px solid rgba(255,209,102,0.9)",
+      borderRadius: "2px",
+      background: "rgba(59,89,152,0.95)",
+      backgroundImage: "url('assets/sprites/player/dash/dash.png')",
+      backgroundSize: "contain",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
       zIndex: zIdx,
-      display: "flex", alignItems: "center", justifyContent: "center",
       touchAction: "none"
     });
-    const dashText = document.createElement("span");
-    dashText.textContent = "闪";
-    Object.assign(dashText.style, {
-      fontFamily: "'ZpixOne', sans-serif",
-      fontSize: "14px", color: "#ffe8a8",
-      textShadow: "0 0 0 3px #2a1a04"
-    });
-    this._domDashBtn.appendChild(dashText);
     appRoot.appendChild(this._domDashBtn);
     this._domDashBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
@@ -2459,23 +2410,14 @@ export class GameScene extends Phaser.Scene {
     this._domPauseBtn = document.createElement("div");
     Object.assign(this._domPauseBtn.style, {
       position: "fixed", top: "98px", right: "8px",
-      width: "52px", height: "28px",
-      background: "rgba(59,89,152,0.9)",
-      border: "2px solid rgba(212,175,55,1)",
+      width: "80px", height: "36px",
+      backgroundImage: "url('assets/sprites/button/btn_blue.png')",
+      backgroundSize: "contain",
+      backgroundPosition: "center",
+      backgroundRepeat: "no-repeat",
       zIndex: zIdx,
-      display: "flex", alignItems: "center", justifyContent: "center",
-      borderRadius: "4px",
       touchAction: "none"
     });
-    const pauseText = document.createElement("span");
-    pauseText.textContent = "菜单";
-    Object.assign(pauseText.style, {
-      fontFamily: "'ZpixOne', sans-serif",
-      fontSize: "11px", color: "#ffffff",
-      textShadow: "0 0 0 2px #0a0a0a",
-      fontWeight: "bold"
-    });
-    this._domPauseBtn.appendChild(pauseText);
     appRoot.appendChild(this._domPauseBtn);
     this._domPauseBtn.addEventListener("touchstart", (e) => {
       e.preventDefault();
