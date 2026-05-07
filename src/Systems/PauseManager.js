@@ -79,55 +79,48 @@ export class PauseManager {
 
     // Buttons
     const btnY = cy + ph / 2 - 52;
-    const resumeBtnW = 80;
-    const { h: resumeBtnH } = getButtonSize(BUTTON_TEXTURES.green, resumeBtnW);
-    const resumeBtn = s.add.image(cx - 100, btnY, BUTTON_TEXTURES.green)
-      .setDisplaySize(resumeBtnW, resumeBtnH)
-      .setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const resumeLabel = s.add.text(cx - 100, btnY + 1, "继续游戏", {
-      fontFamily: "ZpixOne", fontSize: "14px", color: "#ffffff", stroke: "#000000", strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
+    const btnsX = [cx - 150, cx - 50, cx + 50, cx + 150];
 
-    const bgmLabel = s.bgmEnabled ? "BGM: ON" : "BGM: OFF";
-    const bgmBtnW = 80;
-    const { h: bgmBtnH } = getButtonSize(BUTTON_TEXTURES.blue, bgmBtnW);
-    const bgmBtn = s.add.image(cx, btnY, BUTTON_TEXTURES.blue)
-      .setDisplaySize(bgmBtnW, bgmBtnH)
-      .setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const bgmText = s.add.text(cx, btnY + 1, bgmLabel, {
-      fontFamily: "ZpixOne", fontSize: "11px", color: "#a0a0b0", stroke: "#000000", strokeThickness: 2
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3);
+    const makeBtn = (xIdx, texture, label, fontSize, onDown) => {
+      const btnW = 64;
+      const { h: btnH } = getButtonSize(texture, btnW);
+      const x = btnsX[xIdx];
+      const btn = s.add.image(x, btnY, texture)
+        .setDisplaySize(btnW, btnH)
+        .setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
+      const lbl = s.add.text(x, btnY + 1, label, {
+        fontFamily: "ZpixOne", fontSize: fontSize ?? "12px",
+        color: "#ffffff", stroke: "#000000", strokeThickness: 3
+      }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
+      btn.on("pointerdown", onDown);
+      lbl.on("pointerdown", onDown);
+      return { btn, lbl };
+    };
 
-    const quitBtnW = 80;
-    const { h: quitBtnH } = getButtonSize(BUTTON_TEXTURES.red, quitBtnW);
-    const quitBtn = s.add.image(cx + 100, btnY, BUTTON_TEXTURES.red)
-      .setDisplaySize(quitBtnW, quitBtnH)
-      .setScrollFactor(0).setDepth(d + 2).setInteractive({ useHandCursor: true });
-    const quitLabel = s.add.text(cx + 100, btnY + 1, "返回菜单", {
-      fontFamily: "ZpixOne", fontSize: "14px", color: "#ffffff", stroke: "#000000", strokeThickness: 3
-    }).setOrigin(0.5).setScrollFactor(0).setDepth(d + 3).setInteractive({ useHandCursor: true });
+    const { lbl: resumeLabel, btn: resumeBtn } = makeBtn(0, BUTTON_TEXTURES.green, "继续游戏", "12px", () => this.close());
 
-    resumeBtn.on("pointerdown", onResume);
-    resumeLabel.on("pointerdown", onResume);
+    const bgmLabel = s.audioManager.bgmEnabled ? "BGM: ON" : "BGM: OFF";
+    const { lbl: bgmText, btn: bgmBtn } = makeBtn(1, BUTTON_TEXTURES.blue, bgmLabel, "10px", () => {
+      s.audioManager.bgmEnabled = !s.audioManager.bgmEnabled;
+      bgmText.setText(s.audioManager.bgmEnabled ? "BGM: ON" : "BGM: OFF");
+      if (s.audioManager.bgmEnabled) { s.audioManager.startBgm(); } else { s.audioManager.stopBgm(); }
+    });
 
-    const onQuit = () => {
+    const joystickLabel = s.inputController.joystickMode === "fixed" ? "摇杆: 固定" : "摇杆: 动态";
+    const { lbl: joystickText, btn: joystickBtn } = makeBtn(2, BUTTON_TEXTURES.blue, joystickLabel, "10px", () => {
+      const newMode = s.inputController.joystickMode === "fixed" ? "dynamic" : "fixed";
+      s.inputController.setJoystickMode(newMode);
+      joystickText.setText(newMode === "fixed" ? "摇杆: 固定" : "摇杆: 动态");
+    });
+
+    const { lbl: quitLabel, btn: quitBtn } = makeBtn(3, BUTTON_TEXTURES.red, "返回菜单", "12px", () => {
       this.close();
       s.finalizeMetaRun();
       s.scene.stop();
       s.scene.start("MainMenuScene");
-    };
-    quitBtn.on("pointerdown", onQuit);
-    quitLabel.on("pointerdown", onQuit);
+    });
 
-    const onBgmToggle = () => {
-      s.bgmEnabled = !s.bgmEnabled;
-      bgmText.setText(s.bgmEnabled ? "BGM: ON" : "BGM: OFF");
-      if (s.bgmEnabled) { s.startBgm(); } else { s.stopBgm(); }
-    };
-    bgmBtn.on("pointerdown", onBgmToggle);
-    bgmText.on("pointerdown", onBgmToggle);
-
-    s.pauseUi = [backdrop, panelShadow, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, ...uiObjs];
+    s.pauseUi = [backdrop, panelShadow, panel, panelInner, title, resumeBtn, resumeLabel, quitBtn, quitLabel, bgmBtn, bgmText, joystickBtn, joystickText, ...uiObjs];
   }
 
   close() {

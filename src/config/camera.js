@@ -1,0 +1,3 @@
+export const GAMEPLAY_CAMERA_ZOOM = 1.72;
+export const GAMEPLAY_CAMERA_FOLLOW_LERP_X = 0.1;
+export const GAMEPLAY_CAMERA_FOLLOW_LERP_Y = 0.1;

@@ -1,6 +1,8 @@
 import { ITEM_DROP_CONFIGS } from "../config/progression.js";
 import { LEVEL_UP_UPGRADES } from "../config/weapons.js";
 import { TreasureChest } from "../entities/TreasureChest.js";
+import { triggerExploderDeath } from "../entities/enemies/Exploder.js";
+import { triggerSplitterSpawn } from "../entities/enemies/Splitter.js";
 
 const XP_ORB_BASE_SCALE = 1.16;
 const XP_ORB_HIGH_VALUE_SCALE = 1.24;
@@ -20,13 +22,12 @@ const MINI_BOSS_XP_BURST_MIN_FACTOR = 0.3;
 const MINI_BOSS_XP_BURST_MAX_FACTOR = 1.6;
 
 export class DropManager {
-  constructor(scene) {
-    this.scene = scene;
+  constructor(gameContext) {
+    this.ctx = gameContext;
   }
 
   /* ── XP Orb ── */
   spawnXpOrb(x, y, value, config = {}) {
-    const s = this.scene;
     let texture = config.texture;
     if (!texture) {
       if (value >= 50) texture = "xp_orb_gold";
@@ -34,7 +35,7 @@ export class DropManager {
       else if (value >= 10) texture = "xp_orb_blue";
       else texture = "xp_orb";
     }
-    const orb = s.xpOrbs.create(x, y, texture);
+    const orb = this.ctx.entities.xpOrbs.create(x, y, texture);
     if (!orb) return;
 
     const isSpecialPickup = config.pickupType === "elite_upgrade" || config.pickupType === "mini_boss_gold";
@@ -78,11 +79,10 @@ export class DropManager {
   }
 
   applyEliteUpgradeReward(rewardUpgradeId) {
-    const s = this.scene;
     const rewardUpgrade = LEVEL_UP_UPGRADES.find((upgrade) => upgrade.id === rewardUpgradeId);
     if (!rewardUpgrade) return false;
-    s.levelUpManager.apply(rewardUpgrade);
-    s.showHudAlert(`ELITE ${rewardUpgrade.label.toUpperCase()}`, 1200);
+    this.ctx.managers.levelUpManager.apply(rewardUpgrade);
+    this.ctx.hud.showAlert(`ELITE ${rewardUpgrade.label.toUpperCase()}`, 1200);
     return true;
   }
 
@@ -107,16 +107,15 @@ export class DropManager {
 
   /* ── Item drops ── */
   trySpawnItemDrop(x, y) {
-    const s = this.scene;
-    if (!s.itemPool) return;
+    if (!this.ctx.entities.itemPool) return;
     const itemKeys = Object.keys(ITEM_DROP_CONFIGS);
     for (let i = 0; i < itemKeys.length; i++) {
       const config = ITEM_DROP_CONFIGS[itemKeys[i]];
       if (Math.random() < config.dropChance) {
         const offsetX = (Math.random() - 0.5) * 30;
         const offsetY = (Math.random() - 0.5) * 30;
-        const item = s.itemPool.acquire(x + offsetX, y + offsetY, config.id);
-        if (item) s.activeItems.push(item);
+        const item = this.ctx.entities.itemPool.acquire(x + offsetX, y + offsetY, config.id);
+        if (item) this.ctx.entities.activeItems.push(item);
         break;
       }
     }
@@ -124,66 +123,63 @@ export class DropManager {
 
   /* ── Chests ── */
   spawnChest(x, y) {
-    const s = this.scene;
-    const chest = new TreasureChest(s, x, y);
-    s.chests.push(chest);
-    s.playSfx("item_spawn");
+    const chest = new TreasureChest(this.ctx.rawScene, x, y);
+    this.ctx.entities.chests.push(chest);
+    this.ctx.audio.playSfx("item_spawn");
   }
 
   /* ── Boss defeat effect ── */
   playBossDefeatEffect(x, y) {
-    const s = this.scene;
-    if (s.cameras?.main) {
-      s.cameras.main.flash(200, 255, 215, 60, true);
-      s.shakeScreen(260, 0.006);
+    if (this.ctx.phaser.cameras?.main) {
+      this.ctx.phaser.cameras.main.flash(200, 255, 215, 60, true);
+      this.ctx.fx.shake(260, 0.006);
     }
     // Gold pillar particles
-    if (s.add && s.tweens) {
+    if (this.ctx.phaser.add && this.ctx.phaser.tweens) {
       for (let i = 0; i < 12; i++) {
         const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
         const dist = Phaser.Math.Between(10, 60);
         const px = x + Math.cos(angle) * dist;
         const py = y + Math.sin(angle) * dist - Phaser.Math.Between(0, 80);
-        const spark = s.add.rectangle(px, py, 3, Phaser.Math.Between(6, 18), 0xfef08a, 0.9)
+        const spark = this.ctx.phaser.add.rectangle(px, py, 3, Phaser.Math.Between(6, 18), 0xfef08a, 0.9)
           .setDepth(50).setAngle(Phaser.Math.Between(0, 360));
-        s.tweens.add({
+        this.ctx.phaser.tweens.add({
           targets: spark, alpha: 0, y: py - Phaser.Math.Between(40, 100),
           duration: Phaser.Math.Between(400, 800), ease: "Quad.easeOut",
           onComplete: () => spark.destroy()
         });
       }
     }
-    s.showHudAlert("BOSS DEFEATED!", 2000);
+    this.ctx.hud.showAlert("BOSS DEFEATED!", 2000);
   }
 
   /* ── Kill reward pipeline ── */
   handleEnemyDefeat(enemy) {
-    const s = this.scene;
     if (!enemy || !enemy.active) return;
     if (enemy.getData("isDying")) return;
 
     enemy.setData("isDying", true);
-    s.statusEffectSystem?.removeAllForEnemy(enemy);
+    this.ctx.managers.statusEffectSystem?.removeAllForEnemy(enemy);
     if (enemy.body) { enemy.body.setVelocity(0, 0); enemy.body.enable = false; }
-    s.totalKills += 1;
-    s.playKillCounterPulse();
-    s.recordKillEvent();
-    s.updateKillCombo();
+    this.ctx.state.totalKills += 1;
+    this.ctx.methods.playKillCounterPulse();
+    this.ctx.methods.recordKillEvent();
+    this.ctx.methods.updateKillCombo();
 
-    s.playSfx("enemy_death", { elite: enemy.isElite });
-    if (enemy.isElite) s.spawnEliteKillParticles(enemy.x, enemy.y, 20);
-    s.spawnKillParticles(enemy.x, enemy.y, enemy.isElite ? 14 : 10);
+    this.ctx.audio.playSfx("enemy_death", { elite: enemy.isElite });
+    if (enemy.isElite) this.ctx.fx.spawnEliteKillParticles(enemy.x, enemy.y, 20);
+    this.ctx.fx.spawnKillParticles(enemy.x, enemy.y, enemy.isElite ? 14 : 10);
 
     const archetype = enemy.getData("archetype");
     if (archetype === "mini_boss" || enemy.getData("bossVariant") === "mini") {
       this.spawnMiniBossRewardDrops(enemy);
-      s.showHudAlert("MINI BOSS LOOT", 1200);
+      this.ctx.hud.showAlert("MINI BOSS LOOT", 1200);
     } else {
       this.spawnXpOrb(enemy.x, enemy.y, enemy.xpValue);
     }
     if (enemy.isElite) {
       this.spawnEliteBonusXpOrbs(enemy);
-      if (this.spawnEliteUpgradePickup(enemy.x, enemy.y)) s.showHudAlert("ELITE LOOT", 1000);
+      if (this.spawnEliteUpgradePickup(enemy.x, enemy.y)) this.ctx.hud.showAlert("ELITE LOOT", 1000);
     }
 
     this.trySpawnItemDrop(enemy.x, enemy.y);
@@ -198,19 +194,23 @@ export class DropManager {
       this.spawnChest(enemy.x, enemy.y);
     }
 
-    if (s.gameMode === "coop" && s.isHost && s.networkManager) {
-      s.networkManager.sendEnemyKilled(enemy.serverId || "unknown", {
+    if (this.ctx.net.isCoop && this.ctx.net.isHost) {
+      this.ctx.net.sendEnemyKilled(enemy.serverId || "unknown", {
         x: Math.round(enemy.x), y: Math.round(enemy.y), xpValue: enemy.xpValue
       });
     }
 
-    s.tweens.add({
+    // Special enemy behaviors: Exploder AOE, Splitter child spawn
+    triggerExploderDeath(this.ctx.rawScene, enemy);
+    triggerSplitterSpawn(this.ctx.rawScene, enemy);
+
+    this.ctx.phaser.tweens.add({
       targets: enemy, scaleX: enemy.scaleX * 1.3, scaleY: enemy.scaleY * 1.3,
       alpha: 0, duration: 120, ease: "Quad.easeOut",
       onComplete: () => {
         enemy.setData("isDying", false);
         enemy.setAlpha(1);
-        if (enemy.getData("pooledEnemy") === true) { s.enemyPool.release(enemy); return; }
+        if (enemy.getData("pooledEnemy") === true) { this.ctx.entities.enemyPool.release(enemy); return; }
         enemy.destroy();
       }
     });
@@ -218,18 +218,18 @@ export class DropManager {
 
   /* ── XP pickup ── */
   handleXpOrbPickup(_player, orb) {
-    const s = this.scene;
     if (!orb.active) return;
     const xpValue = orb.xpValue ?? 0;
-    if (xpValue > 0) s.gainXp(xpValue);
+    if (xpValue > 0) this.ctx.progression.gainXp(xpValue);
+    this.ctx.audio.playSfx("collected");
 
     const pickupType = orb.getData("pickupType");
     if (pickupType === "elite_upgrade") {
       this.applyEliteUpgradeReward(orb.getData("rewardUpgradeId"));
     } else if (pickupType === "mini_boss_gold") {
       const rewardCoins = Math.max(0, Math.floor(Number(orb.getData("rewardCoins")) || 0));
-      s.runMetaCurrency += rewardCoins;
-      s.showHudAlert(`+${rewardCoins} GOLD`, 900);
+      this.ctx.progression.runMetaCurrency += rewardCoins;
+      this.ctx.hud.showAlert(`+${rewardCoins} GOLD`, 900);
     }
     orb.destroy();
   }

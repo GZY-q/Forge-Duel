@@ -165,6 +165,9 @@ export class BossEnemy extends Enemy {
     } else if (this.variant === "mini" && scene?.textures?.exists(MINI_BOSS_TEXTURE_KEY)) {
       this.setTexture(MINI_BOSS_TEXTURE_KEY);
       this.setData("bossTextureKey", MINI_BOSS_TEXTURE_KEY);
+    } else if (this.variant === "boss" && scene?.textures?.exists("enemy_boss_mother")) {
+      this.setTexture("enemy_boss_mother");
+      this.setData("bossTextureKey", "enemy_boss_mother");
     }
   }
 
@@ -299,7 +302,7 @@ export class BossEnemy extends Enemy {
 
       this.scene.time.delayedCall(2500, () => {
         if (projectile.active) {
-          this.scene.releaseBossProjectile(projectile);
+          this.scene?.releaseBossProjectile?.(projectile);
         }
       });
     }
@@ -351,7 +354,7 @@ export class BossEnemy extends Enemy {
 
     this.scene.time.delayedCall(1200, () => {
       if (projectile.active) {
-        this.scene.releaseBossProjectile(projectile);
+        this.scene?.releaseBossProjectile?.(projectile);
       }
     });
   }

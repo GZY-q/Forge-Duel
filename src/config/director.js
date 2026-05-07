@@ -9,7 +9,7 @@ export const DIRECTOR_STATE_SEQUENCE = [DIRECTOR_STATE.BUILD, DIRECTOR_STATE.PEA
 export const DIRECTOR_DEFAULT_DURATIONS_MS = {
   [DIRECTOR_STATE.BUILD]: 30000,
   [DIRECTOR_STATE.PEAK]: 15000,
-  [DIRECTOR_STATE.RELIEF]: 8000
+  [DIRECTOR_STATE.RELIEF]: 5000
 };
 
 export const DIRECTOR_BOSS_SPAWN = {
@@ -35,7 +35,7 @@ export const DIRECTOR_LADDER_SPAWN_EVENT = {
 };
 
 export const DIRECTOR_SPAWN_RATE = {
-  buildStart: 0.85,
+  buildStart: 1.0,
   buildEnd: 1.25,
   peakBase: 1.42,
   peakTierBonusPerTier: 0.08,
@@ -68,12 +68,12 @@ export const DIRECTOR_DIFFICULTY_SCALING = {
 
 export const DIRECTOR_ENEMY_HP_SCALING = {
   base: 1,
-  perMinute: 0.13
+  perMinute: 0.15
 };
 
 export const DIRECTOR_ENEMY_DAMAGE_SCALING = {
   base: 1,
-  perMinute: 0.10
+  perMinute: 0.12
 };
 
 export const DIRECTOR_DENSITY_REWORK = {
@@ -86,7 +86,7 @@ export const DIRECTOR_DENSITY_REWORK = {
 
 export const DIRECTOR_ADAPTIVE_DIFFICULTY = {
   windowMs: 10000,
-  baselineDps: 60,
+  baselineDps: 80,
   baselineKillRate: 0.65,
   dpsWeight: 0.55,
   killRateWeight: 0.45,

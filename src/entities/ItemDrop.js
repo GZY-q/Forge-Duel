@@ -36,8 +36,16 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
     this.spawnedAt = this.scene.time.now;
     this.inPool = false;
 
-    this.setTexture("__WHITE");
-    this.setTint(config.color);
+    const spriteKey = itemTypeId === "health_orb" ? "item_health"
+      : itemTypeId === "shield" ? "item_shield"
+      : null;
+    if (spriteKey && this.scene?.textures?.exists(spriteKey)) {
+      this.setTexture(spriteKey);
+      this.clearTint();
+    } else {
+      this.setTexture("__WHITE");
+      this.setTint(config.color);
+    }
     this.setScale(config.scale);
     this.setAlpha(0.92);
     this.setCircle(8, 0, 0);
@@ -83,7 +91,14 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
     const dx = playerX - this.x;
     const dy = playerY - this.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > ITEM_MAGNET_RADIUS || dist < 0.001) {
+    if (dist > ITEM_MAGNET_RADIUS) {
+      return;
+    }
+    // 非常近时直接瞬移，防止在玩家身边震荡打转
+    if (dist < 20) {
+      this.x = playerX;
+      this.y = playerY;
+      this.body.setVelocity(0, 0);
       return;
     }
     const nx = dx / dist;

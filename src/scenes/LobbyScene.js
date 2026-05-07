@@ -6,6 +6,17 @@ import { VoiceManager } from "../networking/VoiceManager.js";
 import { createMainMenuBackground, createVSPanel, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
 
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
+
 const API_BASE = window.location.origin;
 const MAX_PLAYERS = 4;
 
@@ -14,9 +25,22 @@ export class LobbyScene extends Phaser.Scene {
     super("LobbyScene");
   }
 
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
   preload() {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
     }
   }
 
@@ -75,19 +99,28 @@ export class LobbyScene extends Phaser.Scene {
     // Create room button
     const createBtn = createVSButton(this, cx, cy + 10, "创建房间", {
       width: 120, height: 60, fontSize: "22px",
-      onClick: () => this._onSelectCreate()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
+        this._onSelectCreate();
+      }
     });
     this.selectionObjects.push(createBtn.plate, createBtn.text);
 
     // Join room button
     const joinBtn = createVSButton(this, cx, cy + 90, "加入房间", {
       width: 120, height: 60, fontSize: "22px",
-      onClick: () => this._onSelectJoin()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
+        this._onSelectJoin();
+      }
     });
     this.selectionObjects.push(joinBtn.plate, joinBtn.text);
 
     this._selectionBackBtn = createBackButton(this, () => {
-      this.scene.start("ShipSelectionScene", { mode: "coop", fromLobby: true });
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        this.scene.start("ShipSelectionScene", { mode: "coop", fromLobby: true });
+      });
     });
   }
 
@@ -147,14 +180,20 @@ export class LobbyScene extends Phaser.Scene {
     // Confirm button
     const confirmBtn = createVSButton(this, cx + 80, cy + 92, "确认", {
       width: 120, height: 36, fontSize: "14px",
-      onClick: () => this._submitJoinCode()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
+        this._submitJoinCode();
+      }
     });
     this.codeInputObjects.push(confirmBtn.plate, confirmBtn.text);
 
     // Back button
     const backBtn = createVSButton(this, cx - 80, cy + 92, "返回", {
       width: 120, height: 36, fontSize: "14px",
-      onClick: () => this._cancelCodeInput()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.back);
+        this._cancelCodeInput();
+      }
     });
     this.codeInputObjects.push(backBtn.plate, backBtn.text);
 
@@ -309,16 +348,27 @@ export class LobbyScene extends Phaser.Scene {
     this.voiceControls = this._createVoiceControls(cx, cy + 155);
     this.readyBtn = createVSButton(this, cx - 80, cy + 210, "准备", {
       width: 120, height: 42, fontSize: "18px",
-      onClick: () => this._toggleReady()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
+        this._toggleReady();
+      }
     });
     this.startBtn = createVSButton(this, cx + 80, cy + 210, "开始游戏", {
       width: 120, height: 42, fontSize: "18px",
-      onClick: () => this._startGame()
+      onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
+        this._startGame();
+      }
     });
     this.startBtn.img.setAlpha(0.4);
     this.startBtn.img.disableInteractive();
 
-    createBackButton(this, () => this._leaveAndReturn());
+    createBackButton(this, () => {
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        this._leaveAndReturn();
+      });
+    });
 
     this.isReady = false;
     this.voiceManager = null;
@@ -342,6 +392,7 @@ export class LobbyScene extends Phaser.Scene {
     this.spkEnabled = true;
 
     micBg.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this.micEnabled = !this.micEnabled;
       if (this.voiceManager) this.voiceManager.toggleMic();
       micBg.setStrokeStyle(2, this.micEnabled ? 0x44ff44 : 0xff4444, 1);
@@ -349,6 +400,7 @@ export class LobbyScene extends Phaser.Scene {
     });
 
     spkBg.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this.spkEnabled = !this.spkEnabled;
       if (this.voiceManager) this.voiceManager.toggleSpeaker();
       spkBg.setStrokeStyle(2, this.spkEnabled ? 0x44ff44 : 0xff4444, 1);
@@ -488,6 +540,7 @@ export class LobbyScene extends Phaser.Scene {
       }).setOrigin(0.5).setInteractive({ useHandCursor: true });
 
       kickBtn.on("pointerdown", async () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
         await this.networkManager.kickPlayer(p.playerId);
       });
 

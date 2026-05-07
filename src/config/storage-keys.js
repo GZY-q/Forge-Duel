@@ -1,0 +1,9 @@
+export const META_COINS_STORAGE_KEY = "forgeduel_coins";
+export const META_STORAGE_KEY = "forgeduel_meta_v1";
+export const BEST_TIME_STORAGE_KEY = "forgeduel_best_time_ms";
+export const SHOP_UPGRADES_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
+export const WEAPON_UNLOCK_STORAGE_KEY = "forgeduel_weapon_unlocks_v1";
+export const PLAYTEST_SPAWN_PACING_STORAGE_KEY = "forgeduel_playtest_spawn_pacing_v1";
+export const BOSS_BULLET_MAX = 220;
+export const BOSS_BULLET_LIFETIME_MS = 2800;
+export const BOSS_WARNING_LEAD_MS = 5000;

@@ -1,5 +1,7 @@
 const FRAME_COUNT = 18;
 const FRAME_KEY = "logo_frame";
+const INTRO_SOUND_KEY = "intro_sound";
+const INTRO_SOUND_PATH = "assets/audio/bgm/VS_TitleIntro_v01-03.mp3";
 
 export class IntroScene extends Phaser.Scene {
   constructor() {
@@ -11,6 +13,9 @@ export class IntroScene extends Phaser.Scene {
     for (let i = 0; i < FRAME_COUNT; i++) {
       const key = `${FRAME_KEY}${i}`;
       this.load.image(key, `assets/sprites/ui/logo_frames/frame_${String(i).padStart(3, "0")}.png`);
+    }
+    if (!this.cache.audio.exists(INTRO_SOUND_KEY)) {
+      this.load.audio(INTRO_SOUND_KEY, INTRO_SOUND_PATH);
     }
   }
 
@@ -34,14 +39,21 @@ export class IntroScene extends Phaser.Scene {
       frames.push({ key: `${FRAME_KEY}${i}` });
     }
 
-    this.anims.create({
-      key: "logo_anim",
-      frames: frames,
-      frameRate: 10,
-      repeat: 0
-    });
+    if (!this.anims.exists("logo_anim")) {
+      this.anims.create({
+        key: "logo_anim",
+        frames: frames,
+        frameRate: 10,
+        repeat: 0
+      });
+    }
 
     logoSprite.play("logo_anim");
+    
+    if (this.sound && this.cache.audio.exists(INTRO_SOUND_KEY)) {
+      const bgmVol = this.settingsBgmVol ?? 0.6;
+      this.sound.play(INTRO_SOUND_KEY, { volume: bgmVol * 0.8, loop: false });
+    }
 
     this.time.delayedCall(2000, () => {
       this.scene.start("ShipSelectionScene", { mode: "solo" });

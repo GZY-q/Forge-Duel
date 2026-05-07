@@ -12,7 +12,7 @@ import {
 import { Enemy } from "../entities/Enemy.js";
 
 const PROJECTILE_VISUAL_SCALE = 1.4;
-const PROJECTILE_GLOW_ALPHA = 0.6;
+const PROJECTILE_GLOW_ALPHA = 0;
 const PROJECTILE_TRAIL_LIFETIME_MS = 200;
 const PROJECTILE_RECT_TRAIL_LIFETIME_MS = 180;
 const PROJECTILE_RECT_TRAIL_MAX = 320;
@@ -32,31 +32,31 @@ const PROJECTILE_VISUAL_PROFILE_BY_WEAPON = Object.freeze({
   dagger: Object.freeze({
     scaleX: 1.65,
     scaleY: 0.7,
-    glowAlpha: 0.42,
+    glowAlpha: 0,
     trailBurst: 1
   }),
   fireball: Object.freeze({
     scaleX: 1.85,
     scaleY: 1.85,
-    glowAlpha: 0.75,
+    glowAlpha: 0,
     trailBurst: 2
   }),
   meteor: Object.freeze({
     scaleX: 2.1,
     scaleY: 2.1,
-    glowAlpha: 0.82,
+    glowAlpha: 0,
     trailBurst: 2
   }),
   scatter_shot: Object.freeze({
     scaleX: 1.0,
     scaleY: 1.0,
-    glowAlpha: 0.5,
+    glowAlpha: 0,
     trailBurst: 1
   }),
   homing_missile: Object.freeze({
     scaleX: 1.4,
     scaleY: 1.4,
-    glowAlpha: 0.7,
+    glowAlpha: 0,
     trailBurst: 2
   }),
   default: Object.freeze({
@@ -72,8 +72,8 @@ function getWeaponDefinition(type) {
 }
 
 export class WeaponSystem {
-  constructor(scene, player) {
-    this.scene = scene;
+  constructor(gameContext, player) {
+    this.ctx = gameContext;
     this.player = player;
     this.paused = false;
     this.projectilePoolByTexture = new Map();
@@ -82,19 +82,19 @@ export class WeaponSystem {
     this.globalRangeMultiplier = 1;
     this.globalDurationMultiplier = 1;
     this.projectileCount = 1;
-    this.projectileGlowGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
-    this.projectileTrailRectsGraphics = scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH - 1);
+    this.projectileGlowGraphics = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
+    this.projectileTrailRectsGraphics = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH - 1);
     this.projectileTrailRects = [];
     this.projectileTrailParticles = null;
     this.projectileTrailEmitter = null;
     this.projectileTrailAccumulatorMs = 0;
 
-    this.projectiles = scene.physics.add.group({
+    this.projectiles = this.ctx.phaser.physics.add.group({
       allowGravity: false,
       immovable: true
     });
 
-    this.orbitBlades = scene.physics.add.group({
+    this.orbitBlades = this.ctx.phaser.physics.add.group({
       allowGravity: false,
       immovable: true
     });
@@ -102,8 +102,8 @@ export class WeaponSystem {
     this.preallocateProjectilePool();
     this.createProjectileTrailEmitter();
 
-    scene.physics.add.overlap(this.projectiles, scene.enemies, this.handleProjectileHit, this.isValidProjectileEnemyCollision, this);
-    scene.physics.add.overlap(this.orbitBlades, scene.enemies, this.handleOrbitBladeHit, null, this);
+    this.ctx.phaser.physics.add.overlap(this.projectiles, this.ctx.entities.enemies, this.handleProjectileHit, this.isValidProjectileEnemyCollision, this);
+    this.ctx.phaser.physics.add.overlap(this.orbitBlades, this.ctx.entities.enemies, this.handleOrbitBladeHit, null, this);
   }
 
   pause() {
@@ -115,16 +115,16 @@ export class WeaponSystem {
   }
 
   createProjectileTrailEmitter() {
-    const textureKey = this.scene.textures?.exists("hit_particle")
+    const textureKey = this.ctx.phaser.textures?.exists("hit_particle")
       ? "hit_particle"
-      : this.scene.textures?.exists("__WHITE")
+      : this.ctx.phaser.textures?.exists("__WHITE")
       ? "__WHITE"
       : null;
     if (!textureKey) {
       return;
     }
 
-    this.projectileTrailEmitter = this.scene.add.particles(0, 0, textureKey, {
+    this.projectileTrailEmitter = this.ctx.phaser.add.particles(0, 0, textureKey, {
       emitting: false,
       quantity: 0,
       frequency: -1,
@@ -297,11 +297,25 @@ export class WeaponSystem {
   }
 
   getScaledWeaponDamage(weapon) {
-    return Math.max(1, Math.round(weapon.damage * this.globalDamageMultiplier));
+    let dmg = Math.max(1, Math.round(weapon.damage * this.globalDamageMultiplier));
+    if (weapon.type === "lightning" || weapon.type === "thunderstorm") {
+      if (this.player.shipPassive === "overcharge") {
+        dmg = Math.round(dmg * 1.2);
+      }
+    }
+    return dmg;
   }
 
   getEffectiveCooldownMs(weapon) {
     return Math.max(90, Math.round(weapon.cooldownMs * this.globalCooldownMultiplier));
+  }
+
+  getEffectiveProjectileCount() {
+    let count = this.projectileCount;
+    if (this.player.shipPassive === "ammo_belt") {
+      count += 1;
+    }
+    return Math.min(8, count);
   }
 
   getEffectiveRange(weapon) {
@@ -505,11 +519,11 @@ export class WeaponSystem {
       this.rebuildOrbitBlades(weapon);
     }
 
-    if (this.scene.showHudAlert) {
-      this.scene.showHudAlert(`${weapon.baseType.toUpperCase()} EVOLVED`, 1800);
+    if (this.ctx.hud.showAlert) {
+      this.ctx.hud.showAlert(`${weapon.baseType.toUpperCase()} EVOLVED`, 1800);
     }
-    if (this.scene.playWeaponEvolutionFeedback) {
-      this.scene.playWeaponEvolutionFeedback(weapon);
+    if (this.ctx.fx.playWeaponEvolutionFeedback) {
+      this.ctx.fx.playWeaponEvolutionFeedback(weapon);
     }
   }
 
@@ -544,6 +558,11 @@ export class WeaponSystem {
       const fired = this.fireWeapon(weapon);
       if (fired) {
         weapon.nextFireAt = time + this.getEffectiveCooldownMs(weapon);
+        if (this.player.fireTwiceChance > 0 && Math.random() < this.player.fireTwiceChance) {
+          this.fireWeapon(weapon);
+        }
+      } else {
+        weapon.nextFireAt = time + 200;
       }
     });
   }
@@ -551,23 +570,7 @@ export class WeaponSystem {
   updateProjectiles(delta) {
     this.projectileGlowGraphics?.clear();
     this.projectileTrailRectsGraphics?.clear();
-    for (let i = this.projectileTrailRects.length - 1; i >= 0; i -= 1) {
-      const segment = this.projectileTrailRects[i];
-      segment.life -= delta;
-      if (segment.life <= 0) {
-        this.projectileTrailRects.splice(i, 1);
-        continue;
-      }
-
-      const alpha = Phaser.Math.Clamp(segment.life / segment.maxLife, 0, 1) * 0.42;
-      this.projectileTrailRectsGraphics?.fillStyle(segment.color, alpha);
-      this.projectileTrailRectsGraphics?.fillRect(
-        Math.round(segment.x) - 2,
-        Math.round(segment.y) - 1,
-        4,
-        3
-      );
-    }
+    this.projectileTrailRects.length = 0;
     this.projectileTrailAccumulatorMs += delta;
     const shouldEmitTrail = this.projectileTrailAccumulatorMs >= 16;
     if (shouldEmitTrail) {
@@ -579,41 +582,6 @@ export class WeaponSystem {
         return;
       }
 
-      const glowColor = projectile.getData("visualColor") ?? 0xffffff;
-      const glowAlpha = projectile.getData("glowAlpha") ?? PROJECTILE_GLOW_ALPHA;
-      const glowRadius = Math.max(3, projectile.displayWidth * 0.42);
-      this.projectileGlowGraphics?.lineStyle(2, glowColor, glowAlpha);
-      this.projectileGlowGraphics?.strokeCircle(projectile.x, projectile.y, glowRadius);
-      if (shouldEmitTrail && this.projectileTrailEmitter) {
-        const trailBurst = Math.max(1, Math.min(3, Math.floor(projectile.getData("trailBurst") ?? 1)));
-        if (typeof this.projectileTrailEmitter.setTint === "function") {
-          this.projectileTrailEmitter.setTint(glowColor);
-        } else if (typeof this.projectileTrailEmitter.setParticleTint === "function") {
-          this.projectileTrailEmitter.setParticleTint(glowColor);
-        }
-
-        if (typeof this.projectileTrailEmitter.emitParticleAt === "function") {
-          this.projectileTrailEmitter.emitParticleAt(projectile.x, projectile.y, trailBurst);
-        } else if (typeof this.projectileTrailEmitter.explode === "function") {
-          this.projectileTrailEmitter.explode(trailBurst, projectile.x, projectile.y);
-        }
-      }
-      if (shouldEmitTrail) {
-        const vx = projectile.body?.velocity?.x ?? 0;
-        const vy = projectile.body?.velocity?.y ?? 0;
-        const trailX = projectile.x - vx * 0.012;
-        const trailY = projectile.y - vy * 0.012;
-        this.projectileTrailRects.push({
-          x: trailX,
-          y: trailY,
-          color: glowColor,
-          life: PROJECTILE_RECT_TRAIL_LIFETIME_MS,
-          maxLife: PROJECTILE_RECT_TRAIL_LIFETIME_MS
-        });
-        if (this.projectileTrailRects.length > PROJECTILE_RECT_TRAIL_MAX) {
-          this.projectileTrailRects.shift();
-        }
-      }
 
       // Homing behavior
       if (projectile.behavior === "homing" && projectile.homingTarget && projectile.homingTarget.active && !projectile.homingTarget.getData("isDying")) {
@@ -662,6 +630,7 @@ export class WeaponSystem {
         const theta = weapon.orbitAngle + (Math.PI * 2 * i) / count;
         blade.x = this.player.x + Math.cos(theta) * weapon.orbitRadius;
         blade.y = this.player.y + Math.sin(theta) * weapon.orbitRadius;
+        blade.setRotation(theta + Math.PI / 2);
         blade.setData("damage", this.getScaledWeaponDamage(weapon));
         blade.setData("knockbackForce", weapon.knockbackForce);
       }
@@ -686,7 +655,7 @@ export class WeaponSystem {
       blade.setDepth(PROJECTILE_RENDER_DEPTH);
       blade.setAlpha(0.96);
       blade.setData("weaponBaseType", weapon.baseType);
-      blade.setData("orbitHitKey", `orbit_hit_${weapon.baseType}`);
+      blade.setData("orbitHitKey", `orbit_hit_${weapon.baseType}_${i}`);
       blade.setData("damage", this.getScaledWeaponDamage(weapon));
       blade.setData("knockbackForce", weapon.knockbackForce);
       weapon.orbitSprites.push(blade);
@@ -723,7 +692,7 @@ export class WeaponSystem {
         ? Math.round(scaledDamage * weapon.explosionDamageMultiplier)
         : 0;
 
-    const count = Math.max(1, this.projectileCount);
+    const count = Math.max(1, this.getEffectiveProjectileCount());
     const center = (count - 1) / 2;
     const spreadRad = Phaser.Math.DegToRad(spreadDeg);
 
@@ -774,9 +743,15 @@ export class WeaponSystem {
       fired = this.fireGravityWell(weapon);
     }
 
-    if (fired && this.scene?.playWeaponFireFeedback) {
-      this.scene.playWeaponFireFeedback(this.player.x, this.player.y, weapon.type);
+    if (fired && this.ctx.fx.playWeaponFireFeedback) {
+      this.ctx.fx.playWeaponFireFeedback(this.player.x, this.player.y, weapon.type);
     }
+    
+    if (fired && this.ctx.audio?.playSfx) {
+      const weaponSfxKey = `weapon_${weapon.type}`;
+      this.ctx.audio.playSfx(weaponSfxKey);
+    }
+    
     return fired;
   }
 
@@ -811,7 +786,7 @@ export class WeaponSystem {
     const outerColor = isEvolved ? 0xffcc44 : 0x74d8ff;
     const fillColor = isEvolved ? 0xffffcc : 0xd8fbff;
 
-    const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
 
     for (let i = 0; i < maxJumps && currentTarget; i += 1) {
       const segmentFalloff = 1 - i * 0.22;
@@ -836,7 +811,7 @@ export class WeaponSystem {
       currentTarget = this.findNearestEnemy(sourceX, sourceY, jumpRange, new Set(hitEnemies));
     }
 
-    this.scene.tweens.add({
+    this.ctx.phaser.tweens.add({
       targets: gfx,
       alpha: 0,
       duration: 120,
@@ -892,7 +867,7 @@ export class WeaponSystem {
       y: target.y - this.player.y
     };
     const scaledDamage = this.getScaledWeaponDamage(weapon);
-    const count = Math.max(1, this.projectileCount);
+    const count = Math.max(1, this.getEffectiveProjectileCount());
 
     let fired = false;
     for (let i = 0; i < count; i += 1) {
@@ -939,7 +914,7 @@ export class WeaponSystem {
 
     // Collect all enemies in range and sort by distance
     const enemiesInRange = [];
-    this.scene.enemies.getChildren().forEach((enemy) => {
+    this.ctx.entities.enemies.getChildren().forEach((enemy) => {
       if (!enemy?.active || enemy.hp <= 0 || enemy.getData("isDying")) {
         return;
       }
@@ -974,7 +949,7 @@ export class WeaponSystem {
   }
 
   drawLaserBeam(x1, y1, x2, y2, width, durationMs, hit) {
-    const gfx = this.scene.add.graphics().setDepth(31);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(31);
     // Core beam
     gfx.lineStyle(width + 2, 0xff2222, 0.4);
     gfx.lineBetween(x1, y1, x2, y2);
@@ -989,7 +964,7 @@ export class WeaponSystem {
       gfx.fillCircle(x2, y2, width * 2);
     }
 
-    this.scene.tweens.add({
+    this.ctx.phaser.tweens.add({
       targets: gfx,
       alpha: 0,
       duration: durationMs,
@@ -1032,11 +1007,7 @@ export class WeaponSystem {
     projectile.setData("glowAlpha", visualProfile.glowAlpha);
     projectile.setData("trailBurst", visualProfile.trailBurst);
     projectile.setScale(visualProfile.scaleX, visualProfile.scaleY);
-    if (type === "dagger") {
-      projectile.setRotation(Math.atan2(ny, nx));
-    } else {
-      projectile.setRotation(0);
-    }
+    projectile.setRotation(Math.atan2(ny, nx));
 
     projectile.enableBody(true, position.x, position.y, true, true);
     projectile.body.setVelocity(nx * config.speed, ny * config.speed);
@@ -1067,7 +1038,7 @@ export class WeaponSystem {
       this.triggerExplosion(hitX, hitY, explosionRadius, explosionDamage);
     }
 
-    if (hitProjectile.getData("isMolotiv")) {
+    if (hitProjectile.getData("isMolotov")) {
       this.triggerFireZone(hitX, hitY, hitProjectile);
     }
 
@@ -1088,7 +1059,7 @@ export class WeaponSystem {
     }
 
     const hitKey = blade.getData("orbitHitKey");
-    const now = this.scene.time.now;
+    const now = this.ctx.phaser.time.now;
     const nextHitAt = enemy.getData(hitKey) || 0;
     if (now < nextHitAt) {
       return;
@@ -1110,21 +1081,21 @@ export class WeaponSystem {
     }
     const safeDamage = Number.isFinite(damage) ? damage : 0;
 
-    const gfx = this.scene.add.graphics();
+    const gfx = this.ctx.phaser.add.graphics();
     gfx.fillStyle(0xffb169, 0.6);
     gfx.fillCircle(x, y, safeRadius);
     gfx.lineStyle(2, 0xffd8a8, 0.82);
     gfx.strokeCircle(x, y, safeRadius * 0.88);
     gfx.lineStyle(1.5, 0xfff0cc, 0.64);
     gfx.strokeCircle(x, y, safeRadius * 0.56);
-    this.scene.tweens.add({
+    this.ctx.phaser.tweens.add({
       targets: gfx,
       alpha: 0,
       duration: 150,
       onComplete: () => gfx.destroy()
     });
 
-    this.scene.enemies.getChildren().forEach((enemy) => {
+    this.ctx.entities.enemies.getChildren().forEach((enemy) => {
       if (!enemy.active) {
         return;
       }
@@ -1145,7 +1116,7 @@ export class WeaponSystem {
     const durationMs = projectile.getData("fireDurationMs") ?? 3000;
     const weaponType = projectile.weaponType ?? "molotov";
 
-    const gfx = this.scene.add.graphics().setDepth(9);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(9);
     this.activeFireZones = this.activeFireZones || [];
     this.activeFireZones.push({
       x,
@@ -1168,7 +1139,7 @@ export class WeaponSystem {
     const weaponType = projectile.weaponType ?? "gravity_well";
     const damage = Math.max(1, Math.round((projectile.damage ?? 8) * 0.3));
 
-    const gfx = this.scene.add.graphics().setDepth(9);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(9);
     this.activeGravityWells = this.activeGravityWells || [];
     this.activeGravityWells.push({
       x,
@@ -1188,19 +1159,19 @@ export class WeaponSystem {
     const radius = projectile.getData("grenadeRadius") ?? 100;
     const damage = projectile.getData("grenadeDamage") ?? 35;
 
-    const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
     gfx.fillStyle(0xff4422, 0.6);
     gfx.fillCircle(x, y, radius);
     gfx.lineStyle(3, 0xff8844, 0.8);
     gfx.strokeCircle(x, y, radius * 0.8);
-    this.scene.tweens.add({
+    this.ctx.phaser.tweens.add({
       targets: gfx,
       alpha: 0,
       duration: 200,
       onComplete: () => gfx.destroy()
     });
 
-    this.scene.enemies.getChildren().forEach((enemy) => {
+    this.ctx.entities.enemies.getChildren().forEach((enemy) => {
       if (!enemy.active || enemy.getData("isDying")) return;
       const dist = Phaser.Math.Distance.Between(x, y, enemy.x, enemy.y);
       if (dist > radius) return;
@@ -1212,9 +1183,9 @@ export class WeaponSystem {
   applyDamage(enemy, damage, knockbackForce, sourceX, sourceY, sourceWeaponType) {
     // Non-host clients send damage events to the host instead of applying locally.
     // The host applies damage, syncs enemy HP, and sends kill events.
-    if (this.scene.gameMode === "coop" && !this.scene.isHost) {
+    if (this.ctx.net.isCoop && !this.ctx.net.isHost) {
       if (enemy?.serverId && enemy.active && !enemy.getData("isDying")) {
-        this.scene.networkManager?.sendEnemyDamage(
+        this.ctx.net.sendEnemyDamage(
           enemy.serverId,
           Number.isFinite(damage) ? damage : 0,
           sourceWeaponType
@@ -1234,26 +1205,26 @@ export class WeaponSystem {
     const safeDamage = Number.isFinite(damage) ? damage : 0;
     const safeKnockback = Number.isFinite(knockbackForce) ? knockbackForce : 0;
     enemy?.takeDamage(safeDamage);
-    if (this.scene.spawnWeaponHitParticles) {
-      this.scene.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
+    if (this.ctx.fx.spawnWeaponHitParticles) {
+      this.ctx.fx.spawnWeaponHitParticles(enemy.x, enemy.y, 3);
     }
     enemy?.applyKnockbackFrom(sourceX, sourceY, safeKnockback);
 
     // Apply status effects from weapon
-    if (sourceWeaponType && this.scene.statusEffectSystem) {
-      this.scene.statusEffectSystem.tryApplyFromWeapon(enemy, sourceWeaponType);
+    if (sourceWeaponType && this.ctx.managers.statusEffectSystem) {
+      this.ctx.managers.statusEffectSystem.tryApplyFromWeapon(enemy, sourceWeaponType);
     }
 
     if (!enemy.isDead()) {
       return;
     }
 
-    if (this.scene.handleEnemyDefeat) {
-      this.scene.handleEnemyDefeat(enemy);
+    if (this.ctx.methods.handleEnemyDefeat) {
+      this.ctx.methods.handleEnemyDefeat(enemy);
       return;
     }
 
-    this.scene.spawnXpOrb(enemy.x, enemy.y, enemy.xpValue);
+    this.ctx.progression.spawnXpOrb(enemy.x, enemy.y, enemy.xpValue);
     enemy?.destroy?.();
   }
 
@@ -1261,7 +1232,7 @@ export class WeaponSystem {
     let nearest = null;
     let nearestDistance = Number.POSITIVE_INFINITY;
 
-    this.scene.enemies.getChildren().forEach((enemy) => {
+    this.ctx.entities.enemies.getChildren().forEach((enemy) => {
       if (!enemy.active) {
         return;
       }
@@ -1295,7 +1266,7 @@ export class WeaponSystem {
     }
 
     weapon.slashActive = true;
-    weapon.slashStartAt = this.scene.time.now;
+    weapon.slashStartAt = this.ctx.phaser.time.now;
     const scaledDamage = this.getScaledWeaponDamage(weapon);
     const slashAngle = Phaser.Math.DegToRad(weapon.slashAngleDeg ?? 140);
     const slashWidth = weapon.slashWidth ?? 12;
@@ -1303,13 +1274,13 @@ export class WeaponSystem {
     const slashDuration = weapon.slashDurationMs ?? 280;
     const baseAngle = Math.atan2(target.y - this.player.y, target.x - this.player.x);
 
-    const gfx = this.scene.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
+    const gfx = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_EFFECT_DEPTH);
     const startTime = weapon.slashStartAt;
     const player = this.player;
     const halfAngle = slashAngle / 2;
     const hitSet = new Set();
 
-    this.scene.tweens.addCounter({
+    this.ctx.phaser.tweens.addCounter({
       from: 0,
       to: 1,
       duration: slashDuration,
@@ -1335,7 +1306,7 @@ export class WeaponSystem {
         gfx.slice(player.x, player.y, slashRange * scaleEase, arcStart, arcEnd, false);
         gfx.fillPath();
 
-        this.scene.enemies.getChildren().forEach((enemy) => {
+        this.ctx.entities.enemies.getChildren().forEach((enemy) => {
           if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
           if (hitSet.has(enemy)) return;
           const ex = enemy.x - player.x;
@@ -1360,6 +1331,12 @@ export class WeaponSystem {
   }
 
   updateSlashes(time, delta) {
+    this.player.weapons.forEach((weapon) => {
+      if (!SLASH_WEAPON_TYPES.includes(weapon.type)) return;
+      if (weapon.slashActive && weapon.slashStartAt && time - weapon.slashStartAt > 3000) {
+        weapon.slashActive = false;
+      }
+    });
   }
 
   fireAura(weapon) {
@@ -1376,7 +1353,7 @@ export class WeaponSystem {
       const auraDamage = Math.max(1, Math.round(scaledDamage * 0.3));
       const knockback = weapon.auraKnockback ?? 60;
 
-      this.scene.enemies.getChildren().forEach((enemy) => {
+      this.ctx.entities.enemies.getChildren().forEach((enemy) => {
         if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
         const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, enemy.x, enemy.y);
         if (dist <= auraRadius) {
@@ -1386,13 +1363,13 @@ export class WeaponSystem {
 
       weapon.auraLastDamageAt = time;
 
-      const auraGfx = this.scene.add.graphics().setDepth(9);
+      const auraGfx = this.ctx.phaser.add.graphics().setDepth(9);
       const auraColor = weapon.type === "holy_aura" ? 0xaaddff : 0xaaffaa;
       auraGfx.lineStyle(2, auraColor, 0.4);
       auraGfx.strokeCircle(this.player.x, this.player.y, auraRadius);
       auraGfx.fillStyle(auraColor, 0.08);
       auraGfx.fillCircle(this.player.x, this.player.y, auraRadius);
-      this.scene.tweens.add({
+      this.ctx.phaser.tweens.add({
         targets: auraGfx,
         alpha: 0,
         duration: 300,
@@ -1440,8 +1417,8 @@ export class WeaponSystem {
       fired = true;
     }
 
-    if (this.scene.playSfx) {
-      this.scene.playSfx("slash");
+    if (this.ctx.audio.playSfx) {
+      this.ctx.audio.playSfx("slash");
     }
     return fired;
   }
@@ -1489,7 +1466,7 @@ export class WeaponSystem {
         }
 
         if (!b.gfx) {
-          b.gfx = this.scene.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
+          b.gfx = this.ctx.phaser.add.graphics().setDepth(PROJECTILE_RENDER_DEPTH);
         }
         b.gfx.clear();
         const color = weapon.type === "death_spiral" ? 0x8844ff : 0x44ddaa;
@@ -1498,7 +1475,7 @@ export class WeaponSystem {
         b.gfx.lineStyle(2, color, 0.7);
         b.gfx.strokeCircle(Math.round(bx), Math.round(by), 8);
 
-        this.scene.enemies.getChildren().forEach((enemy) => {
+        this.ctx.entities.enemies.getChildren().forEach((enemy) => {
           if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
           const enemyDist = Phaser.Math.Distance.Between(bx, by, enemy.x, enemy.y);
           if (enemyDist > 20) return;
@@ -1547,8 +1524,10 @@ export class WeaponSystem {
     const visualColor = 0xff6622;
     projectile.setTint(visualColor);
     projectile.setData("visualColor", visualColor);
-    projectile.setData("glowAlpha", 0.8);
+    projectile.setData("glowAlpha", 0);
     projectile.setData("trailBurst", 3);
+
+    projectile.setRotation(Math.atan2(ny * speed - 60, nx * speed));
 
     projectile.enableBody(true, this.player.x, this.player.y, true, true);
     projectile.body.setVelocity(nx * speed, ny * speed - 60);
@@ -1590,8 +1569,10 @@ export class WeaponSystem {
     const visualColor = 0x6622ff;
     projectile.setTint(visualColor);
     projectile.setData("visualColor", visualColor);
-    projectile.setData("glowAlpha", 0.9);
+    projectile.setData("glowAlpha", 0);
     projectile.setData("trailBurst", 2);
+
+    projectile.setRotation(Math.atan2(ny, nx));
 
     projectile.enableBody(true, this.player.x, this.player.y, true, true);
     projectile.body.setVelocity(nx * speed, ny * speed);
@@ -1621,7 +1602,7 @@ export class WeaponSystem {
         well.gfx.strokeCircle(well.x, well.y, well.radius);
       }
 
-      this.scene.enemies.getChildren().forEach((enemy) => {
+      this.ctx.entities.enemies.getChildren().forEach((enemy) => {
         if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
         const dx = well.x - enemy.x;
         const dy = well.y - enemy.y;
@@ -1671,7 +1652,7 @@ export class WeaponSystem {
       zone.lastTickMs = zone.lastTickMs ?? 0;
       if (zone.elapsedMs - zone.lastTickMs >= zone.tickIntervalMs) {
         zone.lastTickMs = zone.elapsedMs;
-        this.scene.enemies.getChildren().forEach((enemy) => {
+        this.ctx.entities.enemies.getChildren().forEach((enemy) => {
           if (!enemy?.active || enemy.getData("isDying") || enemy.isDead?.()) return;
           const dist = Phaser.Math.Distance.Between(zone.x, zone.y, enemy.x, enemy.y);
           if (dist <= currentRadius) {

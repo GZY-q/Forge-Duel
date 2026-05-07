@@ -1,3 +1,5 @@
+import { applyFreezeToPlayer } from "../entities/enemies/Freezer.js";
+
 export class CombatManager {
   constructor(scene) {
     this.scene = scene;
@@ -92,6 +94,11 @@ export class CombatManager {
 
     const damaged = player.takeDamage(damage, s.time.now);
     if (!damaged) return;
+
+    if (projectile.getData("freezeOnHit")) {
+      applyFreezeToPlayer(player, s, projectile.getData("freezeDurationMs") || 1500);
+    }
+
     s.triggerPlayerHurtFeedback(player);
 
     if (player.isDead()) s.triggerGameOver();

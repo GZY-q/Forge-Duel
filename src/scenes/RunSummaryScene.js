@@ -1,3 +1,5 @@
+import { META_COINS_STORAGE_KEY } from "../config/storage-keys.js";
+
 const UI_LAYER_ORDER = Object.freeze({
   GAME_WORLD: 0,
   COMBAT_UI: 40,
@@ -203,7 +205,7 @@ export class RunSummaryScene extends Phaser.Scene {
       return 0;
     }
 
-    const raw = window.localStorage.getItem("forgeduel_coins");
+    const raw = window.localStorage.getItem(META_COINS_STORAGE_KEY);
     const parsed = Number(raw);
     if (!Number.isFinite(parsed) || parsed < 0) {
       return 0;

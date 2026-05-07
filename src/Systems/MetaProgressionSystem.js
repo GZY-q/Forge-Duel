@@ -1,4 +1,4 @@
-const META_STORAGE_KEY = "forgeduel_meta_v1";
+import { META_STORAGE_KEY } from "../config/storage-keys.js";
 
 const DEFAULT_META_DATA = Object.freeze({
   currency: 0,

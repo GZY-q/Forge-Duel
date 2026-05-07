@@ -1,6 +1,15 @@
-const COIN_STORAGE_KEY = "forgeduel_coins";
-const META_STORAGE_KEY = "forgeduel_meta_v1";
-const UPGRADE_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
+import { META_COINS_STORAGE_KEY, META_STORAGE_KEY, SHOP_UPGRADES_STORAGE_KEY } from "../config/storage-keys.js";
+
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
 
 const DEFAULT_UPGRADES = Object.freeze({
   dash_cooldown: 0,
@@ -61,9 +70,22 @@ export class UpgradeScene extends Phaser.Scene {
     this.statusText = null;
   }
 
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
   init() {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
     }
   }
 
@@ -88,12 +110,15 @@ export class UpgradeScene extends Phaser.Scene {
 
     // ── Back button (top-right) ──
     const doClose = () => {
-      const mainMenu = this.scene.get("MainMenuScene");
-      if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
-        mainMenu.closeSubMenu();
-      } else {
-        this.scene.stop("UpgradeScene");
-      }
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        const mainMenu = this.scene.get("MainMenuScene");
+        if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+          mainMenu.closeSubMenu();
+        } else {
+          this.scene.stop("UpgradeScene");
+        }
+      });
     };
     createVSBackButton(this, cam.width - 84, 36, doClose);
 
@@ -195,6 +220,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     // Click
     bg.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this.selectUpgrade(index);
       this.tweens.add({
         targets: container, scaleX: 0.96, scaleY: 0.96,
@@ -288,6 +314,7 @@ export class UpgradeScene extends Phaser.Scene {
     const trigger = () => {
       const def = this.detailDef;
       if (!def) return;
+      this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
       this.purchaseUpgrade(def);
     };
     btnBg.on("pointerdown", trigger);
@@ -387,14 +414,14 @@ export class UpgradeScene extends Phaser.Scene {
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    return toSafeInt(window.localStorage.getItem(COIN_STORAGE_KEY));
+    return toSafeInt(window.localStorage.getItem(META_COINS_STORAGE_KEY));
   }
 
   saveCoins(coins) {
     if (typeof window === "undefined" || !window.localStorage) return;
     const safeCoins = toSafeInt(coins);
     try {
-      window.localStorage.setItem(COIN_STORAGE_KEY, String(safeCoins));
+      window.localStorage.setItem(META_COINS_STORAGE_KEY, String(safeCoins));
       const metaRaw = window.localStorage.getItem(META_STORAGE_KEY);
       const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
       const mergedMeta = {
@@ -411,7 +438,7 @@ export class UpgradeScene extends Phaser.Scene {
   loadUpgrades() {
     if (typeof window === "undefined" || !window.localStorage) return { ...DEFAULT_UPGRADES };
     try {
-      const raw = window.localStorage.getItem(UPGRADE_STORAGE_KEY);
+      const raw = window.localStorage.getItem(SHOP_UPGRADES_STORAGE_KEY);
       if (!raw) return { ...DEFAULT_UPGRADES };
       const parsed = JSON.parse(raw);
       const result = { ...DEFAULT_UPGRADES };
@@ -431,7 +458,7 @@ export class UpgradeScene extends Phaser.Scene {
       sanitized[k] = toSafeInt(upgrades?.[k]);
     });
     try {
-      window.localStorage.setItem(UPGRADE_STORAGE_KEY, JSON.stringify(sanitized));
+      window.localStorage.setItem(SHOP_UPGRADES_STORAGE_KEY, JSON.stringify(sanitized));
     } catch (_error) {}
   }
 
