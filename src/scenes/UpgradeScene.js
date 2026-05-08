@@ -1,6 +1,15 @@
-const COIN_STORAGE_KEY = "forgeduel_coins";
-const META_STORAGE_KEY = "forgeduel_meta_v1";
-const UPGRADE_STORAGE_KEY = "forgeduel_shop_upgrades_v1";
+import { META_COINS_STORAGE_KEY, META_STORAGE_KEY, SHOP_UPGRADES_STORAGE_KEY } from "../config/storage-keys.js";
+
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
 
 const DEFAULT_UPGRADES = Object.freeze({
   dash_cooldown: 0,
@@ -21,18 +30,18 @@ const DEFAULT_UPGRADES = Object.freeze({
 });
 
 const UPGRADE_DEFINITIONS = [
-  { key: "power", label: "威力", description: "每级提高 5% 造成的伤害", effectLabel: "+5%", baseCost: 200, costStep: 100, maxLevel: 5, icon: "⚔️" },
-  { key: "max_hp", label: "最大生命值", description: "每级提高 10% 最大生命值", effectLabel: "+10%", baseCost: 200, costStep: 100, maxLevel: 3, icon: "❤️" },
-  { key: "armor", label: "装甲", description: "每级增加 1 点护甲", effectLabel: "+1", baseCost: 600, costStep: 200, maxLevel: 3, icon: "🛡️" },
-  { key: "amount", label: "数量", description: "增加 1 个武器投射物数量", effectLabel: "+1", baseCost: 5000, costStep: 0, maxLevel: 1, icon: "🔢" },
-  { key: "cooldown", label: "冷却", description: "每级减少 2.5% 武器冷却时间", effectLabel: "-2.5%", baseCost: 900, costStep: 300, maxLevel: 2, icon: "⏱️" },
-  { key: "area", label: "区域", description: "每级扩大 5% 武器效果范围", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "📐" },
-  { key: "speed", label: "速度", description: "每级提高 5% 武器投射物速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "💨" },
-  { key: "duration", label: "持续时间", description: "每级延长 5% 武器持续时间", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "⏳" },
-  { key: "move_speed2", label: "速度", description: "每级提高 5% 移动速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "👢" },
-  { key: "magnet", label: "Magnet", description: "每级扩大 25% 拾取范围", effectLabel: "+25%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "🧲" },
-  { key: "luck", label: "幸运", description: "每级提高 10% 幸运值", effectLabel: "+10%", baseCost: 600, costStep: 200, maxLevel: 3, icon: "🍀" },
-  { key: "growth", label: "成长", description: "每级提高 3% 经验获取", effectLabel: "+3%", baseCost: 900, costStep: 300, maxLevel: 5, icon: "📈" }
+  { key: "power", label: "威力", description: "每级提高 5% 造成的伤害", effectLabel: "+5%", baseCost: 200, costStep: 100, maxLevel: 5, icon: "assets/sprites/ui/upgrade_icons/power.svg" },
+  { key: "max_hp", label: "最大生命值", description: "每级提高 10% 最大生命值", effectLabel: "+10%", baseCost: 200, costStep: 100, maxLevel: 3, icon: "assets/sprites/ui/upgrade_icons/max_hp.svg" },
+  { key: "armor", label: "装甲", description: "每级增加 1 点护甲", effectLabel: "+1", baseCost: 600, costStep: 200, maxLevel: 3, icon: "assets/sprites/ui/upgrade_icons/armor.svg" },
+  { key: "amount", label: "数量", description: "增加 1 个武器投射物数量", effectLabel: "+1", baseCost: 5000, costStep: 0, maxLevel: 1, icon: "assets/sprites/ui/upgrade_icons/amount.svg" },
+  { key: "cooldown", label: "冷却", description: "每级减少 2.5% 武器冷却时间", effectLabel: "-2.5%", baseCost: 900, costStep: 300, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/cooldown.svg" },
+  { key: "area", label: "区域", description: "每级扩大 5% 武器效果范围", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/area.svg" },
+  { key: "speed", label: "速度", description: "每级提高 5% 武器投射物速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/speed.svg" },
+  { key: "duration", label: "持续时间", description: "每级延长 5% 武器持续时间", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/duration.svg" },
+  { key: "move_speed2", label: "速度", description: "每级提高 5% 移动速度", effectLabel: "+5%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/move_speed2.svg" },
+  { key: "magnet", label: "Magnet", description: "每级扩大 25% 拾取范围", effectLabel: "+25%", baseCost: 300, costStep: 150, maxLevel: 2, icon: "assets/sprites/ui/upgrade_icons/magnet.svg" },
+  { key: "luck", label: "幸运", description: "每级提高 10% 幸运值", effectLabel: "+10%", baseCost: 600, costStep: 200, maxLevel: 3, icon: "assets/sprites/ui/upgrade_icons/luck.svg" },
+  { key: "growth", label: "成长", description: "每级提高 3% 经验获取", effectLabel: "+3%", baseCost: 900, costStep: 300, maxLevel: 5, icon: "assets/sprites/ui/upgrade_icons/growth.svg" }
 ];
 
 function toSafeInt(value) {
@@ -61,10 +70,33 @@ export class UpgradeScene extends Phaser.Scene {
     this.statusText = null;
   }
 
-  init() {
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
+  preload() {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
     }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
+    }
+    
+    UPGRADE_DEFINITIONS.forEach((def, i) => {
+      const key = `upgrade_icon_${def.key}`;
+      if (!this.textures.exists(key)) {
+        this.load.image(key, def.icon);
+      }
+    });
+  }
+
+  init() {
   }
 
   create() {
@@ -88,12 +120,15 @@ export class UpgradeScene extends Phaser.Scene {
 
     // ── Back button (top-right) ──
     const doClose = () => {
-      const mainMenu = this.scene.get("MainMenuScene");
-      if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
-        mainMenu.closeSubMenu();
-      } else {
-        this.scene.stop("UpgradeScene");
-      }
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        const mainMenu = this.scene.get("MainMenuScene");
+        if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+          mainMenu.closeSubMenu();
+        } else {
+          this.scene.stop("UpgradeScene");
+        }
+      });
     };
     createVSBackButton(this, cam.width - 84, 36, doClose);
 
@@ -132,8 +167,8 @@ export class UpgradeScene extends Phaser.Scene {
     const gridW = cols * cardW + (cols - 1) * gapX;
     // 网格起始X（居中）
     const startX = cx - gridW / 2 + cardW / 2;
-    // 网格起始Y（默认panelTop + 160）
-    const startY = panelTop + 160;
+    // 网格起始Y（调整上移）
+    const startY = panelTop + 140;
 
     UPGRADE_DEFINITIONS.forEach((def, i) => {
       const col = i % cols;
@@ -184,9 +219,8 @@ export class UpgradeScene extends Phaser.Scene {
     container.add(iconBg);
 
     // Icon
-    const icon = this.add.text(0, -2, def.icon || "?", {
-      fontFamily: "ZpixOne", fontSize: "22px"
-    }).setOrigin(0.5);
+    const iconKey = `upgrade_icon_${def.key}`;
+    const icon = this.add.image(0, -2, iconKey).setOrigin(0.5).setDisplaySize(32, 32);
     container.add(icon);
 
     // Level squares
@@ -195,6 +229,7 @@ export class UpgradeScene extends Phaser.Scene {
 
     // Click
     bg.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this.selectUpgrade(index);
       this.tweens.add({
         targets: container, scaleX: 0.96, scaleY: 0.96,
@@ -226,10 +261,9 @@ export class UpgradeScene extends Phaser.Scene {
       .setStrokeStyle(2, 0xc4a040, 1);
     container.add(iconBg);
 
-    const icon = this.add.text(-w / 2 + 46, 0, "", {
-      fontFamily: "ZpixOne", fontSize: "28px"
-    }).setOrigin(0.5);
-    container.add(icon);
+    const iconKey = `upgrade_icon_${this.detailDef?.key || 'power'}`;
+    const detailIcon = this.add.image(-w / 2 + 46, 0, iconKey).setOrigin(0.5).setDisplaySize(42, 42);
+    container.add(detailIcon);
 
     // Name
     const nameText = this.add.text(-w / 2 + 100, -16, "", {
@@ -288,12 +322,13 @@ export class UpgradeScene extends Phaser.Scene {
     const trigger = () => {
       const def = this.detailDef;
       if (!def) return;
+      this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
       this.purchaseUpgrade(def);
     };
     btnBg.on("pointerdown", trigger);
     btnText.on("pointerdown", trigger);
 
-    this.detailObjects = { container, icon, nameText, descText, costText, btnBg, btnText };
+    this.detailObjects = { container, detailIcon, nameText, descText, costText, btnBg, btnText };
   }
 
   selectUpgrade(index) {
@@ -312,7 +347,7 @@ export class UpgradeScene extends Phaser.Scene {
     const isMaxed = level >= def.maxLevel;
     const cost = isMaxed ? 0 : this.getUpgradeCost(def, level);
 
-    detail.icon.setText(def.icon || "?");
+    detail.detailIcon.setTexture(`upgrade_icon_${def.key}`);
     detail.nameText.setText(def.label);
     detail.descText.setText(isMaxed
       ? `${def.description}（已满级）`
@@ -387,14 +422,14 @@ export class UpgradeScene extends Phaser.Scene {
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    return toSafeInt(window.localStorage.getItem(COIN_STORAGE_KEY));
+    return toSafeInt(window.localStorage.getItem(META_COINS_STORAGE_KEY));
   }
 
   saveCoins(coins) {
     if (typeof window === "undefined" || !window.localStorage) return;
     const safeCoins = toSafeInt(coins);
     try {
-      window.localStorage.setItem(COIN_STORAGE_KEY, String(safeCoins));
+      window.localStorage.setItem(META_COINS_STORAGE_KEY, String(safeCoins));
       const metaRaw = window.localStorage.getItem(META_STORAGE_KEY);
       const metaParsed = metaRaw ? JSON.parse(metaRaw) : {};
       const mergedMeta = {
@@ -411,7 +446,7 @@ export class UpgradeScene extends Phaser.Scene {
   loadUpgrades() {
     if (typeof window === "undefined" || !window.localStorage) return { ...DEFAULT_UPGRADES };
     try {
-      const raw = window.localStorage.getItem(UPGRADE_STORAGE_KEY);
+      const raw = window.localStorage.getItem(SHOP_UPGRADES_STORAGE_KEY);
       if (!raw) return { ...DEFAULT_UPGRADES };
       const parsed = JSON.parse(raw);
       const result = { ...DEFAULT_UPGRADES };
@@ -431,7 +466,7 @@ export class UpgradeScene extends Phaser.Scene {
       sanitized[k] = toSafeInt(upgrades?.[k]);
     });
     try {
-      window.localStorage.setItem(UPGRADE_STORAGE_KEY, JSON.stringify(sanitized));
+      window.localStorage.setItem(SHOP_UPGRADES_STORAGE_KEY, JSON.stringify(sanitized));
     } catch (_error) {}
   }
 

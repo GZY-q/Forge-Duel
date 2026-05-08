@@ -1,0 +1,78 @@
+# 武器音效文件清单
+
+## 文件路径
+所有武器音效文件应保存在: `/Users/gzy/mycode/Forge-Duel/assets/audio/sfx/`
+
+## 需要创建的文件列表 (18个)
+
+### 1. 近战武器
+- [ ] weapon_dagger.wav - 匕首/飞刀
+- [ ] weapon_slash.wav - 斩击
+- [ ] weapon_orbit_blades.wav - 轨道刀片
+
+### 2. 火系武器
+- [ ] weapon_fireball.wav - 火球
+- [ ] weapon_meteor.wav - 流星
+- [ ] weapon_molotov.wav - 燃烧弹
+
+### 3. 电系武器
+- [ ] weapon_lightning.wav - 闪电
+- [ ] weapon_thunderstorm.wav - 雷暴
+- [ ] weapon_laser.wav - 激光
+- [ ] weapon_prismatic_laser.wav - 棱镜激光
+
+### 4. 导弹武器
+- [ ] weapon_homing_missile.wav - 追踪导弹
+- [ ] weapon_gatling.wav - 加特林
+- [ ] weapon_mega_missile.wav - 超级导弹
+
+### 5. 特殊武器
+- [ ] weapon_scatter_shot.wav - 散射
+- [ ] weapon_boomerang.wav - 回旋镖
+- [ ] weapon_garlic_aura.wav - 大蒜光环
+- [ ] weapon_gravity_well.wav - 重力井
+- [ ] weapon_death_spiral.wav - 死亡螺旋
+
+## 代码配置
+
+音效已在 `src/config/audio.js` 中配置好，包含：
+- SFX_AUDIO_FILES: 文件路径映射
+- SFX_KEY_BY_TYPE: 音效键映射
+- SFX_VOLUME: 各音效音量
+- SFX_THROTTLE_MS: 节流时间（ms）
+
+## 快速生成命令
+
+如果安装了 FFmpeg，运行：
+```bash
+cd /Users/gzy/mycode/Forge-Duel/assets/audio/sfx
+chmod +x generate_placeholder_sounds.sh
+./generate_placeholder_sounds.sh
+```
+
+## 音效来源推荐
+
+1. **Freesound** (freesound.org) - 免费注册下载
+2. **ZapSplat** (zapsplat.com) - 免费账户
+3. **Kenney** (kenney.nl) - 完全免费开源
+4. **BBC Sound Effects** - 公共领域
+
+## 音效要求
+
+- 格式: WAV
+- 采样率: 44100 Hz
+- 位深: 16位
+- 声道: 单声道
+- 长度: 0.05 - 0.3 秒
+- 文件大小: < 100KB
+
+## 在游戏中使用
+
+```javascript
+// 示例：在 WeaponSystem 中播放武器音效
+const weaponKey = `weapon_${weaponType}`;
+this.audioManager.playSfx(weaponKey);
+
+// 例如播放火球音效
+this.audioManager.playSfx("weapon_fireball");
+```

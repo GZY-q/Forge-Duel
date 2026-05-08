@@ -1,6 +1,7 @@
 import {
   SHIP_CONFIGS,
   SHIP_KEYS,
+  SHIP_PASSIVES,
   SHIP_STORAGE_KEY,
   loadShipStats,
   isShipUnlocked,
@@ -16,12 +17,29 @@ import {
   createVSConfirmButton,
   createVSButton
 } from "../ui/vsUI.js";
+import { META_COINS_STORAGE_KEY } from "../config/storage-keys.js";
 
-const COIN_STORAGE_KEY = "forgeduel_coins";
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
 
 export class ShipSelectionScene extends Phaser.Scene {
   constructor() {
     super("ShipSelectionScene");
+  }
+
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
   }
 
   showToast(message) {
@@ -49,6 +67,18 @@ export class ShipSelectionScene extends Phaser.Scene {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
     }
+    SHIP_KEYS.forEach((key) => {
+      const cfg = SHIP_CONFIGS[key];
+      if (cfg.textureKey && !this.textures.exists(cfg.textureKey)) {
+        this.load.image(cfg.textureKey, `assets/sprites/player/${cfg.textureKey}.png`);
+      }
+    });
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
+    }
   }
 
   create() {
@@ -61,7 +91,12 @@ export class ShipSelectionScene extends Phaser.Scene {
 
     // ── Top bar ──
     const coins = this.loadCoins();
-    const goBack = () => this.scene.start("MainMenuScene", { fromShipSelection: true });
+    const goBack = () => {
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        this.scene.start("MainMenuScene", { fromShipSelection: true });
+      });
+    };
     this.topBar = createVSTopBar(this, {
       coins,
       showBack: true,
@@ -129,11 +164,12 @@ export class ShipSelectionScene extends Phaser.Scene {
     // 高度88 | Y位置panelBottom - 52
     this.createDetailPanel(cx, panelBottom - 52, panelW - 30, 88);
 
-    createVSConfirmButton(this, cx + 250, panelBottom - 70, "确认", () => {
+    createVSConfirmButton(this, cx + 250, panelBottom - 50, "确认", () => {
       if (!this.selectedShipId) {
         this.updateDetailPanel(null, "请先选择一个角色", true);
         return;
       }
+      this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
       if (typeof window !== "undefined" && window.localStorage) {
         window.localStorage.setItem(SHIP_STORAGE_KEY, this.selectedShipId);
       }
@@ -164,6 +200,7 @@ export class ShipSelectionScene extends Phaser.Scene {
           this.showToast(`解锁条件: ${unlockText}`);
           return;
         }
+        this.playUiSfx(UI_SFX_KEYS.select, 1.1);
         this.selectShip(config.id);
       }
     });
@@ -171,8 +208,25 @@ export class ShipSelectionScene extends Phaser.Scene {
     const iconSize = 48;
     const iconBg = this.add.rectangle(0, 0, iconSize + 4, iconSize + 4, 0x1a1a2a, 1)
       .setStrokeStyle(2, unlocked ? tint : 0x555555, unlocked ? 1 : 0.4);
-    const icon = this.add.rectangle(0, 0, iconSize, iconSize, tint, unlocked ? 0.8 : 0.2);
-    container.add([iconBg, icon]);
+    container.add(iconBg);
+
+    const textureKey = config.textureKey;
+    let shipImage;
+    if (textureKey && this.textures.exists(textureKey)) {
+      const texture = this.textures.get(textureKey);
+      const srcW = texture.getSourceImage().width || 68;
+      const srcH = texture.getSourceImage().height || 68;
+      const maxDisplay = 40;
+      const scale = Math.min(maxDisplay / srcW, maxDisplay / srcH);
+      shipImage = this.add.image(0, 0, textureKey).setScale(scale).setRotation(Math.PI / 2);
+      if (!unlocked) {
+        shipImage.setTint(0x888888).setAlpha(0.5);
+      }
+      container.add(shipImage);
+    } else {
+      const icon = this.add.rectangle(0, 0, iconSize, iconSize, tint, unlocked ? 0.8 : 0.2);
+      container.add(icon);
+    }
 
     const weaponLabels = { dagger: "🗡️", fireball: "🔥", lightning: "⚡", orbit_blades: "🌀" };
     const wepIcon = this.add.text(w / 2 - 18, h / 2 - 18,
@@ -231,56 +285,72 @@ export class ShipSelectionScene extends Phaser.Scene {
     this.updateDetailPanel(config, null, false);
   }
   //============================================
-  // 飞船详情面板 - 创建
+  // 飞船详情面板 - 创建 (Vampire Survivors 简洁风格)
   //============================================
   createDetailPanel(x, y, w, h) {
-    // x,y: 面板中心坐标 | w,h: 面板宽高
     const container = this.add.container(x, y);
 
-    // 面板背景 - 深灰底色 + 金色边框
+    // 面板背景
     const bg = this.add.rectangle(0, 0, w, h, 0x4a4a5a, 1)
       .setStrokeStyle(2, 0xc4a040, 1)
       .setOrigin(0.5);
-    // 面板内嵌 - 内边框装饰
     const inner = this.add.rectangle(0, 0, w - 8, h - 8, 0, 0)
       .setStrokeStyle(1, 0x8a7a3a, 0.6)
       .setOrigin(0.5);
-
     container.add([bg, inner]);
 
-    // 左侧元素起始X坐标（相对面板中心）
-    const leftX = -w / 2 + 10;
-    // 右侧元素X偏移
-    const rightX = 16;
+    const leftX = -w / 2 + 14;
+    const iconX = leftX + 24;
+    const textX = leftX + 56;
 
-    // 飞船图标 - 48x48 尺寸
-    const iconBg = this.add.rectangle(leftX + 24, 0, 48, 48, 0x1a1a2a, 1)
+    // 飞船图标 — 左侧垂直居中
+    const iconBg = this.add.rectangle(iconX, 0, 52, 52, 0x1a1a2a, 1)
       .setStrokeStyle(2, 0xc4a040, 1).setOrigin(0.5);
-    const icon = this.add.rectangle(leftX + 24, 0, 42, 42, 0x888888, 0.5).setOrigin(0.5);
+    const icon = this.add.rectangle(iconX, 0, 46, 46, 0x888888, 0.5).setOrigin(0.5);
     container.add([iconBg, icon]);
+    const detailShipImage = this.add.image(iconX, 0, "").setOrigin(0.5).setVisible(false);
+    container.add(detailShipImage);
 
-    // 飞船名称 - Y偏移-22（图标的右上方）
-    const nameText = this.add.text(leftX + 52, -22, "", {
-      fontFamily: "ZpixOne", fontSize: "16px", color: "#ffffff",
+    // 名称 — 大字，图标右侧上方
+    const nameText = this.add.text(textX, -20, "", {
+      fontFamily: "ZpixOne", fontSize: "18px", color: "#ffffff",
       stroke: "#000000", strokeThickness: 3
     }).setOrigin(0, 0.5);
     container.add(nameText);
 
-    // 飞船描述 - Y偏移-24（名称下方）
-    const descText = this.add.text(leftX + 52, -6, "", {
-      fontFamily: "ZpixOne", fontSize: "10px", color: "#8898b0",
-      stroke: "#1a1a2a", strokeThickness: 1
+    // 一句话概括 — tagline，名称下方
+    const taglineText = this.add.text(textX, 2, "", {
+      fontFamily: "ZpixOne", fontSize: "13px", color: "#fef08a",
+      stroke: "#000000", strokeThickness: 3
     }).setOrigin(0, 0.5);
-    container.add(descText);
+    container.add(taglineText);
 
-    // 解锁状态 - Y偏移-2（面板右下角）
-    const statusText = this.add.text(w / 2 - 450, -22, "", {
+    // 被动信息行 — tagline 下方
+    const passiveText = this.add.text(textX, 22, "", {
       fontFamily: "ZpixOne", fontSize: "9px", color: "#c4a040",
       stroke: "#1a1a2a", strokeThickness: 1
+    }).setOrigin(0, 0.5);
+    container.add(passiveText);
+
+    // 难度星级 — 面板右侧上方
+    const diffText = this.add.text(w / 2 - 24, -24, "", {
+      fontFamily: "ZpixOne", fontSize: "9px", color: "#fef08a",
+      stroke: "#1a1a2a", strokeThickness: 2
+    }).setOrigin(1, 0.5);
+    container.add(diffText);
+
+    // 解锁状态 — 面板右侧上方（难度旁边）
+    const statusText = this.add.text(w / 2 - 90, -24, "", {
+      fontFamily: "ZpixOne", fontSize: "9px", color: "#88ff88",
+      stroke: "#1a1a2a", strokeThickness: 2
     }).setOrigin(1, 0.5);
     container.add(statusText);
 
-    this.detailObjects = { container, icon, nameText, descText, statusText, statBars: [], panelW: w };
+    this.detailObjects = {
+      container, icon, detailShipImage,
+      nameText, taglineText, passiveText, diffText, statusText,
+      extraObjects: [], panelW: w
+    };
   }
 
   //============================================
@@ -290,87 +360,67 @@ export class ShipSelectionScene extends Phaser.Scene {
     const detail = this.detailObjects;
     if (!detail) return;
 
-    // 错误状态显示
+    // 清除旧的额外元素
+    if (detail.extraObjects) {
+      detail.extraObjects.forEach((obj) => { if (obj && obj.destroy) obj.destroy(); });
+      detail.extraObjects = [];
+    }
+
+    // 错误状态
     if (errorMsg) {
       detail.nameText.setText("");
-      detail.descText.setText("");
+      detail.taglineText.setText("");
+      detail.passiveText.setText("");
+      detail.diffText.setText("");
       detail.statusText.setText(errorMsg);
       detail.statusText.setColor(isError ? "#ff8888" : "#88ff88");
-      detail.icon.setFillStyle(0x888888, 0.5);
-      if (detail.statBars) {
-        detail.statBars.forEach((obj) => { if (obj && obj.destroy) obj.destroy(); });
-        detail.statBars = [];
-      }
+      detail.icon.setFillStyle(0x888888, 0.5).setVisible(true);
+      detail.detailShipImage.setVisible(false);
       return;
     }
 
     if (!config) return;
 
-    // 更新名称和图标颜色
+    // 更新名称和图标
     detail.nameText.setText(config.name);
-    detail.icon.setFillStyle(config.tint, 0.8);
-
-    // 清除旧的统计条
-    if (detail.statBars) {
-      detail.statBars.forEach((obj) => { if (obj && obj.destroy) obj.destroy(); });
+    if (config.textureKey && this.textures.exists(config.textureKey)) {
+      const texture = this.textures.get(config.textureKey);
+      const srcW = texture.getSourceImage().width || 68;
+      const srcH = texture.getSourceImage().height || 68;
+      const maxDisplay = 44;
+      const scale = Math.min(maxDisplay / srcW, maxDisplay / srcH);
+      detail.detailShipImage.setTexture(config.textureKey).setScale(scale).setRotation(Math.PI / 2).setVisible(true);
+      detail.detailShipImage.clearTint();
+      detail.icon.setVisible(false);
+    } else {
+      detail.detailShipImage.setVisible(false);
+      detail.icon.setFillStyle(config.tint, 0.8).setVisible(true);
     }
-    detail.statBars = [];
 
-    //========== 属性条 ==========
-    // X坐标: 面板左侧 + 偏移 | 宽度120 | 高度8
-    const barX = -detail.panelW / 2 + 90;
-    const barW = 120;
-    const barH = 8;
+    // 一句话概括
+    detail.taglineText.setText(config.tagline || "");
 
-    const stats = config.stats;
-    const bars = [
-      { label: "HP", value: stats.maxHp, max: 160, color: 0x44cc44 },      // 生命值
-      { label: "SPD", value: stats.speed, max: 360, color: 0x44aaff },    // 速度
-      { label: "DASH", value: +((6000 - stats.dashCooldown) / 60).toFixed(1), max: 50, color: 0xffaa44 }, // 冲刺冷却
-    ];
-    // 初始Y = 8，每条间隔14
-    let infoY = 8;
-    bars.forEach((b) => {
-      const ratio = Math.min(1, Math.max(0, b.value / b.max));
-      const bg = this.add.rectangle(barX, infoY, barW, barH, 0x1a1a2a, 0.9).setOrigin(0, 0.5);
-      const fill = this.add.rectangle(barX, infoY, Math.max(barH, barW * ratio), barH - 2, b.color, 0.9).setOrigin(0, 0.5);
-      const lbl = this.add.text(barX - 2, infoY, b.label, {
-        fontFamily: "ZpixOne", fontSize: "8px", color: "#a0a0b0",
-        stroke: "#000000", strokeThickness: 1
-      }).setOrigin(1, 0.5);
-      detail.statBars.push(bg, fill, lbl);
-      detail.container.add([bg, fill, lbl]);
-      infoY += 14;  // 下一条Y + 14
-    });
+    // 被动信息
+    if (config.passive) {
+      const passive = SHIP_PASSIVES[config.passive];
+      if (passive) {
+        detail.passiveText.setText(`被动: ${passive.name} — ${passive.description}`);
+      } else {
+        detail.passiveText.setText("");
+      }
+    } else {
+      detail.passiveText.setText("");
+    }
 
-    //========== 武器信息 ==========
-    const weaponLabel = config.initialWeapons
-      ? config.initialWeapons.join("+")
-      : (config.initialWeapon || "?");
-    const weaponText = this.add.text(barX, infoY, `武器:${weaponLabel}`, {
-      fontFamily: "ZpixOne", fontSize: "9px", color: "#c4a040",
-      stroke: "#000000", strokeThickness: 1
-    }).setOrigin(0, 1);
-    detail.statBars.push(weaponText);
-    detail.container.add(weaponText);
-
-    //========== 难度星级 - 面板右下角 ==========
-    const diffY = -23;  // Y偏移（负数=往上）
+    // 难度星级
     if (config.difficulty) {
       const stars = "★".repeat(config.difficulty) + "☆".repeat(5 - config.difficulty);
-      const diffText = this.add.text(detail.panelW / 2 - 500, diffY, stars, {
-        fontFamily: "ZpixOne", fontSize: "8px", color: "#fef08a",
-        stroke: "#000000", strokeThickness: 1
-      }).setOrigin(1, 0.5);
-      detail.statBars.push(diffText);
-      detail.container.add(diffText);
+      detail.diffText.setText(stars);
+    } else {
+      detail.diffText.setText("");
     }
 
-    // 更新描述文字
-    const descLine = config.description + (config.difficulty ? `  难度${config.difficulty}/5` : "");
-    detail.descText.setText(descLine);
-
-    // 更新解锁状态
+    // 解锁状态
     const unlocked = isShipUnlocked(config.id, this.shipStats);
     if (!unlocked) {
       const progress = getUnlockProgress(config.id, this.shipStats);
@@ -389,7 +439,7 @@ export class ShipSelectionScene extends Phaser.Scene {
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    const parsed = Number(window.localStorage.getItem(META_COINS_STORAGE_KEY));
     if (!Number.isFinite(parsed) || parsed < 0) return 0;
     return Math.floor(parsed);
   }

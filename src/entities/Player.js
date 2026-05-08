@@ -1,48 +1,17 @@
-const DIRECTION_INDEX_TO_NAME = Object.freeze([
-  "east",
-  "south-east",
-  "south",
-  "south-west",
-  "west",
-  "north-west",
-  "north",
-  "north-east"
-]);
-
-function getDirectionNameFromVector(x, y, fallback = "south") {
-  if (Math.abs(x) < 0.0001 && Math.abs(y) < 0.0001) {
-    return fallback;
-  }
-  const octant = Math.round(Math.atan2(y, x) / (Math.PI / 4));
-  const index = ((octant % 8) + 8) % 8;
-  return DIRECTION_INDEX_TO_NAME[index] ?? fallback;
-}
-
-function getPlayerDirectionalTextureKey(scene, direction = "south") {
-  const key = `char_player_pirate_${direction.replace(/-/g, "_")}`;
-  if (scene?.textures?.exists(key)) {
-    return key;
-  }
-  return null;
-}
-
-export function getPlayerTextureKey(scene, direction = "south") {
-  const directionalKey = getPlayerDirectionalTextureKey(scene, direction);
-  if (directionalKey) {
-    return directionalKey;
-  }
+export function getPlayerTextureKey(scene) {
   if (scene?.textures?.exists("sprite_player_crew")) {
     return "sprite_player_crew";
   }
   return "player_triangle";
 }
 const PLAYER_RENDER_DEPTH = 20;
-const PLAYER_PIRATE_SCALE = 1.78;
 const PLAYER_CREW_SCALE = 2.24;
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
-  constructor(scene, x, y) {
-    super(scene, x, y, getPlayerTextureKey(scene, "south"));
+  constructor(scene, x, y, config = {}) {
+    const shipTextureKey = config.shipTextureKey;
+    const initialTexture = shipTextureKey || getPlayerTextureKey(scene, "south");
+    super(scene, x, y, initialTexture);
 
     scene.add.existing(this);
     scene.physics.add.existing(this);
@@ -55,7 +24,6 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.nextDamageAt = 0;
     this.lastHurtAt = -Infinity;
     this.lastMoveDir = new Phaser.Math.Vector2(1, 0);
-    this.facingDirection = "south";
 
     this.dashGaugeMax = 100;
     this.dashGauge = 0;
@@ -77,23 +45,32 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.speedBoostActive = false;
     this.damageReduction = 0;
     this.armorFlat = 0;
+    this.dodgeChance = 0;
+    this.fireTwiceChance = 0;
+    this.shipPassive = null;
+    this.slowAmount = 0;
+    this.slowUntilMs = 0;
+
+    this.shipTextureKey = shipTextureKey || null;
 
     this.setCircle(16, 0, 0);
     this.setCollideWorldBounds(true);
     this.setDepth(PLAYER_RENDER_DEPTH);
-    if (this.texture?.key?.startsWith("char_player_pirate_")) {
-      this.setScale(PLAYER_PIRATE_SCALE);
+    if (this.shipTextureKey) {
+      const texture = scene.textures.get(this.shipTextureKey);
+      const srcH = texture.getSourceImage().height || 68;
+      const scale = 44 / srcH;
+      this.setScale(scale);
     } else if (this.texture?.key === "sprite_player_crew") {
       this.setScale(PLAYER_CREW_SCALE);
     }
   }
 
   updateFacingFromVector(x, y) {
-    const nextDirection = getDirectionNameFromVector(x, y, this.facingDirection);
-    this.facingDirection = nextDirection;
-    const textureKey = getPlayerTextureKey(this.scene, nextDirection);
-    if (textureKey && this.texture?.key !== textureKey) {
-      this.setTexture(textureKey);
+    if (this.shipTextureKey) {
+      if (Math.abs(x) < 0.0001 && Math.abs(y) < 0.0001) return;
+      const angle = Math.atan2(y, x) + Math.PI / 2;
+      this.setRotation(angle);
     }
   }
 
@@ -137,7 +114,11 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     direction.normalize();
     this.lastMoveDir.copy(direction);
     this.updateFacingFromVector(direction.x, direction.y);
-    this.body.setVelocity(direction.x * this.speed * magnitude, direction.y * this.speed * magnitude);
+    let effectiveSpeed = this.speed;
+    if (this.slowUntilMs > 0 && this.scene?.time?.now < this.slowUntilMs) {
+      effectiveSpeed = Math.round(this.speed * (1 - this.slowAmount));
+    }
+    this.body.setVelocity(direction.x * effectiveSpeed * magnitude, direction.y * effectiveSpeed * magnitude);
   }
 
   updateDash(delta) {
@@ -183,8 +164,8 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.updateFacingFromVector(dir.x, dir.y);
     this.body.setVelocity(dir.x * dashSpeed, dir.y * dashSpeed);
     this.setTint(0xfff2a6);
-    if (this.scene.playSfx) {
-      this.scene.playSfx("dash");
+    if (this.scene.audioManager?.playSfx) {
+      this.scene.audioManager.playSfx("dash");
     }
     return true;
   }
@@ -203,6 +184,12 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
 
   takeDamage(amount, now) {
     if (now < this.nextDamageAt || this.hp <= 0) {
+      return false;
+    }
+
+    // Dodge chance (phase_shift passive)
+    if (this.dodgeChance > 0 && Math.random() < this.dodgeChance) {
+      this.nextDamageAt = now + this.damageCooldownMs;
       return false;
     }
 

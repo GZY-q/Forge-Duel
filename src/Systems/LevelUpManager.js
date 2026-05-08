@@ -14,16 +14,21 @@ const UPGRADE_COLORS = {
   passive_candelabrador: 0xffaa44, passive_duplicator: 0xffcc88, passive_bracer: 0x66ccff
 };
 
-const UPGRADE_ICONS = {
-  weapon_damage: "⚔", attack_speed: "⚡", projectile_count: "◎",
-  movement_speed: "➣", pickup_radius: "⊕", lifesteal: "🩸",
-  max_hp_boost: "❤", xp_boost: "⭐", luck_boost: "🍀",
-  crit_chance: "💥", duration_boost: "⏳", cooldown_reduction: "🕐",
-  revival: "💀", passive_ember_core: "🔥", passive_blade_sigil: "🗡",
-  passive_iron_shell: "🛡", passive_swift_feet: "👟", passive_wings: "🪶",
-  passive_armor: "🔰", passive_hollow_heart: "💖", passive_attractorb: "🧲",
-  passive_frost_shard: "❄", passive_spellbinder: "📖",
-  passive_candelabrador: "🕯", passive_duplicator: "📋", passive_bracer: "🤲"
+const UPGRADE_ICON_MAP = {
+  weapon_damage: "upgrade_orb", attack_speed: "weapon_icon_lightning",
+  projectile_count: "item_weapon_upgrade", movement_speed: "item_speed_boost",
+  pickup_radius: "item_magnet", lifesteal: "item_health",
+  max_hp_boost: "item_health", xp_boost: "xp_orb",
+  luck_boost: "xp_orb_gold", crit_chance: "xp_orb_purple",
+  duration_boost: "item_shield", cooldown_reduction: "weapon_icon_meteor",
+  revival: "item_red_potion",
+  passive_ember_core: "weapon_icon_fireball", passive_blade_sigil: "weapon_icon_dagger",
+  passive_iron_shell: "item_shield", passive_swift_feet: "item_speed_boost",
+  passive_wings: "item_speed_boost", passive_armor: "item_shield",
+  passive_hollow_heart: "item_health", passive_attractorb: "item_magnet",
+  passive_frost_shard: "xp_orb_blue", passive_spellbinder: "item_weapon_upgrade",
+  passive_candelabrador: "weapon_icon_fireball", passive_duplicator: "item_weapon_upgrade",
+  passive_bracer: "item_speed_boost"
 };
 
 export class LevelUpManager {
@@ -87,7 +92,7 @@ export class LevelUpManager {
       const y = optStartY + index * (optHeight + optGap);
       if (y + optHeight / 2 > centerY + ph - 62) return;
       const color = UPGRADE_COLORS[upgrade.id] || 0xc4a040;
-      const icon = UPGRADE_ICONS[upgrade.id] || "?";
+      const iconKey = UPGRADE_ICON_MAP[upgrade.id];
 
       let isEvolution = false;
       let evoName = "";
@@ -108,9 +113,15 @@ export class LevelUpManager {
       const accent = s.add.rectangle(optLeft + 3, y, 4, optHeight - 8, color, 1)
         .setOrigin(0, 0.5).setScrollFactor(0).setDepth(depth + 3);
 
-      const iconText = s.add.text(optLeft + 16, y, icon, {
-        fontFamily: "ZpixOne", fontSize: "20px"
-      }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+      let iconObj;
+      if (iconKey && s.textures.exists(iconKey)) {
+        iconObj = s.add.image(optLeft + 16, y, iconKey)
+          .setDisplaySize(24, 24).setScrollFactor(0).setDepth(depth + 3);
+      } else {
+        iconObj = s.add.text(optLeft + 16, y, "?", {
+          fontFamily: "ZpixOne", fontSize: "18px", color: "#c4a040"
+        }).setOrigin(0.5).setScrollFactor(0).setDepth(depth + 3);
+      }
 
       const nameStr = `[${index + 1}] ${upgrade.label}`;
       const nameText = s.add.text(optLeft + 32, y - 12, nameStr, {
@@ -136,7 +147,7 @@ export class LevelUpManager {
       box.on("pointerout", () => box.setFillStyle(bgColor, 0.96));
       s.levelUpOptionActions.push(chooseUpgrade);
 
-      optionObjects.push(box, accent, iconText, nameText, descText);
+      optionObjects.push(box, accent, iconObj, nameText, descText);
     });
 
     // Weapon bar

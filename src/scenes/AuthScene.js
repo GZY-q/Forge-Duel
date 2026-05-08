@@ -1,23 +1,47 @@
 import { createMainMenuBackground, createVSPanel, createVSTopBar, createVSButton } from "../ui/vsUI.js";
 import { createBackButton } from "../ui/createBackButton.js";
+import { META_COINS_STORAGE_KEY } from "../config/storage-keys.js";
+
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
 
 const API_BASE = window.location.origin;
-const COIN_STORAGE_KEY = "forgeduel_coins";
 
 export class AuthScene extends Phaser.Scene {
   constructor() {
     super("AuthScene");
   }
 
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
   preload() {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
     }
   }
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    const parsed = Number(window.localStorage.getItem(META_COINS_STORAGE_KEY));
     if (!Number.isFinite(parsed) || parsed < 0) return 0;
     return Math.floor(parsed);
   }
@@ -59,22 +83,32 @@ export class AuthScene extends Phaser.Scene {
     this.scale.on("resize", this._onResize);
     this._positionAllDomInputs();
 
-    this.submitBtn = this._createButton(cx, cy + 80, "登录", () => this._handleSubmit());
+    this.submitBtn = this._createButton(cx, cy + 80, "登录", () => {
+      this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
+      this._handleSubmit();
+    });
 
     this._createLink(cx, cy + 130, "游客模式（仅单机）", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this._cleanupDom();
       this.scene.stop("AuthScene");
     });
 
     createBackButton(this, () => {
-      this._cleanupDom();
-      this.scene.stop("AuthScene");
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        this._cleanupDom();
+        this.scene.stop("AuthScene");
+      });
     });
 
     if (this.input?.keyboard) {
       this.input.keyboard.on("keydown-ESC", () => {
-        this._cleanupDom();
-        this.scene.stop("AuthScene");
+        this.playUiSfx(UI_SFX_KEYS.back);
+        this.time.delayedCall(80, () => {
+          this._cleanupDom();
+          this.scene.stop("AuthScene");
+        });
       });
     }
   }
@@ -88,6 +122,7 @@ export class AuthScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     bg.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
       this.isLogin = label === "登录";
       this.tabLogin.bg.setStrokeStyle(2, this.isLogin ? 0xc4a040 : 0x4a4a5a, 1);
       this.tabLogin.text.setColor(this.isLogin ? "#ffffff" : "#888888");

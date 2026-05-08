@@ -1,4 +1,16 @@
 import { createMainMenuBackground, createVSPanel, createVSBackButton, createVSTopBar } from "../ui/vsUI.js";
+import { META_COINS_STORAGE_KEY } from "../config/storage-keys.js";
+
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
 
 const API_BASE = window.location.origin;
 
@@ -49,7 +61,6 @@ const SCROLLBAR_W = 8;
 const SCROLLBAR_MIN_H = 30;
 const PANEL_W = 700;
 const PANEL_H = 500;
-const COIN_STORAGE_KEY = "forgeduel_coins";
 
 function formatTime(ms) {
   if (!ms || ms <= 0) return "--:--";
@@ -69,6 +80,13 @@ export class LeaderboardScene extends Phaser.Scene {
     super("LeaderboardScene");
   }
 
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
   init(data) {
     this._initialSort = data?.sort || "bestTime";
   }
@@ -77,11 +95,17 @@ export class LeaderboardScene extends Phaser.Scene {
     if (!this.textures.exists("main_menu_bg")) {
       this.load.image("main_menu_bg", "assets/sprites/ui/Home Page Background.png");
     }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
+    }
   }
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    const parsed = Number(window.localStorage.getItem(META_COINS_STORAGE_KEY));
     if (!Number.isFinite(parsed) || parsed < 0) return 0;
     return Math.floor(parsed);
   }
@@ -101,13 +125,16 @@ export class LeaderboardScene extends Phaser.Scene {
     this.topBar = createVSTopBar(this, { coins });
 
     const doClose = () => {
-      const mainMenu = this.scene.get("MainMenuScene");
-      if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
-        mainMenu.showBackButton(false);
-        mainMenu.closeSubMenu();
-      } else {
-        this.scene.stop("LeaderboardScene");
-      }
+      this.playUiSfx(UI_SFX_KEYS.back);
+      this.time.delayedCall(80, () => {
+        const mainMenu = this.scene.get("MainMenuScene");
+        if (mainMenu && typeof mainMenu.closeSubMenu === "function") {
+          mainMenu.showBackButton(false);
+          mainMenu.closeSubMenu();
+        } else {
+          this.scene.stop("LeaderboardScene");
+        }
+      });
     };
     createVSBackButton(this, cam.width - 84, 36, doClose);
 
@@ -228,6 +255,7 @@ export class LeaderboardScene extends Phaser.Scene {
 
       bg.on("pointerdown", () => {
         if (this.currentSort === tab.key) return;
+        this.playUiSfx(UI_SFX_KEYS.select);
         this.currentSort = tab.key;
         this.currentPage = 0;
         this._updateTabStyles();
@@ -296,7 +324,10 @@ export class LeaderboardScene extends Phaser.Scene {
     const prevLabel = this.add.text(-140, 0, "◀ 上一页", {
       fontFamily: "ZpixOne", fontSize: "10px", color: "#ffffff"
     }).setOrigin(0.5);
-    prevBtn.on("pointerdown", () => this._prevPage());
+    prevBtn.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
+      this._prevPage();
+    });
     prevBtn.on("pointerover", () => prevBtn.setFillStyle(C.pageBtnHover));
     prevBtn.on("pointerout", () => prevBtn.setFillStyle(C.pageBtn));
     this.pagePrevBtn = prevBtn;
@@ -307,7 +338,10 @@ export class LeaderboardScene extends Phaser.Scene {
     const nextLabel = this.add.text(140, 0, "下一页 ▶", {
       fontFamily: "ZpixOne", fontSize: "10px", color: "#ffffff"
     }).setOrigin(0.5);
-    nextBtn.on("pointerdown", () => this._nextPage());
+    nextBtn.on("pointerdown", () => {
+      this.playUiSfx(UI_SFX_KEYS.select);
+      this._nextPage();
+    });
     nextBtn.on("pointerover", () => nextBtn.setFillStyle(C.pageBtnHover));
     nextBtn.on("pointerout", () => nextBtn.setFillStyle(C.pageBtn));
     this.pageNextBtn = nextBtn;

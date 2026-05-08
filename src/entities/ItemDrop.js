@@ -1,4 +1,5 @@
 import { ITEM_DROP_CONFIGS } from "../config/progression.js";
+import { ITEM_SPRITES } from "../config/assets.manifest.js";
 
 const ITEM_RENDER_DEPTH = 15;
 const ITEM_LIFETIME_MS = 15000;
@@ -6,6 +7,16 @@ const ITEM_PULSE_SPEED_MS = 220;
 const ITEM_PULSE_AMPLITUDE = 0.06;
 const ITEM_MAGNET_RADIUS = 160;
 const ITEM_MAGNET_PULL = 380;
+
+const ITEM_SPRITE_MAP = {
+  health_orb: ITEM_SPRITES.health.key,
+  shield: ITEM_SPRITES.shield.key,
+  speed_boost: ITEM_SPRITES.speedBoost.key,
+  magnet: ITEM_SPRITES.magnet.key,
+  weapon_upgrade: ITEM_SPRITES.weaponUpgrade.key,
+  bomb: ITEM_SPRITES.bomb.key,
+  red_potion: ITEM_SPRITES.redPotion.key
+};
 
 export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -36,8 +47,14 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
     this.spawnedAt = this.scene.time.now;
     this.inPool = false;
 
-    this.setTexture("__WHITE");
-    this.setTint(config.color);
+    const spriteKey = ITEM_SPRITE_MAP[itemTypeId];
+    if (spriteKey && this.scene?.textures?.exists(spriteKey)) {
+      this.setTexture(spriteKey);
+      this.clearTint();
+    } else {
+      this.setTexture("__WHITE");
+      this.setTint(config.color);
+    }
     this.setScale(config.scale);
     this.setAlpha(0.92);
     this.setCircle(8, 0, 0);
@@ -83,7 +100,14 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
     const dx = playerX - this.x;
     const dy = playerY - this.y;
     const dist = Math.hypot(dx, dy);
-    if (dist > ITEM_MAGNET_RADIUS || dist < 0.001) {
+    if (dist > ITEM_MAGNET_RADIUS) {
+      return;
+    }
+    // 非常近时直接瞬移，防止在玩家身边震荡打转
+    if (dist < 20) {
+      this.x = playerX;
+      this.y = playerY;
+      this.body.setVelocity(0, 0);
       return;
     }
     const nx = dx / dist;
@@ -156,14 +180,16 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
           if (scene.showHudAlert) {
             scene.showHudAlert("BOMB!", 800);
           }
-          const bombGfx = scene.add.graphics().setDepth(30);
-          bombGfx.fillStyle(0xff4422, 0.3);
-          bombGfx.fillCircle(player.x, player.y, 400);
+          const bombSprite = scene.add.sprite(player.x, player.y, "bomb_explosion")
+            .setDepth(30).setScale(0.1).setAlpha(0.6);
           scene.tweens.add({
-            targets: bombGfx,
+            targets: bombSprite,
+            scaleX: 1.5,
+            scaleY: 1.5,
             alpha: 0,
             duration: 400,
-            onComplete: () => bombGfx.destroy()
+            ease: "Quad.easeOut",
+            onComplete: () => bombSprite.destroy()
           });
         }
         break;

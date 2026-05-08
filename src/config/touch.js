@@ -1,0 +1,3 @@
+export const TOUCH_JOYSTICK_RADIUS = 70;
+export const TOUCH_JOYSTICK_TOUCH_RADIUS = 100;
+export const TOUCH_DASH_BUTTON_RADIUS = 36;

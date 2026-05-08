@@ -11,12 +11,8 @@ import { LOGO_TEXTURE_KEY, LOGO_ASSET_PATH } from "../config/assets.manifest.js"
 import { BUTTON_ASSET_PATHS } from "../ui/vsUI.js";
 
 import { BUTTON_TEXTURES } from "../ui/vsUI.js";
+import { META_COINS_STORAGE_KEY, BEST_TIME_STORAGE_KEY } from "../config/storage-keys.js";
 
-const COIN_STORAGE_KEY = "forgeduel_coins";
-const BEST_TIME_STORAGE_KEY = "forgeduel_best_time_ms";
-const MENU_ATLAS_KEY = "ui_atlas";
-const MENU_ATLAS_IMAGE = "assets/atlas/ui_atlas.png";
-const MENU_ATLAS_DATA = "assets/atlas/ui_atlas.json";
 const SHARED_AUDIO_FILES = {
   dash: "assets/audio/sfx/dash.wav",
   enemy_hit: "assets/audio/sfx/enemy_hit.wav",
@@ -25,17 +21,31 @@ const SHARED_AUDIO_FILES = {
   boss_warning: "assets/audio/sfx/boss_warning.wav"
 };
 
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
+const UI_SFX_PATHS = {
+  [UI_SFX_KEYS.select]: "assets/audio/sfx/sfx_sounds_pause7_in.wav",
+  [UI_SFX_KEYS.back]: "assets/audio/sfx/sfx_sounds_pause7_out.wav"
+};
+
 export class MainMenuScene extends Phaser.Scene {
   constructor() {
     super("MainMenuScene");
   }
 
+  playUiSfx(type, rate = 1) {
+    if (!this.sound || !this.cache.audio.exists(type)) return;
+    const sfxVol = this.settingsSfxVol ?? 1;
+    if (sfxVol <= 0.001) return;
+    this.sound.play(type, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+  }
+
   preload() {
     this.bindLoadingScreenProgress();
-
-    if (!this.textures.exists(MENU_ATLAS_KEY)) {
-      this.load.atlas(MENU_ATLAS_KEY, MENU_ATLAS_IMAGE, MENU_ATLAS_DATA);
-    }
 
     if (!this.textures.exists(LOGO_TEXTURE_KEY)) {
       this.load.image(LOGO_TEXTURE_KEY, LOGO_ASSET_PATH);
@@ -54,6 +64,13 @@ export class MainMenuScene extends Phaser.Scene {
       if (this.cache?.audio?.exists(key)) return;
       this.load.audio(key, path);
     });
+
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, UI_SFX_PATHS[UI_SFX_KEYS.select]);
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, UI_SFX_PATHS[UI_SFX_KEYS.back]);
+    }
   }
 
   create() {
@@ -72,6 +89,7 @@ export class MainMenuScene extends Phaser.Scene {
       coins,
       showOptions: true,
       onOptions: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
         if (typeof window !== "undefined" && window.__forgeduelOpenSettings) {
           window.__forgeduelOpenSettings();
         }
@@ -80,6 +98,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // ── Sub-menu back button (hidden by default) ──
     const backBtn = createVSBackButton(this, cam.width - 84, 36, () => {
+      this.playUiSfx(UI_SFX_KEYS.back);
       if (typeof window !== "undefined" && window.__forgeduelCloseSettings) {
         window.__forgeduelCloseSettings();
       }
@@ -107,6 +126,7 @@ export class MainMenuScene extends Phaser.Scene {
       }
       this.backButton.container.setVisible(false);
       this.topBar.rightBtn.container.setVisible(true);
+      this.topBar.setCoins(this.loadCoins());
     };
 
     this.showBackButton = (show) => {
@@ -136,6 +156,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // ── Start button (large) ──
     createVSStartButton(this, cx, cy + 100, "开始", () => {
+      this.playUiSfx(UI_SFX_KEYS.confirm);
       this.scene.start("IntroScene");
     });
 
@@ -148,6 +169,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     const subButtons = [
       { label: "联机模式", onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
         const token = typeof window !== "undefined" && window.localStorage
           ? window.localStorage.getItem("forgeduel_token") : null;
         if (!token) {
@@ -158,9 +180,17 @@ export class MainMenuScene extends Phaser.Scene {
           this.scene.start("ShipSelectionScene", { mode: "coop" });
         }
       }},
-      { label: "增强", onClick: () => this.openSubMenu("UpgradeScene") },
-      { label: "排行榜", onClick: () => this.openSubMenu("LeaderboardScene") },
-      { label: "成就", onClick: () => {} }
+      { label: "增强", onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
+        this.openSubMenu("UpgradeScene");
+      }},
+      { label: "排行榜", onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
+        this.openSubMenu("LeaderboardScene");
+      }},
+      { label: "成就", onClick: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
+      }}
     ];
 
     subButtons.forEach((btn, i) => {
@@ -173,7 +203,7 @@ export class MainMenuScene extends Phaser.Scene {
     // ── Footer ──
     createVSFooter(this);
 
-    this.add.text(60, cam.height - 24, "v1.0", {
+    this.add.text(60, cam.height - 24, "v0.2.0 demo", {
       fontFamily: "ZpixOne", fontSize: "12px", color: "#ffffff"
     }).setOrigin(0, 0.5).setAlpha(0.35);
 
@@ -198,7 +228,7 @@ export class MainMenuScene extends Phaser.Scene {
 
   loadCoins() {
     if (typeof window === "undefined" || !window.localStorage) return 0;
-    const parsed = Number(window.localStorage.getItem(COIN_STORAGE_KEY));
+    const parsed = Number(window.localStorage.getItem(META_COINS_STORAGE_KEY));
     if (!Number.isFinite(parsed) || parsed < 0) return 0;
     return Math.floor(parsed);
   }

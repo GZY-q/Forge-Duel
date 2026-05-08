@@ -118,7 +118,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     label: "生命恢复",
     color: 0x44ff66,
     healAmount: 20,
-    dropChance: 0.10,
+    dropChance: 0.12,
     scale: 1.2,
     duration: 0
   }),
@@ -127,7 +127,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     label: "护盾充能",
     color: 0x4488ff,
     shieldDurationMs: 3000,
-    dropChance: 0.03,
+    dropChance: 0.05,
     scale: 1.3,
     duration: 0
   }),
@@ -145,7 +145,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     id: "magnet",
     label: "磁铁",
     color: 0xcc44ff,
-    dropChance: 0.02,
+    dropChance: 0.06,
     scale: 1.25,
     duration: 0
   }),
@@ -153,7 +153,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     id: "weapon_upgrade",
     label: "武器升级",
     color: 0xff8800,
-    dropChance: 0.04,
+    dropChance: 0.02,
     scale: 1.3,
     duration: 0
   }),
@@ -161,7 +161,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     id: "bomb",
     label: "炸弹",
     color: 0xff4422,
-    dropChance: 0.01,
+    dropChance: 0.02,
     scale: 1.4,
     duration: 0
   }),
@@ -173,7 +173,7 @@ export const ITEM_DROP_CONFIGS = Object.freeze({
     healDurationMs: 30000,
     healTickMs: 1000,
     healPerTick: 2,
-    dropChance: 0.008,
+    dropChance: 0.015,
     scale: 1.3,
     duration: 0
   })

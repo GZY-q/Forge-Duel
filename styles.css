@@ -557,3 +557,214 @@ canvas {
     padding: 14px 0;
   }
 }
+
+#settings-panel.open {
+  display: flex;
+  pointer-events: auto;
+}
+
+@media (max-width: 600px) {
+  #settings-panel-inner {
+    width: 90vw;
+    max-width: 360px;
+    padding: 16px 18px 14px;
+  }
+
+  #settings-title {
+    font-size: 22px;
+    margin-bottom: 14px;
+  }
+
+  .settings-row {
+    padding: 6px 0;
+  }
+
+  .settings-label {
+    font-size: 14px;
+  }
+
+  .settings-checkbox {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+  }
+
+  #settings-close {
+    font-size: 14px;
+    padding: 12px 0;
+  }
+
+  #settings-reset-upgrades {
+    font-size: 14px;
+    padding: 12px 0;
+    margin-top: 16px;
+  }
+
+  .settings-logout-btn {
+    font-size: 14px;
+    padding: 10px 0;
+  }
+}
+
+@media (max-width: 400px) {
+  #settings-panel-inner {
+    transform: scale(0.9);
+    transform-origin: center center;
+    max-width: 320px;
+  }
+
+  #settings-title {
+    font-size: 20px;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .settings-checkbox {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+
+  #settings-close,
+  #settings-reset-upgrades,
+  .settings-logout-btn {
+    font-size: 13px;
+  }
+}
+
+@media (max-height: 500px) {
+  #settings-panel-inner {
+    transform: scale(0.85);
+    transform-origin: center center;
+  }
+
+  #settings-title {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .settings-row {
+    padding: 4px 0;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .settings-checkbox {
+    width: 26px;
+    height: 26px;
+    font-size: 16px;
+  }
+
+  #settings-close,
+  #settings-reset-upgrades {
+    font-size: 13px;
+    padding: 10px 0;
+  }
+}
+
+@media (max-width: 600px) {
+  #settings-panel-inner {
+    width: 90vw;
+    max-width: 360px;
+    padding: 16px 18px 14px;
+  }
+
+  #settings-title {
+    font-size: 22px;
+    margin-bottom: 14px;
+  }
+
+  .settings-row {
+    padding: 6px 0;
+  }
+
+  .settings-label {
+    font-size: 14px;
+  }
+
+  .settings-checkbox {
+    width: 30px;
+    height: 30px;
+    font-size: 18px;
+  }
+
+  #settings-close {
+    font-size: 14px;
+    padding: 12px 0;
+  }
+
+  #settings-reset-upgrades {
+    font-size: 14px;
+    padding: 12px 0;
+    margin-top: 16px;
+  }
+
+  .settings-logout-btn {
+    font-size: 14px;
+    padding: 10px 0;
+  }
+}
+
+@media (max-width: 400px) {
+  #settings-panel-inner {
+    transform: scale(0.9);
+    transform-origin: center center;
+    max-width: 320px;
+  }
+
+  #settings-title {
+    font-size: 20px;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .settings-checkbox {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+  }
+
+  #settings-close,
+  #settings-reset-upgrades,
+  .settings-logout-btn {
+    font-size: 13px;
+  }
+}
+
+@media (max-height: 500px) {
+  #settings-panel-inner {
+    transform: scale(0.85);
+    transform-origin: center center;
+  }
+
+  #settings-title {
+    font-size: 20px;
+    margin-bottom: 10px;
+  }
+
+  .settings-row {
+    padding: 4px 0;
+  }
+
+  .settings-label {
+    font-size: 13px;
+  }
+
+  .settings-checkbox {
+    width: 26px;
+    height: 26px;
+    font-size: 16px;
+  }
+
+  #settings-close,
+  #settings-reset-upgrades {
+    font-size: 13px;
+    padding: 10px 0;
+  }
+}

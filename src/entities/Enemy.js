@@ -19,7 +19,13 @@ const ENEMY_TYPE_TO_FOLDER = Object.freeze({
   hunter: "enemy_hunter",
   ranger: "enemy_ranger",
   thrower: "enemy_ranger",
-  boomeranger: "enemy_hunter"
+  boomeranger: "enemy_hunter",
+  ghost: "enemy_ghost",
+  mech: "enemy_mech",
+  exploder: "enemy_chaser",
+  freezer: "enemy_ghost",
+  healer: "enemy_ghost",
+  splitter: "enemy_swarm"
 });
 const HIT_FLASH_DURATION_MS = 100;
 const HIT_FLASH_TINT = 0xffaaaa;
@@ -76,6 +82,24 @@ function getEnemyTextureKey(type, scene, direction = "south") {
   if (type === "boomeranger") {
     return "enemy_hunter";
   }
+  if (type === "ghost") {
+    return "enemy_ghost";
+  }
+  if (type === "mech") {
+    return "enemy_mech";
+  }
+  if (type === "exploder") {
+    return "enemy_chaser";
+  }
+  if (type === "freezer") {
+    return "enemy_ghost";
+  }
+  if (type === "healer") {
+    return "enemy_ghost";
+  }
+  if (type === "splitter") {
+    return "enemy_swarm";
+  }
   if (type === "boss") {
     return "enemy_boss";
   }
@@ -123,6 +147,19 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.predictPlayer = config.predictPlayer ?? archetype.predictPlayer ?? false;
     this.isBoomerang = config.isBoomerang ?? archetype.isBoomerang ?? false;
     this.meleeDamage = config.meleeDamage ?? archetype.meleeDamage ?? 0;
+    this.isExploder = config.isExploder ?? archetype.isExploder ?? false;
+    this.isHealer = config.isHealer ?? archetype.isHealer ?? false;
+    this.isSplitter = config.isSplitter ?? archetype.isSplitter ?? false;
+    this.explosionRadius = archetype.explosionRadius ?? 60;
+    this.healAmount = archetype.healAmount ?? 8;
+    this.healRadius = archetype.healRadius ?? 80;
+    this.healIntervalMs = archetype.healIntervalMs ?? 3000;
+    this.nextHealAtMs = 0;
+    this.splitCount = archetype.splitCount ?? 3;
+    this.splitChildHp = archetype.splitChildHp ?? 10;
+    this.splitChildDamage = archetype.splitChildDamage ?? 5;
+    this.splitChildXp = archetype.splitChildXp ?? 3;
+    this.freezeDurationMs = archetype.freezeDurationMs ?? 1500;
     this.nextRangerFireAtMs = 0;
     this.flashToken = (this.flashToken ?? 0) + 1;
     this.facingDirection = "south";
@@ -138,6 +175,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const spawnX = config.x ?? this.x;
     const spawnY = config.y ?? this.y;
     this.setTint(this.baseTint);
+    this.setAlpha(archetype.alpha ?? 1);
+    this.damageResistance = archetype.damageResistance ?? 0;
     this.setData("inPool", false);
     this.setData("isDying", false);
 
@@ -333,6 +372,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     projectile.setVisible(true);
     projectile.body.enable = true;
     projectile.setPosition(this.x, this.y);
+    projectile.setRotation(Math.atan2(ny, nx));
     projectile.body.setVelocity(nx * speed, ny * speed);
     projectile.setData("damage", this.projectileDamage || 8);
     const tint = this.isBoomerang ? 0x44ddaa : 0xdd88ff;
@@ -344,10 +384,14 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     projectile.setData("boomerangPhase", "out");
     projectile.setData("boomerangSpeed", speed);
     projectile.setData("boomerangElapsed", 0);
+    if (this.freezeDurationMs) {
+      projectile.setData("freezeOnHit", true);
+      projectile.setData("freezeDurationMs", this.freezeDurationMs);
+    }
 
     this.scene.time.delayedCall(3000, () => {
       if (projectile.active) {
-        this.scene.releaseBossProjectile(projectile);
+        this.scene?.releaseBossProjectile?.(projectile);
       }
     });
   }
@@ -365,7 +409,9 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   takeDamage(amount) {
-    const safeAmount = Number.isFinite(amount) ? amount : 0;
+    const resistance = this.damageResistance ?? 0;
+    const reducedAmount = resistance > 0 ? amount * (1 - resistance) : amount;
+    const safeAmount = Number.isFinite(reducedAmount) ? reducedAmount : 0;
     const hpBefore = this.hp;
     const appliedDamage = Math.max(0, Math.min(hpBefore, safeAmount));
     this.hp = Math.max(0, this.hp - safeAmount);
@@ -380,8 +426,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const flashToken = this.flashToken;
 
     this.setTint(HIT_FLASH_TINT);
-    if (this.scene.playSfx) {
-      this.scene.playSfx("enemy_hit", { elite: this.isElite });
+    if (this.scene.audioManager?.playSfx) {
+      this.scene.audioManager.playSfx("enemy_hit", { elite: this.isElite });
     }
     if (this.scene.spawnHitSparkParticles) {
       this.scene.spawnHitSparkParticles(this.x, this.y, HIT_SPARK_PARTICLE_COUNT);
@@ -471,6 +517,13 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setScale(this.scaleX * ENEMY_VISUAL_SCALE.eliteMultiplier, this.scaleY * ENEMY_VISUAL_SCALE.eliteMultiplier);
     this.baseTint = eliteConfig.tint;
     this.setTint(this.baseTint);
+
+    const eliteTextureKey = this.type === "chaser" ? "enemy_elite_chaser"
+      : this.type === "hunter" ? "enemy_elite_hunter"
+      : null;
+    if (eliteTextureKey && this.scene?.textures?.exists(eliteTextureKey)) {
+      this.setTexture(eliteTextureKey);
+    }
   }
 
   tryApplyPoisonAura(target, nowMs) {
