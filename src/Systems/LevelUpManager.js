@@ -1,4 +1,5 @@
 import { LEVEL_UP_UPGRADES, WEAPON_EVOLUTION_RULES } from "../config/weapons.js";
+import { UPGRADE_PANEL_ICONS } from "../config/assets.manifest.js";
 
 const MENU_DEPTH = 2000;
 
@@ -15,20 +16,32 @@ const UPGRADE_COLORS = {
 };
 
 const UPGRADE_ICON_MAP = {
-  weapon_damage: "upgrade_orb", attack_speed: "weapon_icon_lightning",
-  projectile_count: "item_weapon_upgrade", movement_speed: "item_speed_boost",
-  pickup_radius: "item_magnet", lifesteal: "item_health",
-  max_hp_boost: "item_health", xp_boost: "xp_orb",
-  luck_boost: "xp_orb_gold", crit_chance: "xp_orb_purple",
-  duration_boost: "item_shield", cooldown_reduction: "weapon_icon_meteor",
+  weapon_damage: UPGRADE_PANEL_ICONS.power.key,
+  attack_speed: UPGRADE_PANEL_ICONS.cooldown.key,
+  projectile_count: UPGRADE_PANEL_ICONS.amount.key,
+  movement_speed: UPGRADE_PANEL_ICONS.move_speed.key,
+  pickup_radius: UPGRADE_PANEL_ICONS.magnet.key,
+  lifesteal: "item_health",
+  max_hp_boost: UPGRADE_PANEL_ICONS.max_hp.key,
+  xp_boost: UPGRADE_PANEL_ICONS.growth.key,
+  luck_boost: UPGRADE_PANEL_ICONS.luck.key,
+  crit_chance: UPGRADE_PANEL_ICONS.luck.key,
+  duration_boost: UPGRADE_PANEL_ICONS.duration.key,
+  cooldown_reduction: UPGRADE_PANEL_ICONS.cooldown.key,
   revival: "item_red_potion",
-  passive_ember_core: "weapon_icon_fireball", passive_blade_sigil: "weapon_icon_dagger",
-  passive_iron_shell: "item_shield", passive_swift_feet: "item_speed_boost",
-  passive_wings: "item_speed_boost", passive_armor: "item_shield",
-  passive_hollow_heart: "item_health", passive_attractorb: "item_magnet",
-  passive_frost_shard: "xp_orb_blue", passive_spellbinder: "item_weapon_upgrade",
-  passive_candelabrador: "weapon_icon_fireball", passive_duplicator: "item_weapon_upgrade",
-  passive_bracer: "item_speed_boost"
+  passive_ember_core: "weapon_icon_fireball",
+  passive_blade_sigil: "weapon_icon_dagger",
+  passive_iron_shell: UPGRADE_PANEL_ICONS.armor.key,
+  passive_swift_feet: UPGRADE_PANEL_ICONS.speed.key,
+  passive_wings: UPGRADE_PANEL_ICONS.move_speed.key,
+  passive_armor: UPGRADE_PANEL_ICONS.armor.key,
+  passive_hollow_heart: UPGRADE_PANEL_ICONS.max_hp.key,
+  passive_attractorb: UPGRADE_PANEL_ICONS.magnet.key,
+  passive_frost_shard: UPGRADE_PANEL_ICONS.speed.key,
+  passive_spellbinder: UPGRADE_PANEL_ICONS.cooldown.key,
+  passive_candelabrador: "weapon_icon_fireball",
+  passive_duplicator: UPGRADE_PANEL_ICONS.amount.key,
+  passive_bracer: UPGRADE_PANEL_ICONS.armor.key
 };
 
 export class LevelUpManager {
@@ -40,6 +53,13 @@ export class LevelUpManager {
   open() {
     const s = this.scene;
     if (s.pendingLevelUps <= 0) return;
+
+    Object.values(UPGRADE_PANEL_ICONS).forEach(({ key, path }) => {
+      if (!s.textures?.exists(key)) {
+        s.load.image(key, path);
+      }
+    });
+    s.load.start();
 
     s.pendingLevelUps -= 1;
     s.isLeveling = true;

@@ -1,12 +1,17 @@
 import { Router } from "express";
 import { PlayerData } from "../db/models/PlayerData.js";
+import { authMiddleware } from "../auth/middleware.js";
 
 export const leaderboardRoutes = Router();
+
+leaderboardRoutes.use(authMiddleware);
 
 const SORT_FIELDS = {
   bestTime: "bestTimeMs",
   totalKills: "totalKills",
   highestLevel: "highestLevel",
+  totalCoins: "coins",
+  maxCombo: "maxCombo",
   coopBestTime: "coopBestTimeMs"
 };
 
@@ -42,7 +47,9 @@ leaderboardRoutes.get("/", async (req, res) => {
           value: `$${sortKey}`,
           bestTimeMs: 1,
           totalKills: 1,
-          highestLevel: 1
+          highestLevel: 1,
+          coins: 1,
+          maxCombo: 1
         }
       }
     ]);

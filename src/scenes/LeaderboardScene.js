@@ -228,9 +228,11 @@ export class LeaderboardScene extends Phaser.Scene {
     const tabs = [
       { key: "bestTime", label: "最佳时间" },
       { key: "totalKills", label: "最多击杀" },
-      { key: "highestLevel", label: "最高等级" }
+      { key: "highestLevel", label: "最高等级" },
+      { key: "totalCoins", label: "最多金币" },
+      { key: "maxCombo", label: "最高连击" }
     ];
-    const tabW = 180;
+    const tabW = 120;
     const tabGap = 10;
     const totalTabW = tabs.length * tabW + (tabs.length - 1) * tabGap;
     const tabStartX = this.cx - totalTabW / 2 + tabW / 2;
@@ -302,7 +304,7 @@ export class LeaderboardScene extends Phaser.Scene {
     }).setOrigin(0, 0.5).setDepth(101);
     this.headerObjects.push(nameH);
 
-    const valueLabel = this.currentSort === "bestTime" ? "时间" : this.currentSort === "totalKills" ? "击杀" : "等级";
+    const valueLabel = this.currentSort === "bestTime" ? "时间" : this.currentSort === "totalKills" ? "击杀" : this.currentSort === "highestLevel" ? "等级" : this.currentSort === "totalCoins" ? "金币" : "连击";
     const valueH = this.add.text(valueRightX, y, valueLabel, {
       fontFamily: "ZpixOne", fontSize: "11px", color: C.textGold
     }).setOrigin(1, 0.5).setDepth(101);
@@ -399,8 +401,10 @@ export class LeaderboardScene extends Phaser.Scene {
     try {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const token = window.localStorage.getItem("forgeduel_token");
       const res = await fetch(`${API_BASE}/api/leaderboard?sort=${this.currentSort}&limit=${ENTRY_LIMIT}`, {
-        signal: controller.signal
+        signal: controller.signal,
+        headers: token ? { "Authorization": `Bearer ${token}` } : {}
       });
       clearTimeout(timeoutId);
       const data = await res.json();
@@ -441,7 +445,9 @@ export class LeaderboardScene extends Phaser.Scene {
     const keys = {
       bestTime: "forgeduel_leaderboard_bestTime",
       totalKills: "forgeduel_leaderboard_totalKills",
-      highestLevel: "forgeduel_leaderboard_highestLevel"
+      highestLevel: "forgeduel_leaderboard_highestLevel",
+      totalCoins: "forgeduel_leaderboard_totalCoins",
+      maxCombo: "forgeduel_leaderboard_maxCombo"
     };
     const storageKey = keys[sortKey];
     if (!storageKey) return [];
@@ -456,7 +462,9 @@ export class LeaderboardScene extends Phaser.Scene {
     const fallbackKeys = {
       bestTime: "forgeduel_best_time_ms",
       totalKills: "forgeduel_best_time_ms",
-      highestLevel: "forgeduel_best_time_ms"
+      highestLevel: "forgeduel_best_time_ms",
+      totalCoins: "forgeduel_coins",
+      maxCombo: null
     };
     try {
       const val = parseInt(window.localStorage.getItem(fallbackKeys[sortKey]) || "0", 10);
@@ -558,7 +566,7 @@ export class LeaderboardScene extends Phaser.Scene {
 
   _getSelfUsername() {
     try {
-      const raw = window.localStorage.getItem("forgeduel_token_user");
+      const raw = window.localStorage.getItem("forgeduel_user");
       if (raw) return JSON.parse(raw).username;
     } catch (_) {}
     return null;

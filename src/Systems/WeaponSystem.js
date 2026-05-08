@@ -651,9 +651,9 @@ export class WeaponSystem {
     const count = Math.max(1, weapon.orbitBladeCount || 3);
     for (let i = 0; i < count; i += 1) {
       const blade = this.orbitBlades.create(this.player.x, this.player.y, "proj_orbit_blade");
-      blade.body.setCircle(blade.displayWidth * 0.48, 0, 0);
       blade.setDepth(PROJECTILE_RENDER_DEPTH);
       blade.setAlpha(0.96);
+      blade.body.setCircle(8, 0, 0);
       blade.setData("weaponBaseType", weapon.baseType);
       blade.setData("orbitHitKey", `orbit_hit_${weapon.baseType}_${i}`);
       blade.setData("damage", this.getScaledWeaponDamage(weapon));

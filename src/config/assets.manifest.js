@@ -1,3 +1,18 @@
+export const UPGRADE_PANEL_ICONS = Object.freeze({
+  power: Object.freeze({ key: "upgrade_panel_power", path: "assets/sprites/ui/upgrade_panel_icons/power.png" }),
+  max_hp: Object.freeze({ key: "upgrade_panel_max_hp", path: "assets/sprites/ui/upgrade_panel_icons/max_hp.png" }),
+  armor: Object.freeze({ key: "upgrade_panel_armor", path: "assets/sprites/ui/upgrade_panel_icons/armor.png" }),
+  amount: Object.freeze({ key: "upgrade_panel_amount", path: "assets/sprites/ui/upgrade_panel_icons/amount.png" }),
+  cooldown: Object.freeze({ key: "upgrade_panel_cooldown", path: "assets/sprites/ui/upgrade_panel_icons/cooldown.png" }),
+  area: Object.freeze({ key: "upgrade_panel_area", path: "assets/sprites/ui/upgrade_panel_icons/area.png" }),
+  speed: Object.freeze({ key: "upgrade_panel_speed", path: "assets/sprites/ui/upgrade_panel_icons/speed.png" }),
+  duration: Object.freeze({ key: "upgrade_panel_duration", path: "assets/sprites/ui/upgrade_panel_icons/duration.png" }),
+  move_speed: Object.freeze({ key: "upgrade_panel_move_speed", path: "assets/sprites/ui/upgrade_panel_icons/move_speed.png" }),
+  magnet: Object.freeze({ key: "upgrade_panel_magnet", path: "assets/sprites/ui/upgrade_panel_icons/magnet.png" }),
+  luck: Object.freeze({ key: "upgrade_panel_luck", path: "assets/sprites/ui/upgrade_panel_icons/luck.png" }),
+  growth: Object.freeze({ key: "upgrade_panel_growth", path: "assets/sprites/ui/upgrade_panel_icons/growth.png" })
+});
+
 export const CHARACTER_DIRECTIONS = Object.freeze([
   "south",
   "south-east",
@@ -126,7 +141,7 @@ export const TERRAIN_SPRITES = Object.freeze({
 });
 
 export const WEAPON_VISUAL_SPRITES = Object.freeze({
-  lightning: Object.freeze({ key: "weapon_lightning_sprite", path: "assets/sprites/weapons/weapon_lightning.png" }),
+  lightning: Object.freeze({ key: "weapon_lightning_sprite", path: "assets/sprites/weapons/weapon_lightning_icon.png" }),
   missile:   Object.freeze({ key: "weapon_missile_sprite",   path: "assets/sprites/weapons/weapon_missile.png" }),
   blackhole: Object.freeze({ key: "weapon_blackhole_sprite", path: "assets/sprites/weapons/weapon_blackhole.png" })
 });
@@ -136,7 +151,7 @@ export const DASH_SPRITE = Object.freeze({ key: "dash_effect", path: "assets/spr
 export const WEAPON_ICON_ASSETS = Object.freeze({
   dagger: Object.freeze({
     key: "weapon_icon_dagger",
-    path: "assets/sprites/weapons/weapon_dagger_icon.png"
+    path: "assets/sprites/weapons/weapon_railgun.png"
   }),
   fireball: Object.freeze({
     key: "weapon_icon_fireball",
@@ -155,16 +170,16 @@ export const WEAPON_ICON_ASSETS = Object.freeze({
     path: "assets/sprites/weapons/weapon_orbit_blades_icon.png"
   }),
   scatter_shot: Object.freeze({
-    key: "weapon_icon_dagger",
-    path: "assets/sprites/weapons/weapon_dagger_icon.png"
+    key: "weapon_icon_scatter_shot",
+    path: "assets/sprites/weapons/weapon_spread_shot.png"
   }),
   homing_missile: Object.freeze({
-    key: "weapon_icon_fireball",
-    path: "assets/sprites/weapons/weapon_fireball_icon.png"
+    key: "weapon_icon_missile_homing",
+    path: "assets/sprites/weapons/weapon_missile.png"
   }),
   laser: Object.freeze({
-    key: "weapon_icon_lightning",
-    path: "assets/sprites/weapons/weapon_lightning_icon.png"
+    key: "weapon_icon_laser",
+    path: "assets/sprites/weapons/weapon_laser.png"
   })
 });
 
