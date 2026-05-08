@@ -141,8 +141,9 @@ export class DropManager {
         const dist = Phaser.Math.Between(10, 60);
         const px = x + Math.cos(angle) * dist;
         const py = y + Math.sin(angle) * dist - Phaser.Math.Between(0, 80);
-        const spark = this.ctx.phaser.add.rectangle(px, py, 3, Phaser.Math.Between(6, 18), 0xfef08a, 0.9)
-          .setDepth(50).setAngle(Phaser.Math.Between(0, 360));
+        const spark = this.ctx.phaser.add.sprite(px, py, "gold_spark")
+          .setDepth(50).setAngle(Phaser.Math.Between(0, 360))
+          .setScale(Phaser.Math.FloatBetween(0.6, 1.2));
         this.ctx.phaser.tweens.add({
           targets: spark, alpha: 0, y: py - Phaser.Math.Between(40, 100),
           duration: Phaser.Math.Between(400, 800), ease: "Quad.easeOut",

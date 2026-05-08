@@ -17,7 +17,7 @@ export const SEA_WAVE_MAX = 10;
 export const DECK_TILE_VARIANTS = Object.freeze([
   Object.freeze({
     key: "deck_a",
-    path: "assets/sprites/environment/ship/deck_plank_main.png",
+    path: "assets/sprites/environment/space_tile_a.png",
     weight: 50,
     tintEven: 0xe8d8c6,
     tintOdd: 0xd8c0a7,
@@ -27,7 +27,7 @@ export const DECK_TILE_VARIANTS = Object.freeze([
   }),
   Object.freeze({
     key: "deck_b",
-    path: "assets/sprites/environment/ship/deck_plank_main.png",
+    path: "assets/sprites/environment/space_tile_b.png",
     weight: 20,
     tintEven: 0xe2ceb6,
     tintOdd: 0xd4b394,
@@ -37,7 +37,7 @@ export const DECK_TILE_VARIANTS = Object.freeze([
   }),
   Object.freeze({
     key: "deck_c",
-    path: "assets/sprites/environment/ship/deck_plank_main.png",
+    path: "assets/sprites/environment/space_tile_c.png",
     weight: 20,
     tintEven: 0xd8c4ac,
     tintOdd: 0xc8ac8c,
@@ -47,7 +47,7 @@ export const DECK_TILE_VARIANTS = Object.freeze([
   }),
   Object.freeze({
     key: "deck_d",
-    path: "assets/sprites/environment/ship/deck_plank_main.png",
+    path: "assets/sprites/environment/space_tile_d.png",
     weight: 10,
     tintEven: 0xcfb798,
     tintOdd: 0xc29f7e,

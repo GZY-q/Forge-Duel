@@ -49,107 +49,72 @@ export class AudioManager {
   }
 
   /* ------------------------------------------------------------------ */
-  /*  BGM  (ambient drone synthesised via Web Audio API)                 */
+  /*  BGM  (MP3 file playback)                                        */
   /* ------------------------------------------------------------------ */
 
   /**
-   * Start a low ambient drone using three oscillators, a low-pass
-   * BiquadFilter, and a subtle LFO for movement.  The sound fades in
-   * gracefully over 2 seconds.  Idempotent – calling again while the
-   * drone is already playing is a no-op.
+   * Start BGM from MP3 file. Loops automatically.
+   * Volume is set to a lower level (0.3 of normal volume).
    */
   startBgm() {
-    if (!this.bgmEnabled || !this.scene.sound || !this.scene.sound.context) {
+    if (!this.bgmEnabled || !this.scene.sound || !this.scene.cache.audio.exists("bgm_game")) {
       return;
     }
     if (this.bgmNodes) {
-      return; // already playing
+      return;
     }
 
     try {
-      const ctx = this.scene.sound.context;
-      if (ctx.state === "suspended") {
-        ctx.resume().catch(() => {});
-      }
-
-      // Three layered oscillators
-      const osc1 = ctx.createOscillator();
-      const osc2 = ctx.createOscillator();
-      const osc3 = ctx.createOscillator();
-      const gainNode = ctx.createGain();
-      const filter   = ctx.createBiquadFilter();
-
-      osc1.type = "sine";
-      osc1.frequency.setValueAtTime(55, ctx.currentTime);   // Low A
-      osc2.type = "sine";
-      osc2.frequency.setValueAtTime(82.4, ctx.currentTime); // Low E
-      osc3.type = "triangle";
-      osc3.frequency.setValueAtTime(110, ctx.currentTime);  // A octave up
-
-      // Subtle LFO for movement
-      const lfo     = ctx.createOscillator();
-      const lfoGain = ctx.createGain();
-      lfo.type = "sine";
-      lfo.frequency.setValueAtTime(0.15, ctx.currentTime);
-      lfoGain.gain.setValueAtTime(3, ctx.currentTime);
-      lfo.connect(lfoGain);
-      lfoGain.connect(osc1.frequency);
-      lfoGain.connect(osc2.frequency);
-
-      filter.type = "lowpass";
-      filter.frequency.setValueAtTime(200, ctx.currentTime);
-      filter.Q.setValueAtTime(1, ctx.currentTime);
-
-      gainNode.gain.setValueAtTime(0, ctx.currentTime);
-      gainNode.gain.linearRampToValueAtTime(
-        0.035 * (this.scene.settingsBgmVol ?? 0.6),
-        ctx.currentTime + 2
-      );
-
-      osc1.connect(filter);
-      osc2.connect(filter);
-      osc3.connect(filter);
-      filter.connect(gainNode);
-      gainNode.connect(ctx.destination);
-
-      osc1.start();
-      osc2.start();
-      osc3.start();
-      lfo.start();
-
-      this.bgmNodes = { osc1, osc2, osc3, lfo, gainNode, filter };
-    } catch (_) {
-      // Audio not available
-    }
+      const bgmVol = (this.scene.settingsBgmVol ?? 0.6) * 0.3;
+      const bgm = this.scene.sound.add("bgm_game", {
+        volume: bgmVol,
+        loop: true
+      });
+      bgm.play();
+      this.bgmNodes = { bgm };
+    } catch (_) {}
   }
 
   /**
-   * Fade out the BGM drone over 0.5 s, then stop all oscillators.
-   * Safe to call even when the drone is not playing.
+   * Stop the BGM with a fade out effect.
    */
   stopBgm() {
     if (!this.bgmNodes) {
       return;
     }
     try {
-      const ctx = this.scene.sound?.context;
-      if (ctx) {
-        this.bgmNodes.gainNode.gain.linearRampToValueAtTime(
-          0.0001,
-          ctx.currentTime + 0.5
-        );
-        const nodes = this.bgmNodes;
-        setTimeout(() => {
-          try {
-            nodes.osc1.stop();
-            nodes.osc2.stop();
-            nodes.osc3.stop();
-            nodes.lfo.stop();
-          } catch (_) {}
-        }, 600);
+      const bgm = this.bgmNodes.bgm;
+      if (bgm && bgm.isPlaying) {
+        const ctx = this.scene.sound.context;
+        if (ctx && ctx.currentTime !== undefined) {
+          bgm.setVolume(bgm.volume * 0.1, 500);
+          setTimeout(() => {
+            try { bgm.stop(); } catch (_) {}
+          }, 600);
+        } else {
+          bgm.stop();
+        }
       }
     } catch (_) {}
     this.bgmNodes = null;
+  }
+
+  /**
+   * Play game over music. Stops current BGM and plays gameover track once.
+   */
+  playGameOverMusic() {
+    this.stopBgm();
+    if (!this.scene.sound || !this.scene.cache.audio.exists("bgm_gameover")) {
+      return;
+    }
+    try {
+      const vol = (this.scene.settingsBgmVol ?? 0.6) * 0.5;
+      const music = this.scene.sound.add("bgm_gameover", {
+        volume: vol,
+        loop: false
+      });
+      music.play();
+    } catch (_) {}
   }
 
   /* ------------------------------------------------------------------ */

@@ -13,9 +13,6 @@ import { BUTTON_ASSET_PATHS } from "../ui/vsUI.js";
 import { BUTTON_TEXTURES } from "../ui/vsUI.js";
 import { META_COINS_STORAGE_KEY, BEST_TIME_STORAGE_KEY } from "../config/storage-keys.js";
 
-const MENU_ATLAS_KEY = "ui_atlas";
-const MENU_ATLAS_IMAGE = "assets/atlas/ui_atlas.png";
-const MENU_ATLAS_DATA = "assets/atlas/ui_atlas.json";
 const SHARED_AUDIO_FILES = {
   dash: "assets/audio/sfx/dash.wav",
   enemy_hit: "assets/audio/sfx/enemy_hit.wav",
@@ -49,10 +46,6 @@ export class MainMenuScene extends Phaser.Scene {
 
   preload() {
     this.bindLoadingScreenProgress();
-
-    if (!this.textures.exists(MENU_ATLAS_KEY)) {
-      this.load.atlas(MENU_ATLAS_KEY, MENU_ATLAS_IMAGE, MENU_ATLAS_DATA);
-    }
 
     if (!this.textures.exists(LOGO_TEXTURE_KEY)) {
       this.load.image(LOGO_TEXTURE_KEY, LOGO_ASSET_PATH);
@@ -96,6 +89,7 @@ export class MainMenuScene extends Phaser.Scene {
       coins,
       showOptions: true,
       onOptions: () => {
+        this.playUiSfx(UI_SFX_KEYS.select);
         if (typeof window !== "undefined" && window.__forgeduelOpenSettings) {
           window.__forgeduelOpenSettings();
         }
@@ -104,6 +98,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // ── Sub-menu back button (hidden by default) ──
     const backBtn = createVSBackButton(this, cam.width - 84, 36, () => {
+      this.playUiSfx(UI_SFX_KEYS.back);
       if (typeof window !== "undefined" && window.__forgeduelCloseSettings) {
         window.__forgeduelCloseSettings();
       }
@@ -161,7 +156,7 @@ export class MainMenuScene extends Phaser.Scene {
 
     // ── Start button (large) ──
     createVSStartButton(this, cx, cy + 100, "开始", () => {
-      this.playUiSfx(UI_SFX_KEYS.confirm, 1.2);
+      this.playUiSfx(UI_SFX_KEYS.confirm);
       this.scene.start("IntroScene");
     });
 

@@ -8,11 +8,13 @@ export const BUTTON_TEXTURES = {
   green: "btn_green",
   red: "btn_red",
   purple: "btn_purple",
-  start: "btn_start"
+  start: "btn_start",
+  option: "btn_blue"
 };
 
 export const BUTTON_ASSET_PATHS = {
   btn_blue: "assets/sprites/button/btn_blue.png",
+  btn_blue_option: "assets/sprites/button/btn_blue_option.png",
   btn_green: "assets/sprites/button/btn_green.png",
   btn_red: "assets/sprites/button/btn_red.png",
   btn_purple: "assets/sprites/button/btn_purple.png",
@@ -191,13 +193,13 @@ export function createVSBackButton(scene, x, y, onClick) {
   return { container, img, text };
 }
 
-/* ── Options Button (blue, top-right) ── */
+/* ── Options Button (blue option, top-right) ── */
 export function createVSOptionsButton(scene, x, y, onClick) {
   const w = 100;
-  const { h } = getButtonSize(BUTTON_TEXTURES.blue, w);
+  const { h } = getButtonSize(BUTTON_TEXTURES.option, w);
   const container = scene.add.container(x, y).setDepth(9999);
 
-  const img = scene.add.image(0, 0, BUTTON_TEXTURES.blue)
+  const img = scene.add.image(0, 0, BUTTON_TEXTURES.option)
     .setDisplaySize(w, h)
     .setInteractive({ useHandCursor: true });
 

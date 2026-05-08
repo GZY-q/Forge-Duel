@@ -116,6 +116,7 @@ export class PauseManager {
     const { lbl: quitLabel, btn: quitBtn } = makeBtn(3, BUTTON_TEXTURES.red, "返回菜单", "12px", () => {
       this.close();
       s.finalizeMetaRun();
+      s.audioManager.stopBgm();
       s.scene.stop();
       s.scene.start("MainMenuScene");
     });

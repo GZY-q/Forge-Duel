@@ -1,4 +1,5 @@
 import { ITEM_DROP_CONFIGS } from "../config/progression.js";
+import { ITEM_SPRITES } from "../config/assets.manifest.js";
 
 const ITEM_RENDER_DEPTH = 15;
 const ITEM_LIFETIME_MS = 15000;
@@ -6,6 +7,16 @@ const ITEM_PULSE_SPEED_MS = 220;
 const ITEM_PULSE_AMPLITUDE = 0.06;
 const ITEM_MAGNET_RADIUS = 160;
 const ITEM_MAGNET_PULL = 380;
+
+const ITEM_SPRITE_MAP = {
+  health_orb: ITEM_SPRITES.health.key,
+  shield: ITEM_SPRITES.shield.key,
+  speed_boost: ITEM_SPRITES.speedBoost.key,
+  magnet: ITEM_SPRITES.magnet.key,
+  weapon_upgrade: ITEM_SPRITES.weaponUpgrade.key,
+  bomb: ITEM_SPRITES.bomb.key,
+  red_potion: ITEM_SPRITES.redPotion.key
+};
 
 export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
   constructor(scene, x, y) {
@@ -36,9 +47,7 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
     this.spawnedAt = this.scene.time.now;
     this.inPool = false;
 
-    const spriteKey = itemTypeId === "health_orb" ? "item_health"
-      : itemTypeId === "shield" ? "item_shield"
-      : null;
+    const spriteKey = ITEM_SPRITE_MAP[itemTypeId];
     if (spriteKey && this.scene?.textures?.exists(spriteKey)) {
       this.setTexture(spriteKey);
       this.clearTint();
@@ -171,14 +180,16 @@ export class ItemDrop extends Phaser.Physics.Arcade.Sprite {
           if (scene.showHudAlert) {
             scene.showHudAlert("BOMB!", 800);
           }
-          const bombGfx = scene.add.graphics().setDepth(30);
-          bombGfx.fillStyle(0xff4422, 0.3);
-          bombGfx.fillCircle(player.x, player.y, 400);
+          const bombSprite = scene.add.sprite(player.x, player.y, "bomb_explosion")
+            .setDepth(30).setScale(0.1).setAlpha(0.6);
           scene.tweens.add({
-            targets: bombGfx,
+            targets: bombSprite,
+            scaleX: 1.5,
+            scaleY: 1.5,
             alpha: 0,
             duration: 400,
-            onComplete: () => bombGfx.destroy()
+            ease: "Quad.easeOut",
+            onComplete: () => bombSprite.destroy()
           });
         }
         break;

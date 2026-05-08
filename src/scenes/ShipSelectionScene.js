@@ -200,7 +200,7 @@ export class ShipSelectionScene extends Phaser.Scene {
           this.showToast(`解锁条件: ${unlockText}`);
           return;
         }
-        this.playUiSfx(UI_SFX_KEYS.select);
+        this.playUiSfx(UI_SFX_KEYS.select, 1.1);
         this.selectShip(config.id);
       }
     });

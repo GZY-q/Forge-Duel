@@ -41,14 +41,6 @@ export const BG_TEXTURE_KEY = "game_bg";
 export const MENU_BG_TEXTURE_KEY = "main_menu_bg";
 
 export const IMPORTED_PIXEL_ASSETS = Object.freeze({
-  deckPlankMain: Object.freeze({
-    key: "sprite_deck_plank_main",
-    path: "assets/sprites/environment/ship/deck_plank_main.png"
-  }),
-  deckPlankTrim: Object.freeze({
-    key: "sprite_deck_plank_trim",
-    path: "assets/sprites/environment/ship/deck_plank_trim.png"
-  }),
   player: Object.freeze({
     key: "sprite_player_crew",
     path: "assets/sprites/player/player_crew.png"
@@ -107,9 +99,30 @@ export const BULLET_SPRITES = Object.freeze({
 });
 
 export const ITEM_SPRITES = Object.freeze({
-  xpOrb:   Object.freeze({ key: "xp_orb",      path: "assets/sprites/weapons/item_xp_common.png" }),
-  health:  Object.freeze({ key: "item_health",  path: "assets/sprites/weapons/Health Pickup.png" }),
-  shield:  Object.freeze({ key: "item_shield",  path: "assets/sprites/weapons/Shield Charge.png" })
+  xpOrb:         Object.freeze({ key: "xp_orb",            path: "assets/sprites/drops/xp_orb.png" }),
+  xpOrbBlue:     Object.freeze({ key: "xp_orb_blue",       path: "assets/sprites/drops/xp_orb_blue.png" }),
+  xpOrbPurple:   Object.freeze({ key: "xp_orb_purple",     path: "assets/sprites/drops/xp_orb_purple.png" }),
+  xpOrbGold:     Object.freeze({ key: "xp_orb_gold",       path: "assets/sprites/drops/xp_orb_gold.png" }),
+  health:        Object.freeze({ key: "item_health",       path: "assets/sprites/drops/Health Pickup.png" }),
+  shield:        Object.freeze({ key: "item_shield",        path: "assets/sprites/drops/Shield Charge.png" }),
+  upgradeOrb:    Object.freeze({ key: "upgrade_orb",        path: "assets/sprites/drops/upgrade_orb.png" }),
+  speedBoost:    Object.freeze({ key: "item_speed_boost",  path: "assets/sprites/drops/item_speed_boost.png" }),
+  magnet:        Object.freeze({ key: "item_magnet",        path: "assets/sprites/drops/item_magnet.png" }),
+  weaponUpgrade: Object.freeze({ key: "item_weapon_upgrade", path: "assets/sprites/drops/item_weapon_upgrade.png" }),
+  bomb:          Object.freeze({ key: "item_bomb",         path: "assets/sprites/drops/item_bomb.png" }),
+  redPotion:     Object.freeze({ key: "item_red_potion",   path: "assets/sprites/drops/item_red_potion.png" }),
+  chest:         Object.freeze({ key: "treasure_chest",    path: "assets/sprites/treasure_chest.png" }),
+  goldSpark:     Object.freeze({ key: "gold_spark",       path: "assets/sprites/gold_spark.png" }),
+  bombExplosion: Object.freeze({ key: "bomb_explosion",   path: "assets/sprites/bomb_explosion.png" })
+});
+
+export const TERRAIN_SPRITES = Object.freeze({
+  crate:        Object.freeze({ key: "terrain_crate",         path: "assets/sprites/environment/terrain_crate.png" }),
+  rock:         Object.freeze({ key: "terrain_rock",          path: "assets/sprites/environment/terrain_rock.png" }),
+  pillar:       Object.freeze({ key: "terrain_pillar",        path: "assets/sprites/environment/terrain_pillar.png" }),
+  aerolite:     Object.freeze({ key: "sprite_hindrance_aerolite", path: "assets/sprites/environment/hindrance/aerolite.png" }),
+  hindrance1:   Object.freeze({ key: "sprite_hindrance_1",    path: "assets/sprites/environment/hindrance/hindrance.png" }),
+  hindrance2:   Object.freeze({ key: "sprite_hindrance_2",    path: "assets/sprites/environment/hindrance/hindrance2.png" })
 });
 
 export const WEAPON_VISUAL_SPRITES = Object.freeze({
@@ -157,6 +170,7 @@ export const WEAPON_ICON_ASSETS = Object.freeze({
 
 export const BUTTON_ASSET_PATHS = Object.freeze({
   btn_blue: "assets/sprites/button/btn_blue.png",
+  btn_blue_option: "assets/sprites/button/btn_blue_option.png",
   btn_green: "assets/sprites/button/btn_green.png",
   btn_red: "assets/sprites/button/btn_red.png",
   btn_purple: "assets/sprites/button/btn_purple.png",

@@ -48,7 +48,6 @@ export class GameContext {
       get itemPool() { return s.itemPool; },
       get chests() { return s.chests; },
       get activeItems() { return s.activeItems; },
-      get destructibles() { return s.destructibles; },
       get aliveEnemyCount() { return s.getAliveEnemyCount(); }
     });
 

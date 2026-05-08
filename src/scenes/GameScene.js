@@ -33,14 +33,13 @@ import {
   CHARACTER_ASSET_MANIFEST, CHARACTER_DIRECTIONS,
   IMPORTED_PIXEL_ASSETS, ENEMY_SPRITES, BULLET_SPRITES,
   ITEM_SPRITES, WEAPON_VISUAL_SPRITES, DASH_SPRITE, WEAPON_ICON_ASSETS,
-  BG_ASSET_PATH, BG_TEXTURE_KEY
+  BG_ASSET_PATH, BG_TEXTURE_KEY, TERRAIN_SPRITES
 } from "../config/assets.manifest.js";
 import { FIGHTER_CONFIGS, FIGHTER_STORAGE_KEY } from "../config/fighters.js";
 import { SHIP_CONFIGS, SHIP_STORAGE_KEY, updateShipStats } from "../config/ships.js";
 import { ItemPool } from "../entities/ItemDrop.js";
 import { TreasureChest } from "../entities/TreasureChest.js";
 import { StatusEffectSystem } from "../systems/StatusEffectSystem.js";
-import { spawnDestructibles } from "../entities/Destructible.js";
 import { ITEM_DROP_CONFIGS, ITEM_POOL_SIZE } from "../config/progression.js";
 import {
   BASE_SPAWN_CHECK_INTERVAL_MS,
@@ -64,6 +63,13 @@ import {
 import { COLORS } from "../config/theme.js";
 import { RENDER_DEPTH } from "../config/render-layers.js";
 import { SFX_AUDIO_FILES, SFX_KEY_BY_TYPE, SFX_VOLUME, SFX_THROTTLE_MS } from "../config/audio.js";
+
+const UI_SFX_KEYS = {
+  select: "sfx_sounds_pause7_in",
+  confirm: "sfx_sounds_pause7_in",
+  back: "sfx_sounds_pause7_out"
+};
+
 import {
   DAMAGE_NUMBER_MAX_ACTIVE, DAMAGE_NUMBER_MAX_ACTIVE_PRIORITY,
   DAMAGE_NUMBER_NORMAL_LIFETIME_MS, DAMAGE_NUMBER_ELITE_LIFETIME_MS,
@@ -94,7 +100,7 @@ import {
   DECK_BRIGHTNESS_MULTIPLIER, DECK_HIGHLIGHT_OPACITY,
   DECK_PASSAGE_SAMPLE_DISTANCES, DECK_PASSAGE_MIN_OPEN_DIRECTIONS,
   DECK_PASSAGE_REPAIR_MAX_STEPS, DECK_PASSAGE_REPAIR_NUDGE,
-  SEA_WAVE_MIN, SEA_WAVE_MAX, DECK_TILE_VARIANTS,
+  SEA_WAVE_MIN, SEA_WAVE_MAX,
   ENEMY_JAM_STUCK_WINDOW_MS, ENEMY_JAM_MIN_PROGRESS_PX, ENEMY_JAM_PUSH_FORCE,
   EDGE_FOG_TEXTURE_KEY, EDGE_FOG_INNER_RADIUS_TILES, EDGE_FOG_OUTER_RADIUS_TILES,
   EDGE_FOG_VIGNETTE_OPACITY
@@ -133,17 +139,10 @@ import {
   HUD_ALERT_POOL_SIZE, HUD_ALERT_STYLE,
   WARNING_BANNER_STYLE, DEBUG_HUD_X, DEBUG_HUD_Y
 } from "../config/hud.js";
-import {
-  PIXEL_PLAYER_PATTERN, PIXEL_SWARM_PATTERN,
-  PIXEL_TANK_PATTERN, PIXEL_HUNTER_PATTERN, PIXEL_RANGER_PATTERN,
-  PIXEL_CHASER_PATTERN, PIXEL_BOSS_PATTERN,
-  PIXEL_CRATE_PATTERN,
-  PIXEL_GHOST_PATTERN, PIXEL_MECH_PATTERN
-} from "../config/pixel-patterns.js";
 import { BOSS_ENTRY_LANES, HATCH_BREACH_POINT, LADDER_SPAWN_POINTS } from "../config/spawn-points.js";
 
 const START_WEAPON_OPTIONS = [
-  { id: "dash_blade", label: "冲刺匕首", weaponType: "dagger", unlockCost: 0, defaultUnlocked: true },
+  { id: "dash_blade", label: "音速弹", weaponType: "dagger", unlockCost: 0, defaultUnlocked: true },
   { id: "pulse_dash", label: "火焰弹", weaponType: "fireball", unlockCost: 90, defaultUnlocked: false },
   { id: "orbit_blade", label: "轨道刀刃", weaponType: "orbit_blades", unlockCost: 180, defaultUnlocked: false },
   { id: "shockwave", label: "闪电冲击", weaponType: "lightning", unlockCost: 140, defaultUnlocked: false },
@@ -326,6 +325,14 @@ export class GameScene extends Phaser.Scene {
       volume: SFX_VOLUME,
       throttleMs: SFX_THROTTLE_MS
     });
+
+    this.playUiSfx = (key, rate = 1) => {
+      if (!this.sound || !this.cache.audio.exists(key)) return;
+      const sfxVol = this.settingsSfxVol ?? 1;
+      if (sfxVol <= 0.001) return;
+      this.sound.play(key, { volume: Phaser.Math.Clamp(sfxVol * 0.6, 0.01, 1), rate });
+    };
+
     this.cameraController = new CameraController(this);
     this.particleFactory = new ParticleFactory(this);
     this.warningBanner = new WarningBanner(this);
@@ -347,7 +354,6 @@ export class GameScene extends Phaser.Scene {
     this.itemPool = new ItemPool(this, ITEM_POOL_SIZE);
     this.activeItems = [];
     this.chests = [];
-    this.destructibles = spawnDestructibles(this, 12);
     this.xpOrbs = this.physics.add.group();
     this.obstacles = this.physics.add.staticGroup();
     this.createTerrainObstacles();
@@ -505,6 +511,14 @@ export class GameScene extends Phaser.Scene {
       }
       this.load.audio(key, path);
     });
+
+    if (!this.cache.audio.exists(UI_SFX_KEYS.select)) {
+      this.load.audio(UI_SFX_KEYS.select, "assets/audio/sfx/sfx_sounds_pause7_in.wav");
+    }
+    if (!this.cache.audio.exists(UI_SFX_KEYS.back)) {
+      this.load.audio(UI_SFX_KEYS.back, "assets/audio/sfx/sfx_sounds_pause7_out.wav");
+    }
+
     CHARACTER_ASSET_MANIFEST.forEach(({ keyPrefix, basePath }) => {
       CHARACTER_DIRECTIONS.forEach((direction) => {
         const dirKey = direction.replace(/-/g, "_");
@@ -514,12 +528,6 @@ export class GameScene extends Phaser.Scene {
         }
         this.load.image(textureKey, `${basePath}/rotations/${direction}.png`);
       });
-    });
-    DECK_TILE_VARIANTS.forEach(({ key, path }) => {
-      if (this.textures?.exists(key)) {
-        return;
-      }
-      this.load.image(key, path);
     });
     Object.values(IMPORTED_PIXEL_ASSETS).forEach(({ key, path }) => {
       if (this.textures?.exists(key)) {
@@ -546,6 +554,12 @@ export class GameScene extends Phaser.Scene {
       this.load.image(key, path);
     });
     Object.values(ITEM_SPRITES).forEach(({ key, path }) => {
+      if (this.textures?.exists(key)) {
+        return;
+      }
+      this.load.image(key, path);
+    });
+    Object.values(TERRAIN_SPRITES).forEach(({ key, path }) => {
       if (this.textures?.exists(key)) {
         return;
       }
@@ -681,7 +695,6 @@ export class GameScene extends Phaser.Scene {
     this.pullXpOrbsToPlayer();
     this.updateActiveItems(delta);
     this.updateChests();
-    this.updateDestructibles(time);
     this.updateShieldEffect(delta);
     this.weaponSystem.update(time, delta);
     this.statusEffectSystem?.update(time, delta);
@@ -727,67 +740,6 @@ export class GameScene extends Phaser.Scene {
 
   createTextures() {
     const tf = this.textureFactory;
-    tf.generatePixelTexture("player_triangle", 2, PIXEL_PLAYER_PATTERN, {
-      "1": 0xf6f2c8, "2": 0x183254, "3": 0x7fe8ff, "4": 0x2d6f9b,
-      "5": 0xe7b96b, "6": 0x54dafe, "7": 0x1f7fa5, "8": 0x98eeff
-    }, { shadowColor: 0x071120, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_swarm", 2, PIXEL_SWARM_PATTERN, {
-      "1": 0x7c2748, "2": 0xff8a9c, "3": 0xffd3de
-    }, { shadowColor: 0x1f1020, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_tank", 2, PIXEL_TANK_PATTERN, {
-      "1": 0x24344e, "2": 0x3f5f8d, "3": 0x5c89ff,
-      "4": 0xaac4ff, "5": 0xcfdcff
-    }, { shadowColor: 0x071120, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_hunter", 2, PIXEL_HUNTER_PATTERN, {
-      "1": 0x14404b, "2": 0x1b6d84, "3": 0x54e1ff
-    }, { shadowColor: 0x071120, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_ranger", 2, PIXEL_RANGER_PATTERN, {
-      "1": 0x3a1e5e, "2": 0x7b3fcf, "3": 0xdd88ff, "4": 0xffcc00
-    }, { shadowColor: 0x1a0e2e, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_chaser", 2, PIXEL_CHASER_PATTERN, {
-      "1": 0x74242a, "2": 0xff6d6d, "3": 0xffd2d2
-    }, { shadowColor: 0x2a1010, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generateCompositeTexture("sprite_enemy_chaser_free", 28, 28, [
-      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserBody.key, x: 2, y: 2, width: 24, height: 24 },
-      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserEye.key, x: 9, y: 8, width: 10, height: 9 },
-      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserMouth.key, x: 8, y: 17, width: 12, height: 5 }
-    ]);
-    tf.generatePixelTexture("enemy_boss", 2, PIXEL_BOSS_PATTERN, {
-      "1": 0x24103f, "2": 0x4a1e73, "3": 0x6d34ff,
-      "4": 0xa57cff, "5": 0xd3c1ff, "6": 0xff8ba7, "7": 0xffd4de
-    }, { shadowColor: 0x090512, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_ghost", 2, PIXEL_GHOST_PATTERN, {
-      "1": 0x3a5a8a, "2": 0x7aafff, "3": 0xcce8ff
-    }, { shadowColor: 0x0a1530, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("enemy_mech", 2, PIXEL_MECH_PATTERN, {
-      "1": 0x3a4a5a, "2": 0x6a8aaa, "3": 0xaaccee, "4": 0xff6644
-    }, { shadowColor: 0x0a1018, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePixelTexture("terrain_crate", 2, PIXEL_CRATE_PATTERN, {
-      "1": 0x3a2417, "2": 0x7e5234, "3": 0x5f3d28, "4": 0xb6804f
-    }, { shadowColor: 0x24160f, shadowOffsetX: 1, shadowOffsetY: 1 });
-    tf.generatePolygonTexture("terrain_rock", 28, [
-      { x: 10, y: 12 }, { x: 20, y: 6 }, { x: 37, y: 8 },
-      { x: 46, y: 19 }, { x: 45, y: 36 }, { x: 33, y: 47 },
-      { x: 17, y: 48 }, { x: 8, y: 36 }, { x: 6, y: 23 }
-    ], 0x6f7d90, 0x374356);
-    tf.generatePolygonTexture("terrain_pillar", 28, [
-      { x: 14, y: 7 }, { x: 42, y: 7 }, { x: 47, y: 16 },
-      { x: 47, y: 40 }, { x: 42, y: 49 }, { x: 14, y: 49 },
-      { x: 9, y: 40 }, { x: 9, y: 16 }
-    ], 0x8a8f9f, 0x4f5568);
-    tf.generatePolygonTexture("upgrade_orb", 10, [
-      { x: 10, y: 2 }, { x: 18, y: 10 },
-      { x: 10, y: 18 }, { x: 2, y: 10 }
-    ], 0xfff2a0, 0xb8831e);
-    tf.generateCircleTexture("xp_orb", 6, 0x66f5b2, 0x1f8d63);
-    tf.generateCircleTexture("xp_orb_blue", 6, 0x44aaff, 0x1a5599);
-    tf.generateCircleTexture("xp_orb_purple", 7, 0xaa66ff, 0x552299);
-    tf.generateCircleTexture("xp_orb_gold", 8, 0xffdd44, 0x997711);
-    tf.generateCircleTexture("proj_dagger", 4, 0xeef7ff, 0x7895af);
-    tf.generateCircleTexture("proj_fireball", 8, 0xff944d, 0xa84d1b);
-    tf.generateCircleTexture("proj_meteor", 11, 0xff8b44, 0x70220d);
-    tf.generateCircleTexture("proj_orbit_blade", 7, 0xc6e5ff, 0x5884ad);
-    tf.generateCircleTexture("boss_bullet", 5, 0xff8b8b, 0x7b1a1a);
     tf.generateCircleTexture("hit_particle", 2, 0xffffff, 0xffffff);
   }
 
@@ -2295,48 +2247,6 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  updateDestructibles(time) {
-    if (!this.destructibles || this.destructibles.length === 0) return;
-    const nowMs = this.time.now;
-    const player = this.player;
-
-    // Check projectile hits on destructibles
-    const projectiles = this.weaponSystem?.projectiles;
-    if (projectiles) {
-      projectiles.getChildren().forEach(proj => {
-        if (!proj?.active) return;
-        for (const d of this.destructibles) {
-          if (d.destroyed || !d.active) continue;
-          if (d.isNearWeapon(proj.x, proj.y, 8)) {
-            d.takeDamage(proj.damage || 10);
-            proj.setActive(false);
-            proj.setVisible(false);
-            if (proj.body) proj.body.enable = false;
-            break;
-          }
-        }
-      });
-    }
-
-    // Check player proximity hit (dash or contact)
-    if (player?.active) {
-      for (const d of this.destructibles) {
-        if (d.destroyed || !d.active) continue;
-        if (d.isNearWeapon(player.x, player.y, 20)) {
-          if (player.isDashing) {
-            d.takeDamage(2);
-          }
-        }
-      }
-    }
-
-    // Respawn destroyed destructibles
-    for (const d of this.destructibles) {
-      if (d.destroyed) {
-        d.tryRespawn(nowMs);
-      }
-    }
-  }
 
   updateActiveItems(deltaMs) {
     if (!this.activeItems || this.activeItems.length === 0) {
@@ -2640,6 +2550,7 @@ export class GameScene extends Phaser.Scene {
       };
 
       const choose = () => {
+        this.playUiSfx(UI_SFX_KEYS.select, 1.3);
         const unlocked = Boolean(this.weaponUnlocks[option.id]);
         if (!unlocked) {
           const spent = this.trySpendMetaCoins(option.unlockCost);
@@ -2930,7 +2841,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.isGameOver = true;
-    this.audioManager.stopBgm();
+    this.audioManager.playGameOverMusic();
     this.physics.pause();
     this.input.enabled = false;
     this.player.body?.setVelocity(0, 0);

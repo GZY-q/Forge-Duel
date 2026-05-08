@@ -155,7 +155,7 @@ export class InputController {
     Object.assign(this._domPauseBtn.style, {
       position: "fixed", top: "98px", right: "8px",
       width: "80px", height: "36px",
-      backgroundImage: `url('${BUTTON_ASSET_PATHS.btn_blue}')`,
+      backgroundImage: `url('${BUTTON_ASSET_PATHS.btn_blue_option}')`,
       backgroundSize: "contain",
       backgroundPosition: "center",
       backgroundRepeat: "no-repeat",

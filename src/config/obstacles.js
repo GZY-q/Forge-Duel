@@ -1,12 +1,12 @@
 export const SHIP_DECK_OBSTACLE_LAYOUT = Object.freeze([
-  Object.freeze({ type: "terrain_rock", role: "crate", x: 1490, y: 520, scale: 1.02 }),
-  Object.freeze({ type: "terrain_pillar", role: "crate", x: 1570, y: 565, scale: 0.94 }),
-  Object.freeze({ type: "terrain_rock", role: "crate", x: 1410, y: 590, scale: 0.9 }),
-  Object.freeze({ type: "terrain_pillar", role: "crate", x: 1620, y: 900, scale: 1.0 }),
-  Object.freeze({ type: "terrain_rock", role: "crate", x: 1700, y: 960, scale: 0.9 }),
-  Object.freeze({ type: "terrain_rock", role: "crate", x: 1540, y: 980, scale: 0.88 }),
-  Object.freeze({ type: "terrain_rock", role: "crate", x: 1320, y: 980, scale: 0.85 }),
-  Object.freeze({ type: "terrain_pillar", role: "crate", x: 1390, y: 1040, scale: 0.82 }),
+  Object.freeze({ type: "terrain_rock", role: "debris", x: 1490, y: 520, scale: 1.02 }),
+  Object.freeze({ type: "terrain_pillar", role: "asteroid", x: 1570, y: 565, scale: 0.94 }),
+  Object.freeze({ type: "terrain_rock", role: "debris", x: 1410, y: 590, scale: 0.9 }),
+  Object.freeze({ type: "terrain_pillar", role: "asteroid", x: 1620, y: 900, scale: 1.0 }),
+  Object.freeze({ type: "terrain_rock", role: "debris", x: 1700, y: 960, scale: 0.9 }),
+  Object.freeze({ type: "terrain_rock", role: "debris", x: 1540, y: 980, scale: 0.88 }),
+  Object.freeze({ type: "terrain_rock", role: "debris", x: 1320, y: 980, scale: 0.85 }),
+  Object.freeze({ type: "terrain_pillar", role: "asteroid", x: 1390, y: 1040, scale: 0.82 }),
   Object.freeze({ type: "terrain_rock", role: "aerolite", x: 1080, y: 675, scale: 1.6 }),
   Object.freeze({ type: "terrain_rock", role: "hindrance", x: 300, y: 350, scale: 1.4 }),
   Object.freeze({ type: "terrain_rock", role: "hindrance2", x: 2100, y: 350, scale: 1.4 }),
@@ -16,7 +16,7 @@ export const SHIP_DECK_OBSTACLE_LAYOUT = Object.freeze([
 
 export const RANDOM_DECK_OBSTACLE_SPAWN_TABLE = Object.freeze([
   Object.freeze({
-    objectType: "crate",
+    objectType: "debris",
     type: "terrain_rock",
     textureKey: "terrain_crate",
     weight: 40,
@@ -34,18 +34,18 @@ export const RANDOM_DECK_OBSTACLE_SPAWN_TABLE = Object.freeze([
     anchorRadius: 26
   }),
   Object.freeze({
-    objectType: "hindrance",
-    type: "terrain_rock",
-    textureKey: "sprite_hindrance_1",
+    objectType: "asteroid",
+    type: "terrain_pillar",
+    textureKey: "terrain_pillar",
     weight: 20,
     scaleMin: 0.6,
     scaleMax: 0.8,
     anchorRadius: 28
   }),
   Object.freeze({
-    objectType: "hindrance2",
+    objectType: "hindrance",
     type: "terrain_rock",
-    textureKey: "sprite_hindrance_2",
+    textureKey: "sprite_hindrance_1",
     weight: 16,
     scaleMin: 0.6,
     scaleMax: 0.8,
