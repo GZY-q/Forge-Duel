@@ -23,7 +23,7 @@ playerDataRoutes.put("/", async (req, res) => {
   try {
     const allowed = [
       "coins", "bestTimeMs", "totalKills", "highestLevel",
-      "shopUpgrades", "metaUpgrades", "selectedFighter",
+      "maxCombo", "shopUpgrades", "metaUpgrades", "selectedFighter",
       "weaponUnlocks", "coopGamesPlayed", "coopBestTimeMs"
     ];
 
@@ -39,6 +39,23 @@ playerDataRoutes.put("/", async (req, res) => {
     }
     if (update.bestTimeMs !== undefined && (typeof update.bestTimeMs !== "number" || update.bestTimeMs < 0)) {
       return res.status(400).json({ error: "Invalid bestTimeMs value" });
+    }
+    if (update.maxCombo !== undefined && (typeof update.maxCombo !== "number" || update.maxCombo < 0)) {
+      return res.status(400).json({ error: "Invalid maxCombo value" });
+    }
+
+    // Leaderboard stats: only update if new value is better (higher = better)
+    const maxFields = ["bestTimeMs", "totalKills", "highestLevel", "maxCombo", "coins"];
+    const maxUpdate = {};
+    for (const f of maxFields) {
+      if (update[f] !== undefined) { maxUpdate[f] = update[f]; delete update[f]; }
+    }
+    if (Object.keys(maxUpdate).length > 0) {
+      await PlayerData.findOneAndUpdate(
+        { userId: req.userId },
+        { $max: maxUpdate },
+        { upsert: true }
+      );
     }
 
     const data = await PlayerData.findOneAndUpdate(

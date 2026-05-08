@@ -11,6 +11,7 @@ const playerDataSchema = new mongoose.Schema({
   bestTimeMs: { type: Number, default: 0, min: 0 },
   totalKills: { type: Number, default: 0, min: 0 },
   highestLevel: { type: Number, default: 1, min: 1 },
+  maxCombo: { type: Number, default: 0, min: 0 },
   shopUpgrades: {
     dash_cooldown: { type: Number, default: 0, min: 0, max: 10 },
     xp_gain: { type: Number, default: 0, min: 0, max: 10 },

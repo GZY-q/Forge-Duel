@@ -33,7 +33,7 @@ import {
   CHARACTER_ASSET_MANIFEST, CHARACTER_DIRECTIONS,
   IMPORTED_PIXEL_ASSETS, ENEMY_SPRITES, BULLET_SPRITES,
   ITEM_SPRITES, WEAPON_VISUAL_SPRITES, DASH_SPRITE, WEAPON_ICON_ASSETS,
-  BG_ASSET_PATH, BG_TEXTURE_KEY, TERRAIN_SPRITES
+  BG_ASSET_PATH, BG_TEXTURE_KEY, TERRAIN_SPRITES, UPGRADE_PANEL_ICONS
 } from "../config/assets.manifest.js";
 import { FIGHTER_CONFIGS, FIGHTER_STORAGE_KEY } from "../config/fighters.js";
 import { SHIP_CONFIGS, SHIP_STORAGE_KEY, updateShipStats } from "../config/ships.js";
@@ -581,6 +581,12 @@ export class GameScene extends Phaser.Scene {
       }
     });
 
+    Object.values(UPGRADE_PANEL_ICONS).forEach(({ key, path }) => {
+      if (!this.textures?.exists(key)) {
+        this.load.image(key, path);
+      }
+    });
+
     this.load.image("game_bg", "assets/sprites/ui/bg.png");
   }
 
@@ -741,6 +747,12 @@ export class GameScene extends Phaser.Scene {
   createTextures() {
     const tf = this.textureFactory;
     tf.generateCircleTexture("hit_particle", 2, 0xffffff, 0xffffff);
+    tf.generateCircleTexture("proj_orbit_blade", 8, 0x66ccff, 0x44aaff);
+    tf.generateCompositeTexture("sprite_enemy_chaser_free", 28, 28, [
+      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserBody.key, x: 2, y: 2, width: 24, height: 24 },
+      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserEye.key, x: 9, y: 8, width: 10, height: 9 },
+      { sourceKey: IMPORTED_PIXEL_ASSETS.enemyChaserMouth.key, x: 8, y: 17, width: 12, height: 5 }
+    ]);
   }
 
   spawnDamageParticles(x, y, count = 5) {
@@ -2847,6 +2859,7 @@ export class GameScene extends Phaser.Scene {
     this.player.body?.setVelocity(0, 0);
     this.updateBestTimeRecord(this.runTimeMs);
     this.finalizeMetaRun();
+    this.submitRunStats();
 
     // Update ship unlock stats
     updateShipStats({
@@ -3112,6 +3125,30 @@ export class GameScene extends Phaser.Scene {
     } catch (_error) {
       // Ignore storage failures to keep runtime stable.
     }
+  }
+
+  async submitRunStats() {
+    const token = window.localStorage.getItem("forgeduel_token");
+    if (!token) return;
+    try {
+      const controller = new AbortController();
+      setTimeout(() => controller.abort(), 3000);
+      await fetch(`${window.location.origin}/api/player-data`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          bestTimeMs: this.runTimeMs,
+          totalKills: this.totalKills,
+          highestLevel: this.level,
+          maxCombo: this.comboSystem.maxKillCombo,
+          coins: this.metaData.currency
+        }),
+        signal: controller.signal
+      });
+    } catch (_) {}
   }
 
   syncCoinStorageWithMeta() {
