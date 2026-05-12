@@ -236,7 +236,7 @@ export class NetworkManager {
       facing: player.facingDirection || "south",
       hp: player.hp,
       maxHp: player.maxHp,
-      isDead: player.hp <= 0,
+      isDead: typeof player.isDead === "function" ? player.isDead() : player.hp <= 0,
       level: player.level || 1
     });
   }

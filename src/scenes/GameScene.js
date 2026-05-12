@@ -708,6 +708,8 @@ export class GameScene extends Phaser.Scene {
 
     if (this.gameMode !== "coop" || this.isHost) {
       this.spawnManager.updateEnemyAI(delta, time);
+    } else {
+      this.spawnManager.updateEnemyBehaviorsOnly(time);
     }
 
     this.coopSync.update(delta);
@@ -1074,6 +1076,17 @@ export class GameScene extends Phaser.Scene {
       this.gameplayHUD.teardownDomHudOverlay();
       if (this.playerHpBarGraphics) { this.playerHpBarGraphics.destroy(); this.playerHpBarGraphics = null; }
       this.clearEvolutionSlowMoTimer();
+      if (this.gameMode === "coop") {
+        this.voiceManager?.hangup();
+        this.networkManager?.leaveRoom();
+        this.networkManager?.destroy();
+        this.socketClient?.disconnect();
+        this.coopSync?.playerSync?.destroy();
+        this.coopSync?.enemySync?.destroy();
+        this.voiceManager = null;
+        this.networkManager = null;
+        this.socketClient = null;
+      }
     });
   }
 

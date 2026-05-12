@@ -23,6 +23,7 @@ export class VoiceManager {
     this.rtcConfig = DEFAULT_RTC_CONFIG;
 
     this._vadInterval = null;
+    this._iceRestartTimer = new Map();
     this._setupSignaling();
   }
 
@@ -154,18 +155,17 @@ export class VoiceManager {
       if (pc.connectionState === "failed") {
         this._restartIce(peerId);
       } else if (pc.connectionState === "disconnected") {
-        this._iceRestartTimer = this._iceRestartTimer || new Map();
         if (!this._iceRestartTimer.has(peerId)) {
           const timer = setTimeout(() => {
             if (this.peers.get(peerId)?.connectionState === "disconnected") {
               this._restartIce(peerId);
             }
-            this._iceRestartTimer?.delete(peerId);
+            this._iceRestartTimer.delete(peerId);
           }, 5000);
           this._iceRestartTimer.set(peerId, timer);
         }
       } else if (pc.connectionState === "connected") {
-        const timer = this._iceRestartTimer?.get(peerId);
+        const timer = this._iceRestartTimer.get(peerId);
         if (timer) {
           clearTimeout(timer);
           this._iceRestartTimer.delete(peerId);

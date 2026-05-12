@@ -144,8 +144,8 @@ export class CoopSyncManager {
       if (s.isHost) {
         const activeEnemies = s.enemies.getChildren()
           .filter((e) => e.active)
-          .map((e) => ({
-            id: e.serverId || `${Math.round(e.x)}_${Math.round(e.y)}`,
+          .map((e, idx) => ({
+            id: e.serverId || `fb_${idx}_${Math.round(e.x)}_${Math.round(e.y)}`,
             type: e.type, x: Math.round(e.x), y: Math.round(e.y),
             hp: e.hp, maxHp: e.maxHp, facing: e.facingDirection,
             isElite: e.isElite || false, eliteType: e.eliteType,

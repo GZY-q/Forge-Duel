@@ -22,6 +22,22 @@ function generateToken() {
   return crypto.randomBytes(16).toString("hex");
 }
 
+const VALID_FACINGS = [
+  "north", "south", "east", "west",
+  "north_east", "north_west", "south_east", "south_west"
+];
+
+function _validatePlayerState(data) {
+  if (!data || typeof data !== "object") return false;
+  if (typeof data.x !== "number" || !Number.isFinite(data.x)) return false;
+  if (typeof data.y !== "number" || !Number.isFinite(data.y)) return false;
+  if (typeof data.hp !== "number" || !Number.isFinite(data.hp)) return false;
+  if (typeof data.maxHp !== "number" || !Number.isFinite(data.maxHp) || data.maxHp <= 0) return false;
+  if (typeof data.facing !== "string" || !VALID_FACINGS.includes(data.facing)) return false;
+  if (data.level !== undefined && (typeof data.level !== "number" || !Number.isFinite(data.level) || data.level < 1)) return false;
+  return true;
+}
+
 export class RoomManager {
   constructor(io) {
     this.io = io;
@@ -86,7 +102,8 @@ export class RoomManager {
           ready: false,
           x: 0, y: 0, facing: "south", hp: 100, maxHp: 100,
           isDead: false, level: 1,
-          reconnectToken
+          reconnectToken,
+          joinedAt: Date.now()
         });
 
         this.rooms.set(code, room);
@@ -143,7 +160,8 @@ export class RoomManager {
           ready: false,
           x: 0, y: 0, facing: "south", hp: 100, maxHp: 100,
           isDead: false, level: 1,
-          reconnectToken
+          reconnectToken,
+          joinedAt: Date.now()
         });
 
         this.playerRooms.set(socket.id, code);
@@ -228,7 +246,7 @@ export class RoomManager {
       if (room.players.size < 2) return ack?.({ error: "Need at least 2 players" });
 
       room.state = "playing";
-      const seed = Date.now();
+      const seed = Date.now() + (crypto.randomBytes(3).readUIntBE(0, 3) % 100000);
 
       this.io.to(code).emit("game:started", {
         seed,
@@ -283,6 +301,10 @@ export class RoomManager {
           return ack?.({ error: "Player not found in room" });
         }
 
+        if (oldPlayer.userId && oldPlayer.userId !== socket.userId) {
+          return ack?.({ error: "Token does not belong to this user" });
+        }
+
         if (foundOldSocketId === socket.id) {
           return ack?.({ error: "Already connected" });
         }
@@ -331,6 +353,7 @@ export class RoomManager {
     });
 
     socket.on("game:player-update", (data) => {
+      if (!_validatePlayerState(data)) return;
       const code = this.playerRooms.get(socket.id);
       if (!code) return;
       const room = this.rooms.get(code);
@@ -414,14 +437,6 @@ export class RoomManager {
       if (player) player.isDead = true;
 
       this.io.to(code).emit("game:player-died", { playerId: socket.id });
-
-      const allDead = [...room.players.values()].every((p) => p.isDead);
-      if (allDead) {
-        room.state = "finished";
-        this.io.to(code).emit("game:over", {
-          players: this._serializePlayers(room)
-        });
-      }
     });
 
     socket.on("game:game-over", (data) => {
@@ -485,6 +500,7 @@ export class RoomManager {
     const room = this.rooms.get(code);
     if (!room) return;
 
+    const playerExists = room.players.has(socketId);
     room.players.delete(socketId);
     this.playerRooms.delete(socketId);
 
@@ -499,10 +515,26 @@ export class RoomManager {
       return;
     }
 
+    if (!playerExists) return;
+
     this.io.to(code).emit("room:player-left", { playerId: socketId });
 
     if (room.hostId === socketId) {
-      room.hostId = room.players.keys().next().value;
+      let newHostId = null;
+      for (const [pid, p] of room.players) {
+        const sock = this.io.sockets.sockets.get(pid);
+        if (sock?.connected && !p.isDead) { newHostId = pid; break; }
+      }
+      if (!newHostId) {
+        for (const [pid, p] of room.players) {
+          const sock = this.io.sockets.sockets.get(pid);
+          if (sock?.connected) { newHostId = pid; break; }
+        }
+      }
+      if (!newHostId) {
+        newHostId = room.players.keys().next().value;
+      }
+      room.hostId = newHostId;
       this.io.to(code).emit("game:host-migrated", { newHostId: room.hostId });
     }
 
@@ -518,13 +550,15 @@ export class RoomManager {
   }
 
   _serializePlayers(room) {
-    return [...room.players.values()].map((p) => ({
-      playerId: p.socketId,
-      username: p.username,
-      fighterType: p.fighterType,
-      ready: p.ready,
-      isHost: p.socketId === room.hostId
-    }));
+    return [...room.players.values()]
+      .sort((a, b) => (a.joinedAt || 0) - (b.joinedAt || 0))
+      .map((p) => ({
+        playerId: p.socketId,
+        username: p.username,
+        fighterType: p.fighterType,
+        ready: p.ready,
+        isHost: p.socketId === room.hostId
+      }));
   }
 
   _cleanupStaleRooms() {

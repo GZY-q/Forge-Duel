@@ -55,6 +55,11 @@ SETUP_GUIDE.md
 dist/
 *.backup
 
+# 文档和论文（不需要提交）
+doc/
+thesis/
+--output-dir/
+
 # 测试
 tests/
 test-results/
