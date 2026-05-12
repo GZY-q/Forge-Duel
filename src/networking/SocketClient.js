@@ -58,10 +58,25 @@ export class SocketClient {
     }
   }
 
-  emitWithAck(event, data) {
-    return new Promise((resolve) => {
+  emitWithAck(event, data, timeoutMs = 10000) {
+    return new Promise((resolve, reject) => {
+      if (!this.socket?.connected) {
+        reject(new Error("Not connected"));
+        return;
+      }
+      let settled = false;
+      const timer = setTimeout(() => {
+        if (!settled) {
+          settled = true;
+          reject(new Error("Request timed out"));
+        }
+      }, timeoutMs);
       this.emit(event, data, (response) => {
-        resolve(response);
+        if (!settled) {
+          settled = true;
+          clearTimeout(timer);
+          resolve(response);
+        }
       });
     });
   }

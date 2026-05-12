@@ -641,6 +641,8 @@ export class LobbyScene extends Phaser.Scene {
     this._destroyCodeInput();
     if (this._transitioningToGame) return;
 
+    if (this.networkManager?.isReconnecting) return;
+
     if (this.voiceManager) {
       this.voiceManager.hangup();
       this.voiceManager = null;

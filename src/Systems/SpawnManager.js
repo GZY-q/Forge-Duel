@@ -64,6 +64,18 @@ export class SpawnManager {
     });
   }
 
+  updateEnemyBehaviorsOnly(time) {
+    const damageMultiplier = this.ctx.managers.director.getEnemyDamageMultiplier();
+
+    this.ctx.entities.enemies.getChildren().forEach((enemy) => {
+      if (!enemy.active) return;
+      enemy.damage = Math.max(1, Math.round(enemy.baseDamage * damageMultiplier));
+      const target = this.ctx.getNearestPlayer(enemy);
+      enemy.tryApplyPoisonAura(target, time);
+      if (enemy.updateBossPattern) enemy.updateBossPattern(target, time);
+    });
+  }
+
   /* ── Density ── */
   maintainEnemyDensity() {
     if (this.ctx.state.isGameOver || this.ctx.state.isLeveling || this.ctx.state.isWeaponSelecting) return;
